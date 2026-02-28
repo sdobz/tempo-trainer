@@ -19,6 +19,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const hitThresholdLine = document.getElementById("hit-threshold-line");
   const hitThresholdLabel = document.getElementById("hit-threshold-label");
   const hitsList = document.getElementById("hits-list");
+  const calibrationBtn = document.getElementById("calibration-btn");
+  const calibrationStatus = document.getElementById("calibration-status");
+  const calibrationResult = document.getElementById("calibration-result");
+  const micSelect = document.getElementById("mic-select");
   const timelineViewport = document.getElementById("timeline-viewport");
   const timelineTrack = document.getElementById("timeline-track");
 
@@ -44,6 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let drillHistory = [];
   let runStartedAt = null;
   let runFinalized = false;
+  let isCompletingRun = false;
+  let completionTimeoutId;
 
   // --- Mic Test State ---
   let isMicTestRunning = false;
@@ -62,6 +68,35 @@ document.addEventListener("DOMContentLoaded", () => {
   const maxVisibleHits = 6;
   const peakHoldMs = 180;
   const peakFallPerSecond = 140;
+  const calibrationStorageKey = "tempoTrainer.calibrationOffsetMs";
+  const micDeviceStorageKey = "tempoTrainer.micDeviceId";
+  let selectedMicDeviceId = "";
+
+  // --- Calibration State ---
+  let isCalibrating = false;
+  let calibrationSchedulerIntervalID;
+  let calibrationNextNoteTime = 0;
+  let calibrationBeatInMeasure = 0;
+  let calibrationExpectedBeats = [];
+  let calibrationOffsetsMs = [];
+  let calibrationGoodHits = 0;
+  let calibrationStableWindows = 0;
+  let calibrationConfidence = 0;
+  let calibrationStartedAt = 0;
+  let calibrationOffsetMs = 0;
+  const calibrationMinHits = 10;
+  const calibrationWindowSize = 12;
+  const calibrationRequiredStableWindows = 4;
+  const calibrationMinHitsRelaxed = 18;
+  const calibrationConfidenceTarget = 100;
+  const calibrationConfidenceRelaxedTarget = 65;
+  const calibrationMaxDurationMs = 120000;
+  const calibrationEarlyWindowMs = 180;
+  const calibrationLateWindowMs = 420;
+  const calibrationMadThresholdMs = 26;
+  const calibrationDriftThresholdMs = 10;
+  const calibrationMadRelaxedThresholdMs = 36;
+  const calibrationDriftRelaxedThresholdMs = 18;
 
   // --- Timeline State ---
   const timelinePxPerBeat = 18;
@@ -103,11 +138,25 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("pointerup", () => {
     isAdjustingThreshold = false;
   });
+  if (calibrationBtn) {
+    calibrationBtn.addEventListener("click", toggleCalibration);
+  }
+  if (micSelect) {
+    micSelect.addEventListener("change", onMicSelectionChanged);
+  }
 
   // --- Metronome Functions ---
   function startStop() {
+    if (isCalibrating) {
+      stopCalibration("Calibration stopped: drill start requested.");
+    }
     if (isRunning) {
       // Stop
+      if (completionTimeoutId) {
+        window.clearTimeout(completionTimeoutId);
+        completionTimeoutId = undefined;
+      }
+      isCompletingRun = false;
       finalizeRunScoring(false);
       window.clearInterval(schedulerIntervalID);
       isRunning = false;
@@ -143,6 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
       currentMeasureInTotal = 0;
       runStartedAt = Date.now();
       runFinalized = false;
+      isCompletingRun = false;
 
       parseDrillPlan();
       resetRunScoring();
@@ -154,6 +204,265 @@ document.addEventListener("DOMContentLoaded", () => {
       schedulerIntervalID = window.setInterval(scheduler, lookahead);
       statusDiv.textContent = "Running...";
     }
+  }
+
+  function median(values) {
+    if (values.length === 0) return 0;
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+      return (sorted[middle - 1] + sorted[middle]) / 2;
+    }
+    return sorted[middle];
+  }
+
+  function mean(values) {
+    if (values.length === 0) return 0;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  function computeMad(values, medianValue) {
+    if (values.length === 0) return 0;
+    const absDeviations = values.map((value) => Math.abs(value - medianValue));
+    return median(absDeviations);
+  }
+
+  function setCalibrationStatus(message) {
+    if (calibrationStatus) {
+      calibrationStatus.textContent = message;
+    }
+  }
+
+  function setCalibrationResult(message) {
+    if (calibrationResult) {
+      calibrationResult.textContent = message;
+    }
+  }
+
+  function updateCalibrationResultLabel() {
+    const roundedOffset = Math.round(calibrationOffsetMs);
+    setCalibrationResult(`Offset compensation: ${roundedOffset} ms`);
+  }
+
+  function toggleCalibration() {
+    if (isCalibrating) {
+      stopCalibration("Calibration stopped by user.");
+      return;
+    }
+    startCalibration();
+  }
+
+  function scheduleCalibrationClick(time) {
+    const isDownbeat = calibrationBeatInMeasure === 0;
+    const freq = isDownbeat ? 880.0 : 440.0;
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.frequency.setValueAtTime(freq, time);
+    gain.gain.setValueAtTime(1, time);
+    gain.gain.exponentialRampToValueAtTime(0.00001, time + 0.05);
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+
+    osc.start(time);
+    osc.stop(time + 0.05);
+
+    calibrationExpectedBeats.push({ time, matched: false });
+    calibrationBeatInMeasure = (calibrationBeatInMeasure + 1) % beatsPerMeasure;
+  }
+
+  function calibrationScheduler() {
+    while (
+      calibrationNextNoteTime <
+      audioContext.currentTime + scheduleAheadTime
+    ) {
+      scheduleCalibrationClick(calibrationNextNoteTime);
+      calibrationNextNoteTime += beatDuration;
+    }
+
+    const staleBefore = audioContext.currentTime - 1.5;
+    calibrationExpectedBeats = calibrationExpectedBeats.filter(
+      (entry) => entry.time >= staleBefore || !entry.matched,
+    );
+
+    if (Date.now() - calibrationStartedAt > calibrationMaxDurationMs) {
+      stopCalibration(
+        calibrationGoodHits >= calibrationMinHits
+          ? "Calibration ended on time limit with best estimate."
+          : "Calibration timed out before enough consistent hits.",
+      );
+    }
+  }
+
+  async function startCalibration() {
+    try {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      await audioContext.resume();
+
+      if (!isMicTestRunning) {
+        await startMicTest();
+      }
+
+      if (isRunning) {
+        startStop();
+      }
+
+      beatDuration = 60.0 / parseInt(bpmInput.value, 10);
+      beatsPerMeasure = parseInt(timeSignatureSelect.value.split("/")[0], 10);
+
+      isCalibrating = true;
+      calibrationGoodHits = 0;
+      calibrationStableWindows = 0;
+      calibrationConfidence = 0;
+      calibrationOffsetsMs = [];
+      calibrationExpectedBeats = [];
+      calibrationBeatInMeasure = 0;
+      calibrationNextNoteTime = audioContext.currentTime + 0.1;
+      calibrationStartedAt = Date.now();
+
+      if (calibrationBtn) {
+        calibrationBtn.textContent = "Stop Calibration";
+      }
+      setCalibrationStatus(
+        "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable.",
+      );
+
+      calibrationSchedulerIntervalID = window.setInterval(
+        calibrationScheduler,
+        lookahead,
+      );
+    } catch (_error) {
+      setCalibrationStatus(
+        "Calibration failed to start: microphone or audio unavailable.",
+      );
+    }
+  }
+
+  function stopCalibration(message) {
+    if (calibrationSchedulerIntervalID) {
+      window.clearInterval(calibrationSchedulerIntervalID);
+      calibrationSchedulerIntervalID = undefined;
+    }
+    isCalibrating = false;
+    if (calibrationBtn) {
+      calibrationBtn.textContent = "Start Calibration";
+    }
+    setCalibrationStatus(message);
+    updateCalibrationResultLabel();
+  }
+
+  function maybeFinishCalibration() {
+    if (calibrationGoodHits < calibrationMinHits) {
+      setCalibrationStatus(
+        `Calibration: hits ${calibrationGoodHits}/${calibrationMinHits} | learning timing pattern...`,
+      );
+      return;
+    }
+
+    const recentOffsets = calibrationOffsetsMs.slice(-calibrationWindowSize);
+    if (recentOffsets.length < 8) {
+      return;
+    }
+
+    const recentMedian = median(recentOffsets);
+    const recentMad = computeMad(recentOffsets, recentMedian);
+    const previousOffsets = calibrationOffsetsMs.slice(
+      -calibrationWindowSize * 2,
+      -calibrationWindowSize,
+    );
+    const previousMean =
+      previousOffsets.length > 0 ? mean(previousOffsets) : recentMedian;
+    const driftMs = Math.abs(recentMedian - previousMean);
+
+    const strictStable =
+      recentMad <= calibrationMadThresholdMs &&
+      driftMs <= calibrationDriftThresholdMs;
+    const relaxedStable =
+      recentMad <= calibrationMadRelaxedThresholdMs &&
+      driftMs <= calibrationDriftRelaxedThresholdMs;
+
+    if (strictStable) {
+      calibrationStableWindows++;
+      calibrationConfidence = Math.min(
+        calibrationConfidenceTarget,
+        calibrationConfidence + 14,
+      );
+    } else if (relaxedStable) {
+      calibrationStableWindows = Math.max(0, calibrationStableWindows - 1);
+      calibrationConfidence = Math.min(
+        calibrationConfidenceTarget,
+        calibrationConfidence + 7,
+      );
+    } else {
+      calibrationStableWindows = Math.max(0, calibrationStableWindows - 1);
+      calibrationConfidence = Math.max(0, calibrationConfidence - 4);
+    }
+
+    calibrationOffsetMs = recentMedian;
+    try {
+      localStorage.setItem(calibrationStorageKey, String(calibrationOffsetMs));
+    } catch (_err) {}
+
+    const stabilityPercent = Math.round(calibrationConfidence);
+
+    setCalibrationStatus(
+      `Calibration: hits ${calibrationGoodHits}/${calibrationMinHits}+ | median ${Math.round(recentMedian)} ms | spread ${Math.round(recentMad)} ms | confidence ${stabilityPercent}%`,
+    );
+
+    const strictDone =
+      calibrationStableWindows >= calibrationRequiredStableWindows &&
+      calibrationConfidence >= calibrationConfidenceTarget;
+    const relaxedDone =
+      calibrationGoodHits >= calibrationMinHitsRelaxed &&
+      calibrationConfidence >= calibrationConfidenceRelaxedTarget;
+
+    if (strictDone || relaxedDone) {
+      stopCalibration("Calibration complete: stable offset acquired.");
+    }
+  }
+
+  function registerCalibrationHit(hitAudioTime) {
+    if (!isCalibrating) return;
+
+    let bestIndex = -1;
+    let bestDistanceMs = Number.POSITIVE_INFINITY;
+    let bestOffsetMs = 0;
+
+    calibrationExpectedBeats.forEach((entry, index) => {
+      if (entry.matched) return;
+      const offsetMs = (hitAudioTime - entry.time) * 1000;
+      if (
+        offsetMs < -calibrationEarlyWindowMs ||
+        offsetMs > calibrationLateWindowMs
+      ) {
+        return;
+      }
+
+      const distanceMs = Math.abs(offsetMs);
+      if (distanceMs < bestDistanceMs) {
+        bestDistanceMs = distanceMs;
+        bestIndex = index;
+        bestOffsetMs = offsetMs;
+      }
+    });
+
+    if (bestIndex === -1) {
+      return;
+    }
+
+    calibrationExpectedBeats[bestIndex].matched = true;
+    calibrationOffsetsMs.push(bestOffsetMs);
+    calibrationGoodHits++;
+    maybeFinishCalibration();
+  }
+
+  function getCalibratedBeatPosition(audioTime) {
+    const rawBeatPosition =
+      (audioTime - timelineRunStartAudioTime) / beatDuration;
+    const offsetBeats = calibrationOffsetMs / (beatDuration * 1000);
+    return Math.max(0, rawBeatPosition - offsetBeats);
   }
 
   function scheduler() {
@@ -197,6 +506,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateBeat() {
+    if (isCompletingRun) {
+      return;
+    }
+
     const beatNumber = (currentBeatInMeasure % beatsPerMeasure) + 1;
     const currentMeasureType =
       drillPlan[currentMeasureInTotal]?.type || "click";
@@ -220,14 +533,39 @@ document.addEventListener("DOMContentLoaded", () => {
       currentMeasureInTotal++;
       updateVisualizationHighlight(currentMeasureInTotal);
 
-      const completedMeasureIndex = currentMeasureInTotal - 1;
-      finalizeMeasureScore(completedMeasureIndex);
+      const finalizedWithLagMeasureIndex = currentMeasureInTotal - 2;
+      finalizeMeasureScore(finalizedWithLagMeasureIndex);
       updateOverallScoreDisplay();
 
       if (currentMeasureInTotal >= drillPlan.length) {
-        finalizeRunScoring(true);
-        statusDiv.textContent = "Drill complete!";
-        startStop();
+        isCompletingRun = true;
+        window.clearInterval(schedulerIntervalID);
+        schedulerIntervalID = undefined;
+
+        const finalHitGraceMs = Math.max(
+          160,
+          Math.round(
+            (lateHitAssignmentWindowBeats + 0.15) * beatDuration * 1000,
+          ),
+        );
+        statusDiv.textContent = "Drill complete. Capturing final hits...";
+
+        completionTimeoutId = window.setTimeout(() => {
+          finalizeMeasureScore(drillPlan.length - 2);
+          finalizeMeasureScore(drillPlan.length - 1);
+          updateOverallScoreDisplay();
+          finalizeRunScoring(true);
+
+          isRunning = false;
+          isCompletingRun = false;
+          completionTimeoutId = undefined;
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          beatIndicator.textContent = "";
+          beatIndicator.className = "beat-indicator";
+          updateVisualizationHighlight(-1);
+          statusDiv.textContent = "Drill complete!";
+        }, finalHitGraceMs);
       }
     }
   }
@@ -293,17 +631,23 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resetRunScoring() {
-    measureScores = Array.from({ length: drillPlan.length }, (_unused, index) =>
-      drillPlan[index]?.type === "click-in" ? null : 0,
+    measureScores = Array.from(
+      { length: drillPlan.length },
+      (_unused, index) => (drillPlan[index]?.type === "click-in" ? null : 0),
     );
     measureHits = Array.from({ length: drillPlan.length }, () => []);
-    finalizedMeasureScores = Array.from({ length: drillPlan.length }, () => false);
+    finalizedMeasureScores = Array.from(
+      { length: drillPlan.length },
+      () => false,
+    );
     updateMeasureScoreDisplay();
     updateOverallScoreDisplay();
   }
 
   function updateMeasureScoreDisplay() {
-    const blocks = document.querySelectorAll("#plan-visualization .measure-block");
+    const blocks = document.querySelectorAll(
+      "#plan-visualization .measure-block",
+    );
     blocks.forEach((block, index) => {
       const measureType = drillPlan[index]?.type;
       if (measureType === "click-in") {
@@ -608,13 +952,83 @@ document.addEventListener("DOMContentLoaded", () => {
     updateThresholdUI();
   }
 
+  function stopCurrentMicStream() {
+    if (micStream) {
+      micStream.getTracks().forEach((track) => track.stop());
+      micStream = undefined;
+    }
+  }
+
+  async function populateMicDevices() {
+    if (!micSelect || !navigator.mediaDevices?.enumerateDevices) return;
+
+    let devices;
+    try {
+      devices = await navigator.mediaDevices.enumerateDevices();
+    } catch (_err) {
+      return;
+    }
+
+    const inputDevices = devices.filter(
+      (device) => device.kind === "audioinput",
+    );
+    const previousValue = micSelect.value;
+    micSelect.innerHTML = "";
+
+    if (inputDevices.length === 0) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "No microphone found";
+      micSelect.appendChild(option);
+      micSelect.disabled = true;
+      return;
+    }
+
+    micSelect.disabled = false;
+    inputDevices.forEach((device, index) => {
+      const option = document.createElement("option");
+      option.value = device.deviceId;
+      option.textContent = device.label || `Microphone ${index + 1}`;
+      micSelect.appendChild(option);
+    });
+
+    const candidateId =
+      selectedMicDeviceId || previousValue || inputDevices[0].deviceId;
+    const exists = inputDevices.some(
+      (device) => device.deviceId === candidateId,
+    );
+    micSelect.value = exists ? candidateId : inputDevices[0].deviceId;
+    selectedMicDeviceId = micSelect.value;
+    try {
+      localStorage.setItem(micDeviceStorageKey, selectedMicDeviceId);
+    } catch (_err) {}
+  }
+
+  async function onMicSelectionChanged() {
+    if (!micSelect) return;
+    selectedMicDeviceId = micSelect.value;
+    try {
+      localStorage.setItem(micDeviceStorageKey, selectedMicDeviceId);
+    } catch (_err) {}
+
+    if (isMicTestRunning) {
+      await startMicTest();
+    }
+  }
+
   async function startMicTest() {
     try {
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
+
+      stopCurrentMicStream();
+
+      const audioConstraints = selectedMicDeviceId
+        ? { deviceId: { exact: selectedMicDeviceId } }
+        : true;
       micStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: audioConstraints,
         video: false,
       });
 
@@ -630,13 +1044,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
       source.connect(analyserNode);
 
-      rafId = requestAnimationFrame(detectHit);
+      await populateMicDevices();
+      const activeTrack = micStream.getAudioTracks()[0];
+      if (activeTrack && activeTrack.getSettings) {
+        const settings = activeTrack.getSettings();
+        if (settings.deviceId) {
+          selectedMicDeviceId = settings.deviceId;
+          if (micSelect) {
+            micSelect.value = selectedMicDeviceId;
+          }
+          try {
+            localStorage.setItem(micDeviceStorageKey, selectedMicDeviceId);
+          } catch (_err) {}
+        }
+      }
+
+      if (!rafId) {
+        rafId = requestAnimationFrame(detectHit);
+      }
     } catch (err) {
       hitsList.textContent = `Mic unavailable: ${err.message}`;
     }
   }
 
   function detectHit() {
+    if (!analyserNode || !dataArray) {
+      rafId = requestAnimationFrame(detectHit);
+      return;
+    }
+
     const now = performance.now();
     if (!lastDetectTime) {
       lastDetectTime = now;
@@ -686,15 +1122,19 @@ document.addEventListener("DOMContentLoaded", () => {
       hitsList.appendChild(hitElement);
 
       if (isRunning && audioContext) {
-        const detectedBeatPosition = Math.max(
-          0,
-          (audioContext.currentTime - timelineRunStartAudioTime) / beatDuration,
+        const detectedBeatPosition = getCalibratedBeatPosition(
+          audioContext.currentTime,
         );
         addTimelineDetection(detectedBeatPosition);
-        const scoredMeasureIndex = findClosestScoringMeasure(detectedBeatPosition);
+        const scoredMeasureIndex =
+          findClosestScoringMeasure(detectedBeatPosition);
         if (scoredMeasureIndex >= 0) {
           measureHits[scoredMeasureIndex].push(detectedBeatPosition);
         }
+      }
+
+      if (isCalibrating && audioContext) {
+        registerCalibrationHit(audioContext.currentTime);
       }
 
       while (hitsList.children.length > maxVisibleHits) {
@@ -721,6 +1161,21 @@ document.addEventListener("DOMContentLoaded", () => {
           hitThreshold = Math.max(0, Math.min(128, parsedThreshold));
         }
       }
+
+      const savedMicDevice = localStorage.getItem(micDeviceStorageKey);
+      if (savedMicDevice) {
+        selectedMicDeviceId = savedMicDevice;
+      }
+
+      const savedCalibrationOffset = localStorage.getItem(
+        calibrationStorageKey,
+      );
+      if (savedCalibrationOffset !== null) {
+        const parsedOffset = parseFloat(savedCalibrationOffset);
+        if (!Number.isNaN(parsedOffset)) {
+          calibrationOffsetMs = parsedOffset;
+        }
+      }
     } catch (_err) {}
 
     updateThresholdUI();
@@ -730,6 +1185,7 @@ document.addEventListener("DOMContentLoaded", () => {
     centerTimelineAtBeat(0);
     updateOverallScoreDisplay();
     renderDrillHistory();
+    updateCalibrationResultLabel();
   }
 
   init();

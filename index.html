@@ -58,6 +58,15 @@
 
       <div class="mic-test-section">
         <h2>Microphone Test</h2>
+        <div class="calibration-controls">
+          <button id="calibration-btn" type="button">Start Calibration</button>
+          <div id="calibration-status">Calibration idle.</div>
+          <div id="calibration-result">Offset compensation: 0 ms</div>
+        </div>
+        <div class="mic-selector-row">
+          <label for="mic-select">Microphone:</label>
+          <select id="mic-select"></select>
+        </div>
         <div id="mic-level">
           <div id="mic-level-bar"></div>
           <div id="mic-peak-hold"></div>
