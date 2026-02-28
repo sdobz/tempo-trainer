@@ -17,6 +17,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const hitThresholdLine = document.getElementById("hit-threshold-line");
   const hitThresholdLabel = document.getElementById("hit-threshold-label");
   const hitsList = document.getElementById("hits-list");
+  const timelineViewport = document.getElementById("timeline-viewport");
+  const timelineTrack = document.getElementById("timeline-track");
 
   // --- Audio Context ---
   let audioContext;
@@ -33,11 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Drill State ---
   let drillPlan = [];
-  let currentDrillStep = 0;
-  let measuresInCurrentStep = 0;
-  let repsInCurrentStep = 0;
-  let isMutedForDrill = false;
-  let totalMeasuresInDrill = 0;
   let currentMeasureInTotal = 0;
 
   // --- Mic Test State ---
@@ -57,6 +54,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const maxVisibleHits = 6;
   const peakHoldMs = 180;
   const peakFallPerSecond = 140;
+
+  // --- Timeline State ---
+  const timelinePxPerBeat = 18;
+  const defaultTimelineMeasures = 64;
+  let timelineRunStartAudioTime = 0;
+  let timelineLastBeatPosition = 0;
 
   // --- Event Listeners ---
   startBtn.addEventListener("click", startStop);
@@ -119,15 +122,18 @@ document.addEventListener("DOMContentLoaded", () => {
       startBtn.disabled = true;
       stopBtn.disabled = false;
 
-      nextNoteTime = audioContext.currentTime + 0.1;
-      currentBeatInMeasure = 0;
-      currentMeasureInTotal = 0;
       beatDuration = 60.0 / parseInt(bpmInput.value, 10);
       beatsPerMeasure = parseInt(timeSignatureSelect.value.split("/")[0], 10);
 
+      nextNoteTime = audioContext.currentTime + 0.1;
+      currentBeatInMeasure = 0;
+      currentMeasureInTotal = 0;
+
       parseDrillPlan();
-      setupCurrentDrillStep();
       updateVisualizationHighlight(0);
+      timelineRunStartAudioTime = audioContext.currentTime;
+      timelineLastBeatPosition = 0;
+      centerTimelineAtBeat(0);
 
       schedulerIntervalID = window.setInterval(scheduler, lookahead);
       statusDiv.textContent = "Running...";
@@ -142,32 +148,50 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function scheduleNote(time) {
-    if (!isMutedForDrill) {
-      const isDownbeat = currentBeatInMeasure === 0;
-      const freq = isDownbeat ? 880.0 : 440.0;
-      const osc = audioContext.createOscillator();
-      const gain = audioContext.createGain();
+    const currentMeasureType =
+      drillPlan[currentMeasureInTotal]?.type || "click";
 
-      osc.frequency.setValueAtTime(freq, time);
-      gain.gain.setValueAtTime(1, time);
-      gain.gain.exponentialRampToValueAtTime(0.00001, time + 0.05);
-      osc.connect(gain);
-      gain.connect(audioContext.destination);
-
-      osc.start(time);
-      osc.stop(time + 0.05);
+    // Don't play for "silent" type, but always play for "click" and "click-in"
+    if (currentMeasureType === "silent") {
+      return;
     }
+
+    const isDownbeat = currentBeatInMeasure === 0;
+    const clickInFreq = 660.0;
+    const downbeatFreq = 880.0;
+    const beatFreq = 440.0;
+    const freq =
+      currentMeasureType === "click-in"
+        ? clickInFreq
+        : isDownbeat
+          ? downbeatFreq
+          : beatFreq;
+
+    const osc = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    osc.frequency.setValueAtTime(freq, time);
+    gain.gain.setValueAtTime(1, time);
+    gain.gain.exponentialRampToValueAtTime(0.00001, time + 0.05);
+    osc.connect(gain);
+    gain.connect(audioContext.destination);
+
+    osc.start(time);
+    osc.stop(time + 0.05);
   }
 
   function updateBeat() {
     const beatNumber = (currentBeatInMeasure % beatsPerMeasure) + 1;
+    const currentMeasureType =
+      drillPlan[currentMeasureInTotal]?.type || "click";
+    const shouldShowBeat = currentMeasureType !== "silent";
 
     const timeUntilBeat = (nextNoteTime - audioContext.currentTime) * 1000;
     setTimeout(() => {
       if (!isRunning) return;
       beatIndicator.textContent = beatNumber;
       beatIndicator.className = "beat-indicator";
-      if (!isMutedForDrill) {
+      if (shouldShowBeat) {
         beatIndicator.classList.add(beatNumber === 1 ? "downbeat" : "active");
       }
     }, timeUntilBeat);
@@ -177,83 +201,50 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (currentBeatInMeasure >= beatsPerMeasure) {
       currentBeatInMeasure = 0;
-      advanceDrill();
+      currentMeasureInTotal++;
+      updateVisualizationHighlight(currentMeasureInTotal);
+
+      if (currentMeasureInTotal >= drillPlan.length) {
+        statusDiv.textContent = "Drill complete!";
+        startStop();
+      }
     }
   }
 
   // --- Drill Functions ---
   function parseDrillPlan() {
     drillPlan = [];
+    // Always add click-in first
+    drillPlan.push({ type: "click-in" });
+
     const planString = customPlanText.value.trim();
     if (!planString) {
-      renderPlanVisualization();
-      return;
-    }
-    const steps = planString.split(";");
-    steps.forEach((step) => {
-      const parts = step
-        .trim()
-        .split(",")
-        .map((p) => parseInt(p.trim(), 10));
-      if (parts.length === 3 && !parts.some(isNaN)) {
-        drillPlan.push({ on: parts[0], off: parts[1], reps: parts[2] });
+      // Default: 64 continuous clicks
+      for (let i = 0; i < 64; i++) {
+        drillPlan.push({ type: "click" });
       }
-    });
-    renderPlanVisualization();
-  }
-
-  function setupCurrentDrillStep() {
-    currentDrillStep = 0;
-    repsInCurrentStep = 0;
-    measuresInCurrentStep = 0;
-
-    if (drillPlan.length === 0) {
-      isMutedForDrill = false;
-      statusDiv.textContent = "Running (Continuous Click)";
-      return;
-    }
-
-    isMutedForDrill = false;
-    updateStatusDisplay();
-  }
-
-  function advanceDrill() {
-    if (drillPlan.length === 0) return;
-
-    currentMeasureInTotal++;
-    updateVisualizationHighlight(currentMeasureInTotal);
-
-    measuresInCurrentStep++;
-    const step = drillPlan[currentDrillStep];
-
-    if (!isMutedForDrill && measuresInCurrentStep >= step.on) {
-      isMutedForDrill = true;
-      measuresInCurrentStep = 0;
-    } else if (isMutedForDrill && measuresInCurrentStep >= step.off) {
-      repsInCurrentStep++;
-      if (repsInCurrentStep >= step.reps) {
-        currentDrillStep++;
-        repsInCurrentStep = 0;
-        if (currentDrillStep >= drillPlan.length) {
-          statusDiv.textContent = "Drill complete!";
-          startStop();
-          return;
+    } else {
+      const steps = planString.split(";");
+      steps.forEach((step) => {
+        const parts = step
+          .trim()
+          .split(",")
+          .map((p) => parseInt(p.trim(), 10));
+        if (parts.length === 3 && !parts.some(isNaN)) {
+          const [on, off, reps] = parts;
+          for (let rep = 0; rep < reps; rep++) {
+            for (let i = 0; i < on; i++) {
+              drillPlan.push({ type: "click" });
+            }
+            for (let i = 0; i < off; i++) {
+              drillPlan.push({ type: "silent" });
+            }
+          }
         }
-      }
-      isMutedForDrill = false;
-      measuresInCurrentStep = 0;
+      });
     }
-    updateStatusDisplay();
-  }
-
-  function updateStatusDisplay() {
-    if (drillPlan.length === 0 || currentDrillStep >= drillPlan.length) return;
-
-    const step = drillPlan[currentDrillStep];
-    const state = isMutedForDrill ? "SILENCE" : "CLICK";
-    const totalMeasuresInPart = isMutedForDrill ? step.off : step.on;
-
-    statusDiv.textContent = `Step ${currentDrillStep + 1}/${drillPlan.length} | Rep ${repsInCurrentStep + 1}/${step.reps} | ${state}: Measure ${measuresInCurrentStep + 1}/${totalMeasuresInPart}`;
+    renderPlanVisualization();
+    buildTimeline();
   }
 
   // --- Visualization Functions ---
@@ -265,24 +256,125 @@ document.addEventListener("DOMContentLoaded", () => {
     const viz = document.createElement("div");
     viz.id = "plan-visualization";
 
-    totalMeasuresInDrill = 0;
-    drillPlan.forEach((step) => {
-      for (let i = 0; i < step.reps; i++) {
-        for (let j = 0; j < step.on; j++) {
-          const block = document.createElement("div");
-          block.className = "measure-block on";
-          viz.appendChild(block);
-          totalMeasuresInDrill++;
-        }
-        for (let j = 0; j < step.off; j++) {
-          const block = document.createElement("div");
-          block.className = "measure-block off";
-          viz.appendChild(block);
-          totalMeasuresInDrill++;
-        }
-      }
+    drillPlan.forEach((measure, index) => {
+      const block = document.createElement("div");
+      block.className = `measure-block ${measure.type}`;
+      block.dataset.measureIndex = String(index);
+      block.addEventListener("click", onPlanMeasureClick);
+      viz.appendChild(block);
     });
     planVisualizationContainer.appendChild(viz);
+  }
+
+  function onPlanMeasureClick(event) {
+    if (isRunning) return;
+    const measureIndex = parseInt(
+      event.currentTarget.dataset.measureIndex || "",
+      10,
+    );
+    if (Number.isNaN(measureIndex)) return;
+    timelineLastBeatPosition = measureIndex * beatsPerMeasure;
+    centerTimelineAtBeat(measureIndex * beatsPerMeasure);
+  }
+
+  function buildTimeline() {
+    renderTimelineStructure();
+    if (!isRunning) {
+      centerTimelineAtBeat(timelineLastBeatPosition);
+    }
+  }
+
+  function renderTimelineStructure() {
+    timelineTrack.innerHTML = "";
+
+    if (drillPlan.length === 0) return;
+
+    const viewportWidth = timelineViewport.clientWidth;
+    const totalBeats = drillPlan.length * beatsPerMeasure;
+    const contentWidth = totalBeats * timelinePxPerBeat;
+    const paddingWidth = viewportWidth;
+    const totalWidth = paddingWidth + contentWidth + paddingWidth;
+
+    timelineTrack.style.width = `${totalWidth}px`;
+
+    // Create 4 layers
+    const groupsLayer = document.createElement("div");
+    groupsLayer.className = "timeline-layer timeline-groups";
+
+    const gridLayer = document.createElement("div");
+    gridLayer.className = "timeline-layer timeline-grid";
+
+    const expectationsLayer = document.createElement("div");
+    expectationsLayer.className = "timeline-layer timeline-expectations";
+
+    const detectionsLayer = document.createElement("div");
+    detectionsLayer.className = "timeline-layer timeline-detections";
+
+    const offsetX = paddingWidth;
+
+    // Render groups and grid
+    drillPlan.forEach((measure, measureIndex) => {
+      const startBeat = measureIndex * beatsPerMeasure;
+      const endBeat = startBeat + beatsPerMeasure;
+      const colorClass = measure.type;
+
+      // Group background
+      const groupElement = document.createElement("div");
+      groupElement.className = `timeline-group timeline-group-${colorClass}`;
+      groupElement.style.left = `${offsetX + startBeat * timelinePxPerBeat}px`;
+      groupElement.style.width = `${beatsPerMeasure * timelinePxPerBeat}px`;
+      groupsLayer.appendChild(groupElement);
+
+      // Grid line at start of measure
+      const gridLine = document.createElement("div");
+      gridLine.className = "timeline-grid-line";
+      gridLine.style.left = `${offsetX + startBeat * timelinePxPerBeat}px`;
+      gridLayer.appendChild(gridLine);
+
+      // Expectation circles for each beat
+      for (let beat = startBeat; beat < endBeat; beat++) {
+        const circle = document.createElement("div");
+        // Filled circles for click-in (no hits expected), empty for click/silent
+        circle.className =
+          measure.type === "click-in"
+            ? "timeline-expectation timeline-expectation-filled"
+            : "timeline-expectation";
+        circle.style.left = `${offsetX + beat * timelinePxPerBeat}px`;
+        expectationsLayer.appendChild(circle);
+      }
+    });
+
+    timelineTrack.appendChild(groupsLayer);
+    timelineTrack.appendChild(gridLayer);
+    timelineTrack.appendChild(expectationsLayer);
+    timelineTrack.appendChild(detectionsLayer);
+  }
+
+  function beatToX(beatPosition) {
+    const viewportWidth = timelineViewport.clientWidth;
+    const offsetX = viewportWidth;
+    return offsetX + beatPosition * timelinePxPerBeat;
+  }
+
+  function addTimelineDetection(beatPosition) {
+    const detectionsLayer = timelineTrack.querySelector(".timeline-detections");
+    if (!detectionsLayer) return;
+    const dot = document.createElement("div");
+    dot.className = "timeline-detection";
+    dot.style.left = `${beatToX(beatPosition)}px`;
+    detectionsLayer.appendChild(dot);
+  }
+
+  function centerTimelineAtBeat(beatPosition) {
+    const viewportWidth = timelineViewport.clientWidth;
+    const trackWidth = timelineTrack.offsetWidth;
+    const targetX = beatToX(beatPosition);
+
+    let left = viewportWidth / 2 - targetX;
+    const minLeft = Math.min(0, viewportWidth - trackWidth);
+    left = Math.max(minLeft, Math.min(0, left));
+
+    timelineTrack.style.transform = `translateX(${left}px)`;
   }
 
   function updateVisualizationHighlight(currentMeasure) {
@@ -311,8 +403,7 @@ document.addEventListener("DOMContentLoaded", () => {
     hitThreshold = Math.round(ratio * 128);
     try {
       localStorage.setItem(thresholdStorageKey, String(hitThreshold));
-    } catch (_err) {
-    }
+    } catch (_err) {}
     updateThresholdUI();
   }
 
@@ -365,11 +456,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const micLevelPercent = (maxVal / 128) * 100;
     micLevelBar.style.width = `${micLevelPercent}%`;
 
+    if (isRunning && audioContext) {
+      const beatPosition =
+        (audioContext.currentTime - timelineRunStartAudioTime) / beatDuration;
+      timelineLastBeatPosition = beatPosition;
+      centerTimelineAtBeat(beatPosition);
+    }
+
     if (maxVal >= peakHoldValue) {
       peakHoldValue = maxVal;
       peakHoldUntil = now + peakHoldMs;
     } else if (now > peakHoldUntil) {
-      peakHoldValue = Math.max(maxVal, peakHoldValue - peakFallPerSecond * deltaSeconds);
+      peakHoldValue = Math.max(
+        maxVal,
+        peakHoldValue - peakFallPerSecond * deltaSeconds,
+      );
     }
     micPeakHold.style.left = `${(peakHoldValue / 128) * 100}%`;
 
@@ -382,6 +483,14 @@ document.addEventListener("DOMContentLoaded", () => {
       hitElement.setAttribute("aria-label", "Hit detected");
       hitElement.title = "Hit detected";
       hitsList.appendChild(hitElement);
+
+      if (isRunning && audioContext) {
+        const detectedBeatPosition = Math.max(
+          0,
+          (audioContext.currentTime - timelineRunStartAudioTime) / beatDuration,
+        );
+        addTimelineDetection(detectedBeatPosition);
+      }
 
       while (hitsList.children.length > maxVisibleHits) {
         hitsList.removeChild(hitsList.firstElementChild);
@@ -407,13 +516,13 @@ document.addEventListener("DOMContentLoaded", () => {
           hitThreshold = Math.max(0, Math.min(128, parsedThreshold));
         }
       }
-    } catch (_err) {
-    }
+    } catch (_err) {}
 
     updateThresholdUI();
     micPeakHold.style.left = "0%";
     startMicTest();
     parseDrillPlan();
+    centerTimelineAtBeat(0);
   }
 
   init();
