@@ -11,6 +11,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const planVisualizationContainer = document.getElementById(
     "plan-visualization-container",
   );
+  const overallScoreDisplay = document.getElementById("overall-score");
+  const drillHistoryList = document.getElementById("drill-history-list");
   const micLevel = document.getElementById("mic-level");
   const micLevelBar = document.getElementById("mic-level-bar");
   const micPeakHold = document.getElementById("mic-peak-hold");
@@ -36,6 +38,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Drill State ---
   let drillPlan = [];
   let currentMeasureInTotal = 0;
+  let measureScores = [];
+  let measureHits = [];
+  let finalizedMeasureScores = [];
+  let drillHistory = [];
+  let runStartedAt = null;
+  let runFinalized = false;
 
   // --- Mic Test State ---
   let isMicTestRunning = false;
@@ -58,6 +66,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Timeline State ---
   const timelinePxPerBeat = 18;
   const defaultTimelineMeasures = 64;
+  const timelineTailBeats = 1;
+  const bestFeasibleErrorMs = 18;
+  const maxScorableErrorMs = 220;
+  const lateHitAssignmentWindowBeats = 0.65;
   let timelineRunStartAudioTime = 0;
   let timelineLastBeatPosition = 0;
 
@@ -96,6 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function startStop() {
     if (isRunning) {
       // Stop
+      finalizeRunScoring(false);
       window.clearInterval(schedulerIntervalID);
       isRunning = false;
       startBtn.disabled = false;
@@ -128,8 +141,11 @@ document.addEventListener("DOMContentLoaded", () => {
       nextNoteTime = audioContext.currentTime + 0.1;
       currentBeatInMeasure = 0;
       currentMeasureInTotal = 0;
+      runStartedAt = Date.now();
+      runFinalized = false;
 
       parseDrillPlan();
+      resetRunScoring();
       updateVisualizationHighlight(0);
       timelineRunStartAudioTime = audioContext.currentTime;
       timelineLastBeatPosition = 0;
@@ -204,7 +220,12 @@ document.addEventListener("DOMContentLoaded", () => {
       currentMeasureInTotal++;
       updateVisualizationHighlight(currentMeasureInTotal);
 
+      const completedMeasureIndex = currentMeasureInTotal - 1;
+      finalizeMeasureScore(completedMeasureIndex);
+      updateOverallScoreDisplay();
+
       if (currentMeasureInTotal >= drillPlan.length) {
+        finalizeRunScoring(true);
         statusDiv.textContent = "Drill complete!";
         startStop();
       }
@@ -245,6 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     renderPlanVisualization();
     buildTimeline();
+    resetRunScoring();
   }
 
   // --- Visualization Functions ---
@@ -260,10 +282,189 @@ document.addEventListener("DOMContentLoaded", () => {
       const block = document.createElement("div");
       block.className = `measure-block ${measure.type}`;
       block.dataset.measureIndex = String(index);
+      block.textContent =
+        measure.type === "click-in"
+          ? ""
+          : String(measureScores[index] ?? 0).padStart(2, "0");
       block.addEventListener("click", onPlanMeasureClick);
       viz.appendChild(block);
     });
     planVisualizationContainer.appendChild(viz);
+  }
+
+  function resetRunScoring() {
+    measureScores = Array.from({ length: drillPlan.length }, (_unused, index) =>
+      drillPlan[index]?.type === "click-in" ? null : 0,
+    );
+    measureHits = Array.from({ length: drillPlan.length }, () => []);
+    finalizedMeasureScores = Array.from({ length: drillPlan.length }, () => false);
+    updateMeasureScoreDisplay();
+    updateOverallScoreDisplay();
+  }
+
+  function updateMeasureScoreDisplay() {
+    const blocks = document.querySelectorAll("#plan-visualization .measure-block");
+    blocks.forEach((block, index) => {
+      const measureType = drillPlan[index]?.type;
+      if (measureType === "click-in") {
+        block.textContent = "";
+        delete block.dataset.score;
+        return;
+      }
+      const score = Math.max(0, Math.min(99, measureScores[index] ?? 0));
+      block.textContent = String(score).padStart(2, "0");
+      block.dataset.score = String(score);
+    });
+  }
+
+  function scoreFromErrorMs(errorMs) {
+    const adjustedErrorMs = Math.max(0, errorMs - bestFeasibleErrorMs);
+    const normalized = Math.min(1, adjustedErrorMs / maxScorableErrorMs);
+    const curved = Math.pow(normalized, 0.85);
+    return Math.max(0, Math.min(99, Math.round((1 - curved) * 99)));
+  }
+
+  function findClosestScoringMeasure(beatPosition) {
+    const roughIndex = Math.floor(beatPosition / beatsPerMeasure);
+    const candidates = [roughIndex - 1, roughIndex, roughIndex + 1];
+    let bestMeasureIndex = -1;
+    let bestBeatDistance = Number.POSITIVE_INFINITY;
+
+    candidates.forEach((measureIndex) => {
+      if (measureIndex < 0 || measureIndex >= drillPlan.length) return;
+      if (drillPlan[measureIndex]?.type === "click-in") return;
+
+      const measureStartBeat = measureIndex * beatsPerMeasure;
+      for (let beatOffset = 0; beatOffset < beatsPerMeasure; beatOffset++) {
+        const expectedBeat = measureStartBeat + beatOffset;
+        const distance = Math.abs(beatPosition - expectedBeat);
+        if (distance < bestBeatDistance) {
+          bestBeatDistance = distance;
+          bestMeasureIndex = measureIndex;
+        }
+      }
+    });
+
+    if (bestBeatDistance > lateHitAssignmentWindowBeats) {
+      return -1;
+    }
+
+    return bestMeasureIndex;
+  }
+
+  function finalizeMeasureScore(measureIndex) {
+    if (measureIndex < 0 || measureIndex >= drillPlan.length) return;
+    if (finalizedMeasureScores[measureIndex]) return;
+
+    const measureType = drillPlan[measureIndex]?.type;
+    if (measureType === "click-in") {
+      measureScores[measureIndex] = null;
+      finalizedMeasureScores[measureIndex] = true;
+      updateMeasureScoreDisplay();
+      return;
+    }
+
+    const hits = [...(measureHits[measureIndex] || [])].sort((a, b) => a - b);
+    if (hits.length === 0) {
+      measureScores[measureIndex] = 0;
+      finalizedMeasureScores[measureIndex] = true;
+      updateMeasureScoreDisplay();
+      return;
+    }
+
+    const expectedBeats = [];
+    const measureStartBeat = measureIndex * beatsPerMeasure;
+    for (let beatOffset = 0; beatOffset < beatsPerMeasure; beatOffset++) {
+      expectedBeats.push(measureStartBeat + beatOffset);
+    }
+
+    const usedHitIndices = new Set();
+    let scoreSum = 0;
+
+    expectedBeats.forEach((expectedBeat) => {
+      let bestHitIndex = -1;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      hits.forEach((hitBeat, hitIndex) => {
+        if (usedHitIndices.has(hitIndex)) return;
+        const distance = Math.abs(hitBeat - expectedBeat);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestHitIndex = hitIndex;
+        }
+      });
+
+      if (bestHitIndex === -1) {
+        return;
+      }
+
+      usedHitIndices.add(bestHitIndex);
+      const errorMs = bestDistance * beatDuration * 1000;
+      scoreSum += scoreFromErrorMs(errorMs);
+    });
+
+    measureScores[measureIndex] = Math.max(
+      0,
+      Math.min(99, Math.round(scoreSum / beatsPerMeasure)),
+    );
+    finalizedMeasureScores[measureIndex] = true;
+    updateMeasureScoreDisplay();
+  }
+
+  function getOverallScore() {
+    if (drillPlan.length === 0) return 0;
+    let total = 0;
+    let count = 0;
+    drillPlan.forEach((measure, index) => {
+      if (measure.type === "click-in") return;
+      total += measureScores[index] ?? 0;
+      count++;
+    });
+    if (count === 0) return 0;
+    return Math.max(0, Math.min(99, Math.round(total / count)));
+  }
+
+  function updateOverallScoreDisplay() {
+    if (!overallScoreDisplay) return;
+    const overall = getOverallScore();
+    overallScoreDisplay.textContent = `Overall Score: ${String(overall).padStart(2, "0")}`;
+  }
+
+  function renderDrillHistory() {
+    if (!drillHistoryList) return;
+    drillHistoryList.innerHTML = "";
+    drillHistory.forEach((entry) => {
+      const item = document.createElement("li");
+      item.className = "history-item";
+      item.textContent = `${entry.timeLabel} • ${entry.completed ? "Complete" : "Stopped"} • Score ${String(entry.score).padStart(2, "0")}`;
+      drillHistoryList.appendChild(item);
+    });
+  }
+
+  function finalizeRunScoring(completed) {
+    if (runFinalized || drillPlan.length === 0) return;
+
+    for (let index = 0; index < drillPlan.length; index++) {
+      finalizeMeasureScore(index);
+    }
+    updateOverallScoreDisplay();
+
+    const now = new Date();
+    const elapsedSeconds = runStartedAt
+      ? Math.max(0, Math.round((Date.now() - runStartedAt) / 1000))
+      : 0;
+
+    drillHistory.unshift({
+      completed,
+      score: getOverallScore(),
+      elapsedSeconds,
+      timeLabel: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+    });
+    if (drillHistory.length > 12) {
+      drillHistory = drillHistory.slice(0, 12);
+    }
+    renderDrillHistory();
+    runFinalized = true;
   }
 
   function onPlanMeasureClick(event) {
@@ -290,7 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (drillPlan.length === 0) return;
 
     const viewportWidth = timelineViewport.clientWidth;
-    const totalBeats = drillPlan.length * beatsPerMeasure;
+    const totalBeats = drillPlan.length * beatsPerMeasure + timelineTailBeats;
     const contentWidth = totalBeats * timelinePxPerBeat;
     const paddingWidth = viewportWidth;
     const totalWidth = paddingWidth + contentWidth + paddingWidth;
@@ -490,6 +691,10 @@ document.addEventListener("DOMContentLoaded", () => {
           (audioContext.currentTime - timelineRunStartAudioTime) / beatDuration,
         );
         addTimelineDetection(detectedBeatPosition);
+        const scoredMeasureIndex = findClosestScoringMeasure(detectedBeatPosition);
+        if (scoredMeasureIndex >= 0) {
+          measureHits[scoredMeasureIndex].push(detectedBeatPosition);
+        }
       }
 
       while (hitsList.children.length > maxVisibleHits) {
@@ -523,6 +728,8 @@ document.addEventListener("DOMContentLoaded", () => {
     startMicTest();
     parseDrillPlan();
     centerTimelineAtBeat(0);
+    updateOverallScoreDisplay();
+    renderDrillHistory();
   }
 
   init();
