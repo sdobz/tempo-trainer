@@ -1,42 +1,62 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tempo Trainer</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
     <div class="container">
-        <h1>Tempo Trainer</h1>
-        <div class="beat-indicator"></div>
-        <div class="controls">
-            <label for="bpm">BPM:</label>
-            <input type="number" id="bpm" value="120" min="40" max="300">
-            <label for="time-signature">Time Signature:</label>
-            <select id="time-signature">
-                <option value="4/4" selected>4/4</option>
-                <option value="3/4">3/4</option>
-                <option value="2/4">2/4</option>
-                <option value="6/8">6/8</option>
-            </select>
-            <button id="start-btn">Start</button>
-            <button id="stop-btn">Stop</button>
+      <h1>Tempo Trainer</h1>
+      <div class="beat-indicator"></div>
+      <div class="controls">
+        <label for="bpm">BPM:</label>
+        <input type="number" id="bpm" value="120" min="40" max="300" />
+        <label for="time-signature">Time Signature:</label>
+        <select id="time-signature">
+          <option value="4/4" selected>4/4</option>
+          <option value="3/4">3/4</option>
+          <option value="2/4">2/4</option>
+          <option value="6/8">6/8</option>
+        </select>
+        <button id="start-btn">Start</button>
+        <button id="stop-btn">Stop</button>
+      </div>
+      <div class="plan-section">
+        <label for="plan-select">Select a Plan:</label>
+        <select id="plan-select">
+          <option value="custom">Custom Plan</option>
+          <option value="1,1,4;2,2,4;3,3,4;4,4,4">
+            Standard Pyramid (1-4)
+          </option>
+        </select>
+        <label for="custom-plan">Custom Plan (on, off, reps; ...):</label>
+        <textarea
+          id="custom-plan"
+          rows="5"
+          placeholder="Example: 1,1,4;2,2,4;3,3,4;4,4,4"
+        ></textarea>
+      </div>
+      <div
+        id="plan-visualization-container"
+        class="plan-visualization-container"
+      >
+        <h2>Plan Visualization</h2>
+      </div>
+      <div id="status">Ready.</div>
+
+      <div class="mic-test-section">
+        <h2>Microphone Test</h2>
+        <div id="mic-level">
+          <div id="mic-level-bar"></div>
+          <div id="mic-peak-hold"></div>
+          <div id="hit-threshold-line"></div>
+          <div id="hit-threshold-label">Threshold: 52</div>
         </div>
-        <div class="plan-section">
-            <label for="plan-select">Select a Plan:</label>
-            <select id="plan-select">
-                <option value="custom">Custom Plan</option>
-                <option value="1,1,4;2,2,4;3,3,4;4,4,4">Standard Pyramid (1-4)</option>
-            </select>
-            <label for="custom-plan">Custom Plan (on, off, reps; ...):</label>
-            <textarea id="custom-plan" rows="5" placeholder="Example: 1,1,4;2,2,4;3,3,4;4,4,4"></textarea>
-        </div>
-        <div id="plan-visualization-container" class="plan-visualization-container">
-            <h2>Plan Visualization</h2>
-        </div>
-        <div id="status">Ready.</div>
+        <div id="hits-list"></div>
+      </div>
     </div>
     <script src="script.js"></script>
-</body>
+  </body>
 </html>
