@@ -76,6 +76,17 @@
         <div id="hits-list"></div>
       </div>
     </div>
-    <script src="script.js"></script>
+    <!-- Load dependencies first -->
+    <script src="src/storage-manager.js"></script>
+    <!-- Load feature classes -->
+    <script src="src/metronome.js"></script>
+    <script src="src/drill-plan.js"></script>
+    <script src="src/scorer.js"></script>
+    <script src="src/timeline.js"></script>
+    <script src="src/microphone-detector.js"></script>
+    <script src="src/calibration.js"></script>
+    <script src="src/drill-history.js"></script>
+    <!-- Load main application -->
+    <script src="src/script.js"></script>
   </body>
 </html>
