@@ -102,7 +102,7 @@ class MicrophoneDetector {
 
       source.connect(this.analyserNode);
 
-      await this._populateDevices();
+      await this.populateDevices();
       const activeTrack = this.stream.getAudioTracks()[0];
       if (activeTrack && activeTrack.getSettings) {
         const settings = activeTrack.getSettings();
@@ -145,7 +145,7 @@ class MicrophoneDetector {
     }
   }
 
-  async _populateDevices() {
+  async populateDevices() {
     if (!this.elements.select || !navigator.mediaDevices?.enumerateDevices)
       return;
 

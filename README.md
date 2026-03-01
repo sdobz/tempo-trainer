@@ -63,33 +63,150 @@ A web-based metronome and rhythm training application designed for drummers and 
   - Selected microphone device
 - **Seamless Resume**: Settings are restored when you return to the application
 
+## User Interface Architecture
+
+The application follows a **multi-pane architecture** with intelligent routing to guide users through their training journey.
+
+### Four Main Panes
+
+#### 1. Onboarding Pane (`#onboarding`)
+
+**Purpose**: First-time user setup and guidance.
+
+**Features**:
+
+- Microphone device selection
+- Automatic system calibration
+- Introduction to the app features
+- One-time setup wizard
+
+**Navigation**: After completing onboarding, users automatically advance to the Plan Edit pane.
+
+#### 2. Plan Edit Pane (`#plan-edit`)
+
+**Purpose**: Select or create training drill plans.
+
+**Features**:
+
+- Preset drill plan library
+- Custom plan creator with syntax help
+- Plan preview with visual structure
+- Resume previous plans
+
+**Navigation**: Select a plan, then click "Start Training" to proceed to the Play pane.
+
+#### 3. Plan Play Pane (`#plan-play`)
+
+**Purpose**: Active training session with real-time feedback.
+
+**Features**:
+
+- Live metronome and beat indicator
+- Microphone input visualization
+- Real-time hit detection and scoring
+- Interactive timeline with progress tracking
+- Session statistics
+
+**Navigation**: Save results to advance to the History pane, or return to Plan Edit to choose a different plan.
+
+#### 4. Plan History Pane (`#plan-history`)
+
+**Purpose**: Review completed drills and track progress.
+
+**Features**:
+
+- Session archive with timestamps
+- Past scores and patterns
+- Performance trends across sessions
+- Export/analyze session data
+
+**Navigation**: Return to any previous plan or start a new training session.
+
+### Intelligent Routing
+
+The application automatically determines where to start based on user state:
+
+- **First-time users**: Always start at Onboarding pane
+  - After calibration, advance to Plan Edit
+  - Then proceed through Plan Play and History as normal
+
+- **Returning users**:
+  - If calibration is complete: Start directly at Plan Play pane
+  - If no calibration: Start at Plan Edit pane
+  - This minimizes friction for experienced users
+
+### URL-Based Navigation
+
+All application state is reflected in the URL hash:
+
+- `index.html#onboarding` - Onboarding pane
+- `index.html#plan-edit` - Plan Edit pane
+- `index.html#plan-play` - Plan Play pane
+- `index.html#plan-history` - Plan History pane
+
+**Benefits**:
+
+- Bookmarkable application states
+- Browser back/forward button support
+- Session resumability via URL
+- Shareable training states
+
 ## Usage
 
-### Basic Usage
+### Basic Usage for New Users
 
 1. Open `index.html` in a modern web browser
-2. Set your desired BPM and time signature
-3. Click **Start** to begin the metronome
+2. **Onboarding** will load automatically
+3. Follow the setup wizard:
+   - Select your microphone device
+   - Complete automatic calibration
+   - Review feature overview
+4. Click **Complete Setup** to proceed to Plan Edit
 
 ### Training with Drill Plans
 
-1. Select a preset plan or create a custom plan in the text area
-2. Click **Start** to begin the drill
-3. The metronome will automatically play and rest according to your plan
+1. **Plan Edit pane**: Select a preset plan or enter a custom plan
+   - Preset plans: Standard Pyramid (1-4), Pyramid (1-8), Quick drills
+   - Custom format: `on,off,reps;...` (e.g., `1,1,4;2,2,4;3,3,4;4,4,4`)
+2. Click **Start Training** to open the Plan Play pane
+3. In **Plan Play**:
+   - Hit the drum/instrument along with the metronome
+   - Watch the timeline and score update in real-time
+   - Green hits = accurate, Red hits = missed or off-time
+4. After completing the plan, results are saved to **Plan History**
+5. Click **New Training** to select another plan
 
 ### Using Microphone Feedback
 
-1. Click on the microphone selector to choose your input device
-2. Grant microphone permissions when prompted
-3. Adjust the threshold by clicking and dragging on the level meter
-4. Start a drill and play along to see real-time scoring
+1. In **Onboarding** (first use only), select your microphone device
+2. In **Plan Edit**, adjust your hit detection threshold if needed:
+   - Click and drag on the level meter to set sensitivity
+   - The threshold is saved for future sessions
+3. Start a training session and play along
+4. The app shows:
+   - Green markers: Accurate hits (within ±18ms)
+   - Red markers: Missed or off-time hits
+   - Real-time score percentage
 
 ### Calibrating Latency
 
-1. Click **Start Calibration**
-2. Play consistently along with the metronome clicks
-3. Wait for the calibration to complete (shows confidence percentage)
-4. The system will automatically apply the calculated offset to future drills
+**Automatic (First-Time Users)**:
+
+- Onboarding pane automatically runs calibration
+- Just play along with the metronome clicks
+- The system calculates your system's audio latency
+
+**Manual Recalibration**:
+
+- From any pane, click Settings → Recalibrate
+- Follow the same process as automatic calibration
+- This is rarely needed unless you change audio hardware
+
+**What It Does**:
+
+- Compensates for system audio input/output latency
+- Ensures hit detection is accurate to actual playing time
+- Saves the offset for all future sessions
 
 ## Technical Details
 
@@ -116,19 +233,37 @@ Tested on Chrome, Firefox, and Edge.
 
 ## File Structure
 
-- `index.html` - Main application interface
-- `style.css` - Visual styling and dark theme
+### Root Files
+
+- `index.html` - Main application interface with four semantic pane sections
+- `style.css` - Visual styling with dark theme and responsive pane layout
 - `.nojekyll` - Prevents GitHub Pages from processing files through Jekyll
-- `src/` - Source code directory
-  - `script.js` - Main application logic
-  - `metronome.js` - Metronome timing and audio engine
-  - `drill-plan.js` - Training plan parser and manager
-  - `scorer.js` - Hit detection and scoring system
-  - `timeline.js` - Visual timeline rendering
-  - `microphone-detector.js` - Audio input processing
-  - `calibration.js` - Latency calibration system
-  - `drill-history.js` - Session history tracking
-  - `storage-manager.js` - Local storage utilities
+
+### Source Code (`src/`)
+
+#### Main Orchestration
+
+- `script.js` - Main application logic and pane coordination
+- `pane-manager.js` - Navigation controller with hash-based routing and intelligent pane selection
+
+#### Feature Modules
+
+- `metronome.js` - High-precision Web Audio API-based metronome with lookahead scheduling
+- `drill-plan.js` - Training plan parser, manager, and visualization
+- `scorer.js` - Hit detection algorithm and per-measure scoring system
+- `timeline.js` - Interactive visual timeline with beat markers and hit history
+- `microphone-detector.js` - Audio input processing and real-time level analysis
+- `calibration.js` - Automatic latency calibration system with statistical analysis
+- `drill-history.js` - Session tracking and performance archive
+- `storage-manager.js` - Local storage utilities for persistent state management
+
+### Architecture Notes
+
+**No External Dependencies**: Everything is vanilla JavaScript with no build tools required. The application runs directly from `file://` URLs without a web server.
+
+**Global Scope Pattern**: All feature classes are instantiated in global scope (no ES6 modules) for maximum compatibility and simplicity.
+
+**Event-Driven Architecture**: Components communicate via callbacks rather than direct dependencies, allowing loose coupling and independent testing.
 
 ## Deployment
 

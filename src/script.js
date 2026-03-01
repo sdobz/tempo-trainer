@@ -4,8 +4,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const timeSignatureSelect = document.getElementById("time-signature");
   const startBtn = document.getElementById("start-btn");
   const stopBtn = document.getElementById("stop-btn");
-  const planSelect = document.getElementById("plan-select");
-  const customPlanText = document.getElementById("custom-plan");
   const beatIndicator = document.querySelector(".beat-indicator");
   const statusDiv = document.getElementById("status");
   const planVisualizationContainer = document.getElementById(
@@ -15,6 +13,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const drillHistoryList = document.getElementById("drill-history-list");
   const timelineViewport = document.getElementById("timeline-viewport");
   const timelineTrack = document.getElementById("timeline-track");
+  const completeOnboardingBtn = document.getElementById(
+    "complete-onboarding-btn",
+  );
+  const startPlanPlayBtn = document.getElementById("start-plan-play-btn");
+  const finishPlayBtn = document.getElementById("finish-play-btn");
+  const backToPlanBtn = document.getElementById("back-to-plan-btn");
 
   // --- Audio Context ---
   let audioContext;
@@ -28,19 +32,15 @@ document.addEventListener("DOMContentLoaded", () => {
   let timelineRunStartAudioTime = 0;
 
   // --- Feature Instances ---
-  const metronome = new Metronome(null); // Will set audioContext on first start
-
+  const planLibrary = new PlanLibrary();
+  const metronome = new Metronome(null);
   const drillPlan = new DrillPlan(planVisualizationContainer);
-
   const timeline = new Timeline(timelineViewport, timelineTrack);
-
   const scorer = new Scorer(
     parseInt(timeSignatureSelect.value.split("/")[0], 10),
     60.0 / parseInt(bpmInput.value, 10),
   );
-
   const drillHistory = new DrillHistory(drillHistoryList);
-
   const micDetector = new MicrophoneDetector(null, {
     level: document.getElementById("mic-level"),
     levelBar: document.getElementById("mic-level-bar"),
@@ -50,12 +50,20 @@ document.addEventListener("DOMContentLoaded", () => {
     hitsList: document.getElementById("hits-list"),
     select: document.getElementById("mic-select"),
   });
-
   const calibration = new Calibration(null, {
     button: document.getElementById("calibration-btn"),
     status: document.getElementById("calibration-status"),
     result: document.getElementById("calibration-result"),
   });
+  const planEditorUI = new PlanEditorUI(
+    planLibrary,
+    drillPlan,
+    bpmInput,
+    timeSignatureSelect,
+  );
+
+  // --- Pane Manager (after DOM elements ready) ---
+  const paneManager = new PaneManager();
 
   // --- Setup Feature Callbacks ---
 
@@ -77,12 +85,10 @@ document.addEventListener("DOMContentLoaded", () => {
   metronome.onBeat((beatInMeasure, time, timeUntilBeat) => {
     const measureType = drillPlan.getMeasureType(currentMeasureInTotal);
 
-    // Don't play for "silent" type
     if (measureType === "silent") {
       return false;
     }
 
-    // Schedule audio
     const clickInFreq = 660.0;
     const downbeatFreq = 880.0;
     const beatFreq = 440.0;
@@ -95,7 +101,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     metronome.scheduleClick(time, freq);
 
-    // Update UI
     const beatNumber = (beatInMeasure % metronome.beatsPerMeasure) + 1;
     const shouldShowBeat = measureType !== "silent";
 
@@ -117,7 +122,6 @@ document.addEventListener("DOMContentLoaded", () => {
     currentMeasureInTotal++;
     drillPlan.setHighlight(currentMeasureInTotal);
 
-    // Finalize previous measures with lag
     const finalizedWithLagMeasureIndex = currentMeasureInTotal - 2;
     scorer.finalizeMeasure(finalizedWithLagMeasureIndex);
     updateScoreDisplay();
@@ -146,7 +150,132 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   calibration.onStop(() => {
-    // No action needed when calibration stops
+    // Update onboarding status after calibration completes
+    updateOnboardingStatus();
+  });
+
+  //--- Onboarding Status Update ---
+
+  function updateOnboardingStatus() {
+    const micStatusEl = document.getElementById("mic-status");
+    const calibStatusEl = document.getElementById(
+      "calibration-status-indicator",
+    );
+    const micStepEl = document.getElementById("step-microphone");
+    const calibStepEl = document.getElementById("step-calibration");
+
+    // Check if microphone threshold has been adjusted (not default 52)
+    const hasAdjustedThreshold = micDetector.threshold !== 52;
+    if (micStatusEl) {
+      if (hasAdjustedThreshold) {
+        micStatusEl.textContent = "✓ Configured";
+        micStatusEl.classList.add("complete");
+      } else {
+        micStatusEl.textContent = "⚠️ Not configured";
+        micStatusEl.classList.remove("complete");
+      }
+    }
+    if (micStepEl) {
+      micStepEl.classList.toggle("complete", hasAdjustedThreshold);
+    }
+
+    // Check if calibration has been completed (non-zero offset)
+    const hasCalibrated = calibration.getOffsetMs() !== 0;
+    if (calibStatusEl) {
+      if (hasCalibrated) {
+        calibStatusEl.textContent = "✓ Calibrated";
+        calibStatusEl.classList.add("complete");
+      } else {
+        calibStatusEl.textContent = "⚠️ Not calibrated";
+        calibStatusEl.classList.remove("complete");
+      }
+    }
+    if (calibStepEl) {
+      calibStepEl.classList.toggle("complete", hasCalibrated);
+    }
+  }
+
+  // --- Pane Navigation ---
+
+  let hasInitialized = false;
+
+  const updatePaneVisibility = async (pane) => {
+    // Hide all panes
+    document.querySelectorAll(".pane").forEach((el) => {
+      el.style.display = "none";
+    });
+
+    // Show current pane
+    const currentPaneEl = document.getElementById(`pane-${pane}`);
+    if (currentPaneEl) {
+      currentPaneEl.style.display = "block";
+    }
+
+    // Update nav button states
+    document.querySelectorAll(".pane-link").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.pane === pane);
+    });
+
+    // Only start mic after app is fully initialized
+    if (!hasInitialized) return;
+
+    // Handle pane-specific setup
+    if (pane === "onboarding") {
+      // Update onboarding status indicators
+      updateOnboardingStatus();
+
+      // Ensure AudioContext exists for microphone access
+      if (!audioContext) {
+        try {
+          audioContext = new (
+            window.AudioContext || window.webkitAudioContext
+          )();
+          metronome.audioContext = audioContext;
+          micDetector.audioContext = audioContext;
+          calibration.audioContext = audioContext;
+        } catch (e) {
+          console.error("Web Audio API not available:", e);
+        }
+      }
+
+      // Start microphone detector to show levels and enumerate devices
+      if (audioContext && !micDetector.isRunning) {
+        try {
+          await micDetector.start();
+        } catch (err) {
+          console.error("Failed to start microphone detector:", err);
+        }
+      }
+    } else if (
+      pane !== "plan-play" &&
+      micDetector.isRunning &&
+      !calibration.isCalibrating
+    ) {
+      // Stop microphone detector when leaving onboarding (but not when going to play)
+      // Keep it running during play
+      micDetector.stop();
+    }
+  };
+
+  paneManager.onPaneChange(updatePaneVisibility);
+
+  // Don't show pane yet - wait for init() to set hasInitialized
+  // Just hide all panes initially
+  document.querySelectorAll(".pane").forEach((el) => {
+    el.style.display = "none";
+  });
+
+  // Setup navigation button click handlers
+  document.querySelectorAll("[data-pane]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      paneManager.navigate(btn.dataset.pane);
+    });
+  });
+
+  // Override complete onboarding to set flag
+  completeOnboardingBtn.addEventListener("click", () => {
+    StorageManager.set("tempoTrainer.hasCompletedOnboarding", "true");
+    paneManager.navigate("plan-edit");
   });
 
   // --- Event Listeners ---
@@ -154,13 +283,21 @@ document.addEventListener("DOMContentLoaded", () => {
   startBtn.addEventListener("click", startDrill);
   stopBtn.addEventListener("click", stopDrill);
 
+  // Listen for microphone threshold adjustments
+  const micLevelEl = document.getElementById("mic-level");
+  if (micLevelEl) {
+    micLevelEl.addEventListener("pointerup", () => {
+      // Update onboarding status after threshold adjustment
+      setTimeout(() => updateOnboardingStatus(), 100);
+    });
+  }
+
   // Intercept calibration button to ensure audioContext exists
   const calibrationBtn = document.getElementById("calibration-btn");
   if (calibrationBtn) {
     calibrationBtn.addEventListener(
       "click",
       async (e) => {
-        // Ensure audioContext is created before calibration starts
         if (!audioContext && !calibration.isCalibrating) {
           try {
             audioContext = new (
@@ -170,7 +307,6 @@ document.addEventListener("DOMContentLoaded", () => {
             micDetector.audioContext = audioContext;
             calibration.audioContext = audioContext;
 
-            // Start microphone if not running
             if (!micDetector.isRunning) {
               await micDetector.start();
             }
@@ -183,7 +319,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       },
       true,
-    ); // Use capture phase to run before Calibration's listener
+    );
   }
 
   bpmInput.addEventListener("input", () => {
@@ -202,17 +338,6 @@ document.addEventListener("DOMContentLoaded", () => {
     scorer.setBeatsPerMeasure(beatsPerMeasure);
     timeline.setBeatsPerMeasure(beatsPerMeasure);
     calibration.setBeatsPerMeasure(beatsPerMeasure);
-  });
-
-  planSelect.addEventListener("change", () => {
-    if (planSelect.value !== "custom") {
-      customPlanText.value = planSelect.value;
-    }
-    drillPlan.parse(customPlanText.value);
-  });
-
-  customPlanText.addEventListener("input", () => {
-    drillPlan.parse(customPlanText.value);
   });
 
   // --- Main Functions ---
@@ -234,7 +359,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // Start microphone if not already running
     if (!micDetector.isRunning) {
       await micDetector.start();
     }
@@ -253,7 +377,7 @@ document.addEventListener("DOMContentLoaded", () => {
     calibration.setBeatsPerMeasure(beatsPerMeasure);
     calibration.setBeatDuration(60.0 / bpm);
 
-    drillPlan.parse(customPlanText.value);
+    // Plan is already parsed by planEditorUI when selected
     scorer.reset();
     drillPlan.updateAllScores(scorer.getAllScores());
 
@@ -355,14 +479,36 @@ document.addEventListener("DOMContentLoaded", () => {
   async function init() {
     stopBtn.disabled = true;
 
-    // Don't create AudioContext here - it must be created after user gesture
-    // AudioContext will be created when user clicks Start or Start Calibration
+    // Initialize plan editor UI
+    planEditorUI.init();
 
-    drillPlan.parse(customPlanText.value);
+    // Determine which pane to show
+    const hasCompletedOnboarding = StorageManager.get(
+      "tempoTrainer.hasCompletedOnboarding",
+    );
+    const hasCalibration = calibration.getOffsetMs() !== 0;
+
+    let initialPane = "onboarding";
+    if (hasCompletedOnboarding) {
+      initialPane = hasCalibration ? "plan-play" : "plan-edit";
+    }
+
     timeline.centerAt(0);
     updateScoreDisplay();
     drillHistory.render();
     statusDiv.textContent = "Ready.";
+
+    // Mark initialization complete and navigate to initial pane
+    // This will trigger updatePaneVisibility which will now handle mic setup
+    hasInitialized = true;
+
+    // Navigate to appropriate pane (will trigger paneChange which shows the pane)
+    if (window.location.hash === "" || window.location.hash === "#") {
+      paneManager.navigate(initialPane);
+    } else {
+      // Hash is already set, trigger updatePaneVisibility manually
+      await updatePaneVisibility(paneManager.getCurrentPane());
+    }
   }
 
   init();

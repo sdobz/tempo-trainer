@@ -29,6 +29,13 @@ class Timeline {
     if (this.drillPlan.length === 0) return;
 
     const viewportWidth = this.viewport.clientWidth;
+
+    // Defer build if viewport doesn't have dimensions (is hidden)
+    if (viewportWidth === 0) {
+      requestAnimationFrame(() => this.build());
+      return;
+    }
+
     const totalBeats =
       this.drillPlan.length * this.beatsPerMeasure + this.tailBeats;
     const contentWidth = totalBeats * this.pxPerBeat;
@@ -103,6 +110,14 @@ class Timeline {
     this.lastBeatPosition = beatPosition;
     const viewportWidth = this.viewport.clientWidth;
     const trackWidth = this.track.offsetWidth;
+
+    // Ensure viewport has dimensions before attempting to scroll
+    if (viewportWidth === 0 || trackWidth === 0) {
+      // Defer until viewport is visible
+      requestAnimationFrame(() => this.centerAt(beatPosition));
+      return;
+    }
+
     const targetX = this._beatToX(beatPosition);
 
     let left = viewportWidth / 2 - targetX;
