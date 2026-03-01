@@ -430,12 +430,7 @@ button:disabled {
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 0.4em;
-    font-family: monospace;
-    font-size: 0.8em;
-    color: #cfcfcf;
-    max-height: 120px;
-    overflow-y: auto;
+    gap: 0.8em;
 }
 
 .history-item {
@@ -1026,6 +1021,263 @@ button:disabled {
 
 .empty-state p {
     margin: 0.5em 0;
+}
+
+/* History Display UI */
+.history-session {
+    background: #2a2a2a;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    margin-bottom: 0.8em;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.history-session:hover {
+    border-color: #4a4a4a;
+}
+
+.history-session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1em;
+    cursor: pointer;
+    background: #2a2a2a;
+    transition: background 0.2s;
+    user-select: none;
+}
+
+.history-session-header:hover {
+    background: #333333;
+}
+
+.session-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.8em;
+    flex: 1;
+    min-width: 0;
+}
+
+.session-chevron {
+    color: #666;
+    font-size: 0.9em;
+    transition: transform 0.2s;
+    min-width: 1em;
+}
+
+.history-session.expanded .session-chevron {
+    transform: rotate(180deg);
+}
+
+.session-score {
+    font-weight: 700;
+    font-size: 1.2em;
+    color: #60a5fa;
+    min-width: 2.5em;
+    text-align: center;
+}
+
+.session-plan {
+    font-weight: 600;
+    color: #ddd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5em;
+    text-align: right;
+}
+
+.session-status {
+    font-weight: 600;
+    font-size: 0.9em;
+    min-width: 110px;
+}
+
+.session-datetime {
+    color: #888;
+    font-size: 0.85em;
+    min-width: 140px;
+}
+
+/* Session Details (expanded) */
+.session-details {
+    background: #1a1a1a;
+    border-top: 1px solid #3a3a3a;
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: padding 0.2s ease, max-height 0.3s ease;
+}
+
+.history-session.expanded .session-details {
+    padding: 1.5em;
+    max-height: 1000px;
+}
+
+.details-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5em;
+    margin-bottom: 1.5em;
+}
+
+.details-row:last-child {
+    margin-bottom: 1.5em;
+}
+
+.detail-section {
+    background: #2a2a2a;
+    border-left: 3px solid #3b82f6;
+    border-radius: 4px;
+    padding: 1em;
+}
+
+.detail-title {
+    font-weight: 600;
+    color: #60a5fa;
+    margin-bottom: 0.8em;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.detail-content {
+    color: #bbb;
+    font-size: 0.9em;
+    line-height: 1.6;
+}
+
+.detail-content p {
+    margin: 0.4em 0;
+    color: #ccc;
+}
+
+.detail-content strong {
+    color: #ddd;
+    font-weight: 600;
+}
+
+/* Metrics Display */
+.detail-metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6em;
+}
+
+.metric-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.6em 0;
+    border-bottom: 1px solid #3a3a3a;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.metric-item:last-child {
+    border-bottom: none;
+}
+
+.metric-name {
+    color: #999;
+    font-weight: 500;
+}
+
+.metric-value {
+    color: #ddd;
+    text-align: right;
+    font-weight: 600;
+}
+
+/* Session Actions */
+.session-actions {
+    display: flex;
+    gap: 0.8em;
+    margin-top: 1.2em;
+    flex-wrap: wrap;
+}
+
+.retry-session-btn,
+.select-plan-btn {
+    padding: 0.7em 1.2em;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+    min-width: 140px;
+}
+
+.retry-session-btn {
+    background: #3b82f6;
+    color: white;
+}
+
+.retry-session-btn:hover {
+    background: #2563eb;
+}
+
+.select-plan-btn {
+    background: #3a3a3a;
+    color: #ccc;
+    border: 1px solid #4a4a4a;
+}
+
+.select-plan-btn:hover {
+    background: #4a4a4a;
+    border-color: #5a5a5a;
+}
+
+/* Empty History */
+.empty-history {
+    text-align: center;
+    padding: 2em;
+    color: #888;
+}
+
+.empty-history p {
+    margin: 0.5em 0;
+    font-size: 0.95em;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .session-header-right {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.5em;
+    }
+
+    .session-datetime {
+        min-width: auto;
+        font-size: 0.8em;
+    }
+
+    .session-status {
+        min-width: auto;
+    }
+
+    .details-row {
+        grid-template-columns: 1fr;
+    }
+
+    .session-actions {
+        flex-direction: column;
+    }
+
+    .retry-session-btn,
+    .select-plan-btn {
+        width: 100%;
+        min-width: auto;
+    }
 }
 
 

@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     60.0 / parseInt(bpmInput.value, 10),
   );
   const drillHistory = new DrillHistory(drillHistoryList);
+  const practiceSessionManager = new PracticeSessionManager();
   const micDetector = new MicrophoneDetector(null, {
     level: document.getElementById("mic-level"),
     levelBar: document.getElementById("mic-level-bar"),
@@ -64,6 +65,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Pane Manager (after DOM elements ready) ---
   const paneManager = new PaneManager();
+
+  // --- History Display UI (after DOM elements ready) ---
+  const drillHistoryListEl = document.getElementById("drill-history-list");
+  const historyDisplayUI = new HistoryDisplayUI(
+    drillHistoryListEl,
+    planEditorUI,
+    paneManager,
+  );
 
   // --- Setup Feature Callbacks ---
 
@@ -462,6 +471,29 @@ document.addEventListener("DOMContentLoaded", () => {
       : 0;
 
     drillHistory.addEntry(completed, scorer.getOverallScore(), elapsedSeconds);
+
+    // Save detailed session data with metrics and recommendations
+    const sessionData = {
+      plan: planEditorUI.getCurrentPlan(),
+      bpm: parseInt(bpmInput.value, 10),
+      timeSignature: timeSignatureSelect.value,
+      completed,
+      durationSeconds: elapsedSeconds,
+      measureHits: scorer.measureHits,
+      measureScores: scorer.getAllScores(),
+      drillPlan: drillPlan.plan,
+      overallScore: scorer.getOverallScore(),
+    };
+
+    const session = practiceSessionManager.saveSession(sessionData);
+
+    // Update history display and navigate to history pane with expanded session
+    if (session) {
+      const allSessions = practiceSessionManager.getSessions();
+      historyDisplayUI.displaySessions(allSessions, session.id);
+      paneManager.navigate("plan-history");
+    }
+
     runFinalized = true;
   }
 
@@ -496,6 +528,13 @@ document.addEventListener("DOMContentLoaded", () => {
     timeline.centerAt(0);
     updateScoreDisplay();
     drillHistory.render();
+
+    // Display existing sessions from history
+    const sessions = practiceSessionManager.getSessions();
+    if (sessions.length > 0) {
+      historyDisplayUI.displaySessions(sessions);
+    }
+
     statusDiv.textContent = "Ready.";
 
     // Mark initialization complete and navigate to initial pane

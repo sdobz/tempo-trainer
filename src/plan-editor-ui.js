@@ -140,6 +140,18 @@ class PlanEditorUI {
     return this.currentPlan;
   }
 
+  selectPlanByObject(planObject) {
+    // Select a plan by its object (used for retrying from history)
+    if (!planObject || !planObject.id) return;
+
+    const plan = this.planLibrary.getPlanById(planObject.id);
+    if (plan) {
+      this.planLibrarySelect.value = plan.id;
+      this.showPlanInfo(plan);
+      this.updateUrlWithPlan(plan.id);
+    }
+  }
+
   populatePlanLibrary() {
     const plans = this.planLibrary.getAllPlans();
     this.planLibrarySelect.innerHTML =
