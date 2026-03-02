@@ -1,5 +1,11 @@
-// Manages drill plan parsing and visualization
+/**
+ * DrillPlan manages drill plan parsing, visualization, and measure tracking.
+ */
 class DrillPlan {
+  /**
+   * Creates a new DrillPlan instance.
+   * @param {HTMLElement} container - DOM element to render plan into
+   */
   constructor(container) {
     this.container = container;
     this.plan = [];
@@ -8,14 +14,28 @@ class DrillPlan {
     this.onMeasureClickCallback = null;
   }
 
+  /**
+   * Registers a callback to be invoked when the plan changes.
+   * @param {Function} callback - Function to call with new plan array
+   */
   onPlanChange(callback) {
     this.onPlanChangeCallback = callback;
   }
 
+  /**
+   * Registers a callback to be invoked when a measure is clicked.
+   * @param {Function} callback - Function to call with measure index parameter
+   */
   onMeasureClick(callback) {
     this.onMeasureClickCallback = callback;
   }
 
+  /**
+   * Parses a plan string into measures and renders visualization.
+   * Format: "on,off,reps;on,off,reps;..." (separated by semicolons)
+   * @param {string} planString - Plan string to parse
+   * @returns {Array} Array of measure objects with type (click, silent, or click-in)
+   */
   parse(planString) {
     this.plan = [];
     this.segments = []; // Store segment structure for visualization
@@ -68,6 +88,10 @@ class DrillPlan {
     return this.plan;
   }
 
+  /**
+   * Renders the plan visualization in the container as measure blocks.
+   * Creates visual representations of click, silent, and click-in measures.
+   */
   render() {
     // Remove old visualization
     const oldViz = this.container.querySelector("#plan-visualization");
@@ -173,6 +197,11 @@ class DrillPlan {
     this.container.appendChild(viz);
   }
 
+  /**
+   * Updates the displayed score for a single measure.
+   * @param {number} measureIndex - Index of the measure to update
+   * @param {number} [score] - Score value (0-99, clamped), undefined clears the score
+   */
   updateMeasureScore(measureIndex, score) {
     const blocks = this.container.querySelectorAll("#plan-visualization .measure-block");
     if (measureIndex >= 0 && measureIndex < blocks.length) {
@@ -190,12 +219,20 @@ class DrillPlan {
     }
   }
 
+  /**
+   * Updates scores for all measures.
+   * @param {Array<number>} scores - Array of score values to apply to measures in order
+   */
   updateAllScores(scores) {
     scores.forEach((score, index) => {
       this.updateMeasureScore(index, score);
     });
   }
 
+  /**
+   * Highlights the current beat measure by adding CSS class.
+   * @param {number} measureIndex - Index of the measure to highlight
+   */
   setHighlight(measureIndex) {
     this.currentMeasureIndex = measureIndex;
     const blocks = this.container.querySelectorAll("#plan-visualization .measure-block");
@@ -209,15 +246,30 @@ class DrillPlan {
     });
   }
 
+  /**
+   * Gets the type of a measure.
+   * @param {number} measureIndex - Index of the measure
+   * @returns {string|null} Measure type: "click-in", "click", "silent", or null if out of bounds
+   */
   getMeasureType(measureIndex) {
     return this.plan[measureIndex]?.type || null;
   }
 
+  /**
+   * Gets the total number of measures in the plan.
+   * @returns {number} The length of the plan array
+   */
   getLength() {
     return this.plan.length;
   }
 
+  /**
+   * Gets the entire parsed plan array.
+   * @returns {Array} Array of measure objects
+   */
   getPlan() {
     return this.plan;
   }
 }
+
+export default DrillPlan;

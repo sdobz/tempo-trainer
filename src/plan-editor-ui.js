@@ -1,8 +1,15 @@
 /**
- * Plan Editor UI
- * Manages the plan library interface, plan info display, and visual plan editor
+ * PlanEditorUI manages the plan library interface, plan info display, and visual plan editor.
+ * Handles plan selection, creation, editing, deletion, and cloning.
  */
 class PlanEditorUI {
+  /**
+   * Creates a new PlanEditorUI instance.
+   * @param {PlanLibrary} planLibrary - Instance of PlanLibrary for plan management
+   * @param {DrillPlan} drillPlan - Instance of DrillPlan for visualization
+   * @param {HTMLInputElement} bpmInput - BPM input element
+   * @param {HTMLSelectElement} timeSignatureSelect - Time signature dropdown element
+   */
   constructor(planLibrary, drillPlan, bpmInput, timeSignatureSelect) {
     this.planLibrary = planLibrary;
     this.drillPlan = drillPlan;
@@ -41,6 +48,9 @@ class PlanEditorUI {
     this.setupEventListeners();
   }
 
+  /**
+   * Sets up all event listeners for plan library controls and editor buttons.
+   */
   setupEventListeners() {
     this.planLibrarySelect.addEventListener("change", () => {
       if (this.planLibrarySelect.value) {
@@ -90,6 +100,10 @@ class PlanEditorUI {
     });
   }
 
+  /**
+   * Initializes the plan editor UI by populating the plan library dropdown
+   * and restoring the selected plan from URL if available.
+   */
   init() {
     this.populatePlanLibrary();
 
@@ -117,12 +131,20 @@ class PlanEditorUI {
     }
   }
 
+  /**
+   * Extracts the plan ID from the URL query parameter.
+   * @returns {string|null} The plan ID or null if not present
+   */
   getPlanIdFromUrl() {
     // Extract plan ID from URL query parameter
     const params = new URLSearchParams(window.location.search);
     return params.get("plan");
   }
 
+  /**
+   * Updates the browser URL to include the selected plan ID.
+   * @param {string|null} planId - The plan ID to include, or null to remove it
+   */
   updateUrlWithPlan(planId) {
     // Update URL with selected plan without reloading
     const url = new URL(window.location);
@@ -134,10 +156,19 @@ class PlanEditorUI {
     window.history.replaceState({}, "", url);
   }
 
+  /**
+   * Gets the currently displayed plan.
+   * @returns {Object|null} The currently selected plan or null if none selected
+   */
   getCurrentPlan() {
     return this.currentPlan;
   }
 
+  /**
+   * Selects and displays a plan by its object reference.
+   * Useful for retrying a plan from session history.
+   * @param {Object} planObject - The plan object to select
+   */
   selectPlanByObject(planObject) {
     // Select a plan by its object (used for retrying from history)
     if (!planObject || !planObject.id) return;
@@ -150,6 +181,10 @@ class PlanEditorUI {
     }
   }
 
+  /**
+   * Populates the plan library dropdown with all available plans,
+   * grouped into built-in and custom categories.
+   */
   populatePlanLibrary() {
     const plans = this.planLibrary.getAllPlans();
     this.planLibrarySelect.innerHTML = '<option value="">Select a plan...</option>';
@@ -182,6 +217,11 @@ class PlanEditorUI {
     }
   }
 
+  /**
+   * Displays plan information and statistics for the given plan.
+   * Updates the visualization with the plan's structure.
+   * @param {Object} plan - The plan object to display
+   */
   showPlanInfo(plan) {
     this.currentPlan = plan;
 
@@ -213,6 +253,9 @@ class PlanEditorUI {
     this.drillPlan.parse(planString);
   }
 
+  /**
+   * Hides the plan info display and associated UI elements.
+   */
   hidePlanInfo() {
     this.currentPlan = null;
     this.planInfoDisplay.style.display = "none";
@@ -221,6 +264,10 @@ class PlanEditorUI {
     this.editPlanBtn.style.display = "none";
   }
 
+  /**
+   * Shows the plan editor interface for creating or editing a plan.
+   * @param {Object} [plan=null] - Plan to edit, or null to create a new one
+   */
   showPlanEditor(plan = null) {
     if (plan) {
       // Editing existing plan
@@ -246,12 +293,18 @@ class PlanEditorUI {
     this.hidePlanInfo();
   }
 
+  /**
+   * Hides the plan editor interface.
+   */
   hidePlanEditor() {
     this.planEditorSection.style.display = "none";
     this.editingPlan = null;
     this.editingSegments = [];
   }
 
+  /**
+   * Updates the plan visualization to reflect current editing segments.
+   */
   updateEditingVisualization() {
     // Update the plan visualization with current editing segments
     if (this.editingSegments.length > 0) {
@@ -260,6 +313,9 @@ class PlanEditorUI {
     }
   }
 
+  /**
+   * Renders the segments list UI with controls for editing each segment.
+   */
   renderSegments() {
     this.segmentsList.innerHTML = "";
 
@@ -332,12 +388,19 @@ class PlanEditorUI {
     });
   }
 
+  /**
+   * Adds a new segment to the editing plan.
+   */
   addSegment() {
     this.editingSegments.push({ on: 1, off: 1, reps: 1 });
     this.renderSegments();
     this.updateEditingVisualization();
   }
 
+  /**
+   * Deletes a segment from the editing plan.
+   * @param {number} index - Index of segment to delete
+   */
   deleteSegment(index) {
     if (this.editingSegments.length === 1) {
       alert("You must have at least one segment.");
@@ -348,6 +411,10 @@ class PlanEditorUI {
     this.updateEditingVisualization();
   }
 
+  /**
+   * Saves the current editing plan to the library.
+   * Validates that plan has a name and at least one segment.
+   */
   savePlan() {
     const name = this.planNameInput.value.trim();
     if (!name) {
@@ -391,6 +458,10 @@ class PlanEditorUI {
     }
   }
 
+  /**
+   * Deletes the currently editing plan after confirmation.
+   * Cannot delete built-in plans.
+   */
   deletePlan() {
     if (!this.editingPlan || this.editingPlan.isBuiltIn) {
       return;
@@ -414,6 +485,10 @@ class PlanEditorUI {
     }
   }
 
+  /**
+   * Creates a copy of the currently displayed plan as a custom plan.
+   * Prompts user for a name for the cloned plan.
+   */
   clonePlan() {
     if (!this.currentPlan) return;
 
@@ -433,3 +508,5 @@ class PlanEditorUI {
     }
   }
 }
+
+export default PlanEditorUI;

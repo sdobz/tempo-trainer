@@ -1,3 +1,18 @@
+// --- ESM Module Imports ---
+import StorageManager from "./storage-manager.js";
+import Calibration from "./calibration.js";
+import Metronome from "./metronome.js";
+import Scorer from "./scorer.js";
+import MicrophoneDetector from "./microphone-detector.js";
+import PlanLibrary from "./plan-library.js";
+import DrillPlan from "./drill-plan.js";
+import Timeline from "./timeline.js";
+import PaneManager from "./pane-manager.js";
+import PlanEditorUI from "./plan-editor-ui.js";
+import HistoryDisplayUI from "./history-display-ui.js";
+import PracticeSessionManager from "./practice-session-manager.js";
+import DrillHistory from "./drill-history.js";
+
 document.addEventListener("DOMContentLoaded", () => {
   // --- DOM Elements ---
   const bpmInput = document.getElementById("bpm");

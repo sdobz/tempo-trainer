@@ -1,15 +1,33 @@
+import StorageManager from "./storage-manager.js";
+
 /**
- * Practice Session Manager
- * Stores detailed practice session data with drummer-specific metrics and recommendations
+ * PracticeSessionManager handles persistent storage and analysis of practice sessions.
+ * Derives drummer-specific metrics including timing consistency, hit accuracy, and recommendations.
  */
 class PracticeSessionManager {
+  /**
+   * Creates a new PracticeSessionManager instance.
+   * Manages up to 100 stored practice sessions in browser storage.
+   */
   constructor() {
     this.storageKey = "tempoTrainer.practiceSessions";
     this.maxSessions = 100;
   }
 
   /**
-   * Save a completed practice session with rich data
+   * Saves a completed practice session with rich drummer metrics.
+   * Automatically derives metrics from session data and stores the session.
+   * @param {Object} sessionData - Session data including plan, BPM, hits, and scores
+   * @param {Object} sessionData.plan - The practice plan used ({id, name, difficulty, segments})
+   * @param {number} sessionData.bpm - Beats per minute used in session
+   * @param {string} sessionData.timeSignature - Time signature (e.g., "4/4")
+   * @param {boolean} sessionData.completed - Whether session was fully completed
+   * @param {number} sessionData.durationSeconds - Total session duration in seconds
+   * @param {Array<Array<number>>} sessionData.measureHits - Hit beat times per measure
+   * @param {Array<number>} sessionData.measureScores - Score for each measure
+   * @param {Array} sessionData.drillPlan - The parsed drill plan structure
+   * @param {number} sessionData.overallScore - Overall session score
+   * @returns {Object|null} The saved session with derived metrics, or null if save failed
    */
   saveSession(sessionData) {
     const session = {
@@ -48,7 +66,10 @@ class PracticeSessionManager {
   }
 
   /**
-   * Derive drummer-relevant metrics from session data
+   * Derives drummer-specific metrics from session data.
+   * Calculates drift (tempo control), missed measures, rhythm consistency, and weak spots.
+   * @param {Object} sessionData - Raw session data to analyze
+   * @returns {Object} Metrics object with drift, missed, rhythm, weakSpots, consistency, completion
    */
   deriveMetrics(sessionData) {
     const metrics = {};
@@ -75,8 +96,10 @@ class PracticeSessionManager {
   }
 
   /**
-   * DRIFT: Are hits consistently early or late?
-   * This shows tempo control - if you're always 50ms late, you're rushing or dragging
+   * Calculates tempo drift - whether hits are consistently early or late.
+   * Shows tempo control: positive = hitting late/dragging, negative = hitting early/rushing
+   * @param {Object} sessionData - Session data with measureHits and drillPlan
+   * @returns {Object} Drift metrics with avgErrorBeats, direction, severity, and description
    */
   calculateDrift(sessionData) {
     const { measureHits, drillPlan, timeSignature } = sessionData;
@@ -136,7 +159,10 @@ class PracticeSessionManager {
   }
 
   /**
-   * MISSED: Which measures had no hits or very few hits?
+   * Calculates missed measures - which measures had no hits or few hits.
+   * Indicates focus/concentration issues or technical breakdowns during practice.
+   * @param {Object} sessionData - Session data with measureHits and drillPlan
+   * @returns {Object} Missed metrics with counts, indices, and description
    */
   calculateMissed(sessionData) {
     const { measureHits, drillPlan, timeSignature } = sessionData;
@@ -183,8 +209,10 @@ class PracticeSessionManager {
   }
 
   /**
-   * RHYTHM: How consistent are the hit times within measures?
-   * Lower variance = better rhythm sense
+   * Calculates rhythm consistency - how even are the intervals between hits.
+   * Lower variance indicates better rhythm sense and control.
+   * @param {Object} sessionData - Session data with measureHits array
+   * @returns {Object} Rhythm metrics with variance, consistency level, and description
    */
   calculateRhythm(sessionData) {
     const { measureHits } = sessionData;
@@ -228,7 +256,10 @@ class PracticeSessionManager {
   }
 
   /**
-   * WEAK SPOTS: Which measures scored lowest?
+   * Finds weak spots - measures with the lowest scores in the session.
+   * Identifies technical problem areas for focused practice.
+   * @param {Object} sessionData - Session data with measureScores and drillPlan
+   * @returns {Object} Weak spots with weakestMeasures array and average score
    */
   findWeakSpots(sessionData) {
     const { measureScores, drillPlan } = sessionData;
@@ -251,7 +282,10 @@ class PracticeSessionManager {
   }
 
   /**
-   * CONSISTENCY: How variable are the scores across measures?
+   * Calculates consistency - how variable are the measure scores.
+   * High standard deviation indicates inconsistent performance across measures.
+   * @param {Object} sessionData - Session data with measureScores and drillPlan
+   * @returns {Object} Consistency metrics with stdDeviation, range, and consistency level
    */
   calculateConsistency(sessionData) {
     const { measureScores, drillPlan } = sessionData;
@@ -276,7 +310,9 @@ class PracticeSessionManager {
   }
 
   /**
-   * COMPLETION: What percentage of the plan was covered?
+   * Calculates completion - what percentage of the plan was covered.
+   * @param {Object} sessionData - Session data with completed flag and durationSeconds
+   * @returns {Object} Completion metrics with percentage and completion status
    */
   calculateCompletion(sessionData) {
     const { drillPlan, completed, durationSeconds } = sessionData;
@@ -294,7 +330,8 @@ class PracticeSessionManager {
   }
 
   /**
-   * Get all sessions
+   * Retrieves all stored practice sessions, sorted by most recent first.
+   * @returns {Array<Object>} Array of session objects
    */
   getSessions() {
     try {
@@ -306,14 +343,17 @@ class PracticeSessionManager {
   }
 
   /**
-   * Get sessions for a specific plan
+   * Retrieves all sessions for a specific practice plan.
+   * @param {string} planId - The plan ID to filter by
+   * @returns {Array<Object>} Array of sessions for that plan
    */
   getSessionsForPlan(planId) {
     return this.getSessions().filter((s) => s.plan.id === planId);
   }
 
   /**
-   * Get stats across all sessions
+   * Calculates aggregate statistics across all stored practice sessions.
+   * @returns {Object|null} Aggregate stats with totals, averages, and best score, or null if no sessions
    */
   getOverallStats() {
     const sessions = this.getSessions();
@@ -354,7 +394,9 @@ class PracticeSessionManager {
   }
 
   /**
-   * Export session as JSON
+   * Exports a practice session as a JSON string for download or sharing.
+   * @param {string} sessionId - The ID of the session to export
+   * @returns {string|null} JSON string of the session or null if not found
    */
   exportSession(sessionId) {
     const sessions = this.getSessions();
@@ -363,9 +405,12 @@ class PracticeSessionManager {
   }
 
   /**
-   * Clear all sessions
+   * Clears all stored practice sessions from storage.
+   * Use with caution - this action cannot be undone.
    */
   clearSessions() {
     StorageManager.set(this.storageKey, "[]");
   }
 }
+
+export default PracticeSessionManager;

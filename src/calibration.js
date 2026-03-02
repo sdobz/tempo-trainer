@@ -1,5 +1,18 @@
-// Automatic latency calibration
+import StorageManager from "./storage-manager.js";
+
+/**
+ * Calibration - Automatic latency calibration
+ * Detects audio latency by measuring the offset between expected and actual hit times
+ */
 class Calibration {
+  /**
+   * Initialize calibration system
+   * @param {AudioContext} audioContext - WebAudio API context
+   * @param {Object} elements - DOM elements for UI
+   * @param {HTMLElement} elements.button - Start/stop calibration button
+   * @param {HTMLElement} elements.status - Status message display
+   * @param {HTMLElement} elements.result - Result offset display
+   */
   constructor(audioContext, elements) {
     this.audioContext = audioContext;
     this.elements = elements; // { button, status, result }
@@ -44,14 +57,26 @@ class Calibration {
     this._setupEventListeners();
   }
 
+  /**
+   * Set callback fired when calibration stops
+   * @param {Function} callback - Called with no arguments
+   */
   onStop(callback) {
     this.onStopCallback = callback;
   }
 
+  /**
+   * Set beats per measure for click pattern
+   * @param {number} beatsPerMeasure - Number of beats per measure
+   */
   setBeatsPerMeasure(beatsPerMeasure) {
     this.beatsPerMeasure = beatsPerMeasure;
   }
 
+  /**
+   * Set beat duration in seconds
+   * @param {number} beatDuration - Duration of one beat
+   */
   setBeatDuration(beatDuration) {
     this.beatDuration = beatDuration;
   }
@@ -69,6 +94,9 @@ class Calibration {
     }
   }
 
+  /**
+   * Toggle calibration on/off
+   */
   toggle() {
     if (this.isCalibrating) {
       this.stop("Calibration stopped by user.");
@@ -77,6 +105,10 @@ class Calibration {
     }
   }
 
+  /**
+   * Start calibration process
+   * @returns {Promise<boolean>} True if started successfully
+   */
   async start() {
     try {
       if (!this.audioContext) {
@@ -115,6 +147,10 @@ class Calibration {
     }
   }
 
+  /**
+   * Stop calibration
+   * @param {string} message - Status message to display
+   */
   stop(message) {
     if (this.schedulerIntervalID) {
       window.clearInterval(this.schedulerIntervalID);
@@ -135,6 +171,10 @@ class Calibration {
     }
   }
 
+  /**
+   * Register a drum hit during calibration
+   * @param {number} hitAudioTime - Audio context time of the hit
+   */
   registerHit(hitAudioTime) {
     if (!this.isCalibrating) return;
 
@@ -167,10 +207,21 @@ class Calibration {
     this._maybeFinish();
   }
 
+  /**
+   * Get the current calibrated offset in milliseconds
+   * @returns {number} Offset in milliseconds
+   */
   getOffsetMs() {
     return this.offsetMs;
   }
 
+  /**
+   * Get calibrated beat position accounting for latency
+   * @param {number} audioTime - Current audio context time
+   * @param {number} runStartAudioTime - Audio time when run started
+   * @param {number} beatDuration - Duration of one beat in seconds
+   * @returns {number} Calibrated beat position
+   */
   getCalibratedBeatPosition(audioTime, runStartAudioTime, beatDuration) {
     const rawBeatPosition = (audioTime - runStartAudioTime) / beatDuration;
     const offsetBeats = this.offsetMs / (beatDuration * 1000);
@@ -303,3 +354,5 @@ class Calibration {
     return this._median(absDeviations);
   }
 }
+
+export default Calibration;

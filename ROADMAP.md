@@ -457,21 +457,21 @@ With optional features:
 
 # Feature Priority Matrix
 
-| Feature | Phase | Priority | Impact | Effort |
-|---------|-------|----------|--------|--------|
-| Spectral flux detection | 1 | Critical | High | High |
-| AudioWorklet migration | 1 | Critical | High | High |
-| Drift/IOI metrics | 3 | Critical | High | Medium |
-| Multi-band classification | 2 | High | Medium | High |
-| Adaptive training scheduler | 7 | High | High | High |
-| **Variable BPM** | **10a** | **High** | **Medium** | **Low** |
-| **Visual Pattern Preview** | **10b** | **High** | **Medium** | **Low** |
-| **Plan Templates** | **10b** | **High** | **Medium** | **Low** |
-| **Technique Tags** | **10c** | **Medium** | **Medium** | **Low** |
-| **Custom Click Sounds** | **10d** | **Medium** | **Low** | **Low** |
-| Practice Logging | 11 | Medium | Medium | Medium |
-| Gamification | 11 | Low | Low | Medium |
-| Cloud Sync | 11 | Low | Low | High |
+| Feature                     | Phase   | Priority   | Impact     | Effort  |
+| --------------------------- | ------- | ---------- | ---------- | ------- |
+| Spectral flux detection     | 1       | Critical   | High       | High    |
+| AudioWorklet migration      | 1       | Critical   | High       | High    |
+| Drift/IOI metrics           | 3       | Critical   | High       | Medium  |
+| Multi-band classification   | 2       | High       | Medium     | High    |
+| Adaptive training scheduler | 7       | High       | High       | High    |
+| **Variable BPM**            | **10a** | **High**   | **Medium** | **Low** |
+| **Visual Pattern Preview**  | **10b** | **High**   | **Medium** | **Low** |
+| **Plan Templates**          | **10b** | **High**   | **Medium** | **Low** |
+| **Technique Tags**          | **10c** | **Medium** | **Medium** | **Low** |
+| **Custom Click Sounds**     | **10d** | **Medium** | **Low**    | **Low** |
+| Practice Logging            | 11      | Medium     | Medium     | Medium  |
+| Gamification                | 11      | Low        | Low        | Medium  |
+| Cloud Sync                  | 11      | Low        | Low        | High    |
 
 ---
 

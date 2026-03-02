@@ -1,9 +1,14 @@
 /**
- * History Display UI
- * Shows detailed practice session history in the history pane
- * Consolidates review, metrics, and recommendations
+ * HistoryDisplayUI manages the display of practice session history with detailed metrics and recommendations.
+ * Consolidates historical review, performance analysis, and learning suggestions.
  */
 class HistoryDisplayUI {
+  /**
+   * Creates a new HistoryDisplayUI instance.
+   * @param {HTMLElement} listContainer - Container element for session list
+   * @param {PlanEditorUI} planEditorUI - Reference to plan editor for retry functionality
+   * @param {PaneManager} paneManager - Reference to pane manager for navigation
+   */
   constructor(listContainer, planEditorUI, paneManager) {
     this.listContainer = listContainer;
     this.planEditorUI = planEditorUI;
@@ -12,7 +17,9 @@ class HistoryDisplayUI {
   }
 
   /**
-   * Display all sessions with the most recent one expanded
+   * Displays all practice sessions with detailed metrics and options.
+   * @param {Array<Object>} sessions - Array of session objects to display
+   * @param {string} [expandSessionId=null] - Optional session ID to expand, defaults to first session
    */
   displaySessions(sessions, expandSessionId = null) {
     if (!this.listContainer) return;
@@ -64,7 +71,10 @@ class HistoryDisplayUI {
   }
 
   /**
-   * Render a single session with collapsible details
+   * Renders a single session element with collapsible details.
+   * @param {Object} session - Session object containing plan, score, timestamps, and metrics
+   * @param {boolean} [isExpanded=false] - Whether to show session details initially expanded
+   * @returns {HTMLElement} The rendered session element
    */
   renderSession(session, isExpanded = false) {
     const { plan, overallScore, completed, timestamp, metrics, durationSeconds } = session;
@@ -106,7 +116,12 @@ class HistoryDisplayUI {
   }
 
   /**
-   * Render detailed session information with analysis and recommendations
+   * Renders detailed session information with analysis, metrics, and recommendations.
+   * @param {Object} session - Session object with all timing and scoring data
+   * @param {Object} plan - The practice plan used in the session
+   * @param {Object} metrics - Analyzed metrics object (drift, accuracy, rhythm, consistency)
+   * @param {number} duration - Session duration in seconds
+   * @returns {string} HTML string with detailed session information
    */
   renderSessionDetails(session, plan, metrics, duration) {
     const minutes = Math.floor(duration / 60);
@@ -216,8 +231,10 @@ class HistoryDisplayUI {
   }
 
   /**
-   * Generate recommendations based on session metrics
-   * Moved from PracticeSessionManager (data class) to here (presentation layer)
+   * Generates personalized recommendations based on session performance metrics.
+   * @param {Object} session - Session object with overall score and completion status
+   * @param {Object} metrics - Analyzed metrics object with drift, accuracy, rhythm data
+   * @returns {Array<Object>} Array of recommendation objects with category, priority, suggestion, and action
    */
   generateRecommendations(session, metrics) {
     const recommendations = [];
@@ -301,8 +318,10 @@ class HistoryDisplayUI {
   }
 
   /**
-   * Analyze measure scores for trends and patterns
-   * Returns HTML describing performance trends over the session
+   * Renders HTML visualization of performance trends over the session.
+   * Analyzes measure scores to detect patterns and improvements.
+   * @param {Array<number>} measureScores - Array of individual measure scores
+   * @returns {string} HTML string with trend analysis and insights
    */
   renderPerformanceTrends(measureScores) {
     if (!measureScores || measureScores.length === 0) return "";
@@ -326,7 +345,9 @@ class HistoryDisplayUI {
   }
 
   /**
-   * Analyze measure scores for meaningful patterns
+   * Analyzes measure scores for meaningful performance patterns and trends.
+   * @param {Array<number>} scores - Array of measure scores
+   * @returns {Object} Object with primary, secondary, and insight trend descriptions
    */
   analyzeTrend(scores) {
     const len = scores.length;
@@ -385,7 +406,10 @@ class HistoryDisplayUI {
   }
 
   /**
-   * Detect specific performance patterns in the measure sequence
+   * Detects specific performance patterns present in the measure sequence.
+   * Identifies issues like middle slump, warm-up patterns, or fatigue.
+   * @param {Array<number>} scores - Array of measure scores
+   * @returns {string|null} Pattern description string or null if no pattern detected
    */
   detectPattern(scores) {
     if (scores.length < 4) return null;
@@ -435,7 +459,8 @@ class HistoryDisplayUI {
   }
 
   /**
-   * Toggle expanded state of a session
+   * Toggles the expanded/collapsed state of a session in the history list.
+   * @param {string} sessionId - The ID of the session to toggle
    */
   toggleSessionExpanded(sessionId) {
     const sessionElement = this.listContainer.querySelector(
@@ -465,3 +490,5 @@ class HistoryDisplayUI {
     }
   }
 }
+
+export default HistoryDisplayUI;

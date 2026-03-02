@@ -1,4 +1,6 @@
-// Manages scoring system for hit accuracy
+/**
+ * Scorer manages the scoring system for measuring hit accuracy against expected beats.
+ */
 class Scorer {
   constructor(beatsPerMeasure, beatDuration) {
     this.beatsPerMeasure = beatsPerMeasure;
@@ -163,3 +165,5 @@ class Scorer {
     return bestMeasureIndex;
   }
 }
+
+export default Scorer;

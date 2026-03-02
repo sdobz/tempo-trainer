@@ -10,6 +10,6 @@ if [[ -z "$IN_NIX_SHELL" ]]; then
 fi
 
 echo "🔍 Linting JavaScript..."
-eslint src/**/*.js --max-warnings 0
+eslint src/*.js --max-warnings 0
 
 echo "✅ Linting passed"

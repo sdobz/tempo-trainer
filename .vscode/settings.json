@@ -1,0 +1,6 @@
+{
+  "chat.tools.terminal.autoApprove": {
+    "./tools/check": true,
+    "./tools/lint": true
+  }
+}

@@ -11,10 +11,12 @@ fi
 
 echo "🎨 Formatting code..."
 prettier --write \
-  src/**/*.js \
+  src/*.js \
   style.css \
   index.html \
   ROADMAP.md \
-  ARCHITECTURE.md
+  ARCHITECTURE.md \
+  AGENT.md \
+  DEVELOPMENT.md
 
 echo "✅ Formatting complete"

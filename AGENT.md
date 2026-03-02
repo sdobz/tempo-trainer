@@ -462,6 +462,7 @@ src/
 Refer to ROADMAP.md for feature priority. **Current focus:**
 
 **Core Pathway (Phases 1-9)** — Critical foundation features:
+
 1. ✅ **PHASE 1** — Reliable hit detection (complete)
 2. ⏳ **PHASE 2** — Instrument classification (pending)
 3. ⏳ **PHASE 3** — Advanced timing metrics (partial)
@@ -473,6 +474,7 @@ Refer to ROADMAP.md for feature priority. **Current focus:**
 9. ⏳ **PHASE 9** — Expert-level features (optional)
 
 **Enhancement Pathway (Phases 10-11)** — Nice-to-have pedagogy & UX:
+
 - **PHASE 10a** — Variable difficulty patterns (high priority)
 - **PHASE 10b** — Plan UI/UX improvements (high priority)
 - **PHASE 10c** — Pedagogical features (medium priority)

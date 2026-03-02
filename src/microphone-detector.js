@@ -1,4 +1,7 @@
-// Microphone-based hit detection
+import StorageManager from "./storage-manager.js";
+/**
+ * MicrophoneDetector detects impact sounds from a microphone and triggers hit callbacks.
+ */
 class MicrophoneDetector {
   constructor(audioContext, elements) {
     this.audioContext = audioContext;
@@ -296,3 +299,5 @@ class MicrophoneDetector {
     this._updateThresholdUI();
   }
 }
+
+export default MicrophoneDetector;

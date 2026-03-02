@@ -1,5 +1,12 @@
-// Timeline visualization and interaction
+/**
+ * Timeline provides beat-by-beat visualization with scrolling display.
+ */
 class Timeline {
+  /**
+   * Creates a new Timeline instance.
+   * @param {HTMLElement} viewportElement - Viewport container
+   * @param {HTMLElement} trackElement - Scrollable track element
+   */
   constructor(viewportElement, trackElement) {
     this.viewport = viewportElement;
     this.track = trackElement;
@@ -14,15 +21,27 @@ class Timeline {
     this.lastBeatPosition = 0;
   }
 
+  /**
+   * Sets the beats per measure for timeline calculations.
+   * @param {number} beatsPerMeasure - Number of beats in a measure
+   */
   setBeatsPerMeasure(beatsPerMeasure) {
     this.beatsPerMeasure = beatsPerMeasure;
   }
 
+  /**
+   * Sets the drill plan and triggers a rebuild of the timeline visualization.
+   * @param {Array} plan - Array of measure objects with type property
+   */
   setDrillPlan(plan) {
     this.drillPlan = plan;
     this.build();
   }
 
+  /**
+   * Builds the timeline visualization with measure groups, grid, expectations, and detections layers.
+   * Defers operation if viewport is not yet visible.
+   */
   build() {
     this.track.innerHTML = "";
 
@@ -95,6 +114,10 @@ class Timeline {
     this.track.appendChild(detectionsLayer);
   }
 
+  /**
+   * Adds a detection dot to the timeline visualization.
+   * @param {number} beatPosition - Beat position for the detection marker
+   */
   addDetection(beatPosition) {
     const detectionsLayer = this.track.querySelector(".timeline-detections");
     if (!detectionsLayer) return;
@@ -105,6 +128,11 @@ class Timeline {
     detectionsLayer.appendChild(dot);
   }
 
+  /**
+   * Centers the timeline view on a specific beat position.
+   * Handles deferred scrolling if viewport dimensions not yet available.
+   * @param {number} beatPosition - Beat position to center on
+   */
   centerAt(beatPosition) {
     this.lastBeatPosition = beatPosition;
     const viewportWidth = this.viewport.clientWidth;
@@ -126,13 +154,24 @@ class Timeline {
     this.track.style.transform = `translateX(${left}px)`;
   }
 
+  /**
+   * Converts a beat position to a pixel position on the timeline.
+   * @param {number} beatPosition - The beat position
+   * @returns {number} The pixel position relative to the track
+   */
   _beatToX(beatPosition) {
     const viewportWidth = this.viewport.clientWidth;
     const offsetX = viewportWidth;
     return offsetX + beatPosition * this.pxPerBeat;
   }
 
+  /**
+   * Gets the last beat position that was centered on.
+   * @returns {number} The beat position
+   */
   getLastBeatPosition() {
     return this.lastBeatPosition;
   }
 }
+
+export default Timeline;

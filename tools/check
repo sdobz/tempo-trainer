@@ -10,7 +10,6 @@ if [[ -z "$IN_NIX_SHELL" ]]; then
 fi
 
 echo "📋 Type checking..."
-tsc --noEmit --allowJs --checkJs --esModuleInterop --skipLibCheck \
-  src/**/*.js index.html
+tsc --noEmit
 
 echo "✅ Type check passed"
