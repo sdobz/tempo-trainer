@@ -18,17 +18,21 @@ class DrillPlan {
 
   parse(planString) {
     this.plan = [];
+    this.segments = []; // Store segment structure for visualization
 
     // Always add click-in first
     this.plan.push({ type: "click-in" });
 
     const trimmed = planString.trim();
     if (!trimmed) {
-      // Default: 64 continuous clicks
+      // Default: 64 continuous clicks (single segment)
+      const defaultSegment = { on: 64, off: 0, reps: 1, startIndex: 1 };
       for (let i = 0; i < 64; i++) {
         this.plan.push({ type: "click" });
       }
+      this.segments.push(defaultSegment);
     } else {
+      let currentIndex = 1; // After click-in
       const steps = trimmed.split(";");
       steps.forEach((step) => {
         const parts = step
@@ -38,14 +42,19 @@ class DrillPlan {
 
         if (parts.length === 3 && !parts.some(isNaN)) {
           const [on, off, reps] = parts;
+          const segment = { on, off, reps, startIndex: currentIndex };
+          
           for (let rep = 0; rep < reps; rep++) {
             for (let i = 0; i < on; i++) {
               this.plan.push({ type: "click" });
+              currentIndex++;
             }
             for (let i = 0; i < off; i++) {
               this.plan.push({ type: "silent" });
+              currentIndex++;
             }
           }
+          this.segments.push(segment);
         }
       });
     }
@@ -68,24 +77,97 @@ class DrillPlan {
 
     const viz = document.createElement("div");
     viz.id = "plan-visualization";
+    viz.style.display = "flex";
+    viz.style.flexDirection = "column";
+    viz.style.gap = "0.8em";
 
-    this.plan.forEach((measure, index) => {
+    let measureIndex = 0;
+
+    // Click-in measure (always first, show alone)
+    if (this.plan[0]?.type === "click-in") {
+      const clickInLine = document.createElement("div");
+      clickInLine.style.display = "flex";
+      clickInLine.style.gap = "0.4em";
+      clickInLine.style.marginBottom = "0.4em";
+
       const block = document.createElement("div");
-      block.className = `measure-block ${measure.type}`;
-      block.dataset.measureIndex = String(index);
-      block.textContent = measure.type === "click-in" ? "" : "00";
+      block.className = "measure-block click-in";
+      block.dataset.measureIndex = "0";
+      block.textContent = "▶";
+      block.style.minWidth = "2.5em";
+      block.style.textAlign = "center";
+      block.style.fontWeight = "bold";
 
       block.addEventListener("click", (event) => {
-        const measureIndex = parseInt(
-          event.currentTarget.dataset.measureIndex || "",
-          10,
-        );
-        if (!Number.isNaN(measureIndex) && this.onMeasureClickCallback) {
-          this.onMeasureClickCallback(measureIndex);
+        const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+        if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
+          this.onMeasureClickCallback(idx);
         }
       });
 
-      viz.appendChild(block);
+      clickInLine.appendChild(block);
+      viz.appendChild(clickInLine);
+      measureIndex = 1;
+    }
+
+    // Render each segment with its repetitions grouped
+    this.segments.forEach((segment) => {
+      const segmentContainer = document.createElement("div");
+      segmentContainer.style.border = "1px solid #2a2a2a";
+      segmentContainer.style.borderRadius = "3px";
+      segmentContainer.style.padding = "0.3em";
+      segmentContainer.style.display = "flex";
+      segmentContainer.style.flexDirection = "column";
+      segmentContainer.style.gap = "0.2em";
+
+      // Render each repetition as a line
+      for (let rep = 0; rep < segment.reps; rep++) {
+        const repLine = document.createElement("div");
+        repLine.style.display = "flex";
+        repLine.style.gap = "0.3em";
+        repLine.style.alignItems = "center";
+
+        // On beats
+        for (let i = 0; i < segment.on; i++) {
+          const block = document.createElement("div");
+          block.className = "measure-block click";
+          block.dataset.measureIndex = String(measureIndex);
+          block.textContent = "00";
+
+          block.addEventListener("click", (event) => {
+            const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+            if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
+              this.onMeasureClickCallback(idx);
+            }
+          });
+
+          repLine.appendChild(block);
+          measureIndex++;
+        }
+
+        // Off beats (silent)
+        for (let i = 0; i < segment.off; i++) {
+          const block = document.createElement("div");
+          block.className = "measure-block silent";
+          block.dataset.measureIndex = String(measureIndex);
+          block.textContent = "··";
+          block.style.opacity = "0.4";
+
+          block.addEventListener("click", (event) => {
+            const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+            if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
+              this.onMeasureClickCallback(idx);
+            }
+          });
+
+          repLine.appendChild(block);
+          measureIndex++;
+        }
+
+        segmentContainer.appendChild(repLine);
+      }
+
+      viz.appendChild(segmentContainer);
     });
 
     this.container.appendChild(viz);
