@@ -1,0 +1,21 @@
+#!/bin/bash
+# Bundle for production with esbuild
+set -e
+
+mkdir -p dist
+
+echo "📦 Bundling for production..."
+esbuild src/wiring/app.js \
+  --bundle \
+  --minify \
+  --outfile=dist/app.js \
+  --platform=browser \
+  --target=es2020
+
+echo "✅ Bundle created: dist/app.js"
+echo ""
+echo "Deploy instructions:"
+echo "  1. Copy dist/app.js to your server"
+echo "  2. Update index.html to reference the bundled script:"
+echo "     <script src=\"app.js\"></script>"
+echo ""

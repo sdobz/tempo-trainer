@@ -1,0 +1,4 @@
+dist/
+*.tsbuildinfo
+.DS_Store
+.direnv

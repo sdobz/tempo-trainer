@@ -1,0 +1,8 @@
+#!/bin/bash
+# Lint code with ESLint
+set -e
+
+echo "🔍 Linting JavaScript..."
+eslint src/**/*.js --max-warnings 0
+
+echo "✅ Linting passed"
