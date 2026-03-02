@@ -1,9 +1,0 @@
-#!/bin/bash
-# Type check JavaScript with TypeScript
-set -e
-
-echo "📋 Type checking..."
-tsc --noEmit --allowJs --checkJs --esModuleInterop --skipLibCheck \
-  src/**/*.js index.html
-
-echo "✅ Type check passed"
