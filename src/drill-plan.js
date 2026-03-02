@@ -43,7 +43,7 @@ class DrillPlan {
         if (parts.length === 3 && !parts.some(isNaN)) {
           const [on, off, reps] = parts;
           const segment = { on, off, reps, startIndex: currentIndex };
-          
+
           for (let rep = 0; rep < reps; rep++) {
             for (let i = 0; i < on; i++) {
               this.plan.push({ type: "click" });
@@ -99,7 +99,10 @@ class DrillPlan {
       block.style.fontWeight = "bold";
 
       block.addEventListener("click", (event) => {
-        const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+        const idx = parseInt(
+          event.currentTarget.dataset.measureIndex || "",
+          10,
+        );
         if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
           this.onMeasureClickCallback(idx);
         }
@@ -135,7 +138,10 @@ class DrillPlan {
           block.textContent = "00";
 
           block.addEventListener("click", (event) => {
-            const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+            const idx = parseInt(
+              event.currentTarget.dataset.measureIndex || "",
+              10,
+            );
             if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
               this.onMeasureClickCallback(idx);
             }
@@ -154,7 +160,10 @@ class DrillPlan {
           block.style.opacity = "0.4";
 
           block.addEventListener("click", (event) => {
-            const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+            const idx = parseInt(
+              event.currentTarget.dataset.measureIndex || "",
+              10,
+            );
             if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
               this.onMeasureClickCallback(idx);
             }
