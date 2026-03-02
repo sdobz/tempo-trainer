@@ -20,6 +20,7 @@
             typescript
             nodePackages.prettier
             nodePackages.eslint
+            nodePackages.http-server
             esbuild
           ];
 
