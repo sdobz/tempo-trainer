@@ -11,8 +11,7 @@ class PlanLibrary {
       {
         id: "beginner-simple",
         name: "Beginner: Simple Pattern",
-        description:
-          "1 measure on, 1 measure off - perfect for getting started",
+        description: "1 measure on, 1 measure off - perfect for getting started",
         difficulty: "Beginner",
         segments: [{ on: 1, off: 1, reps: 8 }],
         isBuiltIn: true,
@@ -144,8 +143,7 @@ class PlanLibrary {
 
     // Generate ID if not provided
     if (!plan.id) {
-      plan.id =
-        "custom-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
+      plan.id = "custom-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
     }
 
     // Mark as custom

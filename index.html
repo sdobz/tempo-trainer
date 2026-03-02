@@ -18,19 +18,16 @@
           <div class="pane-content">
             <h2>Welcome to Tempo Trainer</h2>
             <p>
-              Play along with a metronome while the app listens to your
-              microphone, measures your timing accuracy in milliseconds, and
-              shows you a visual timeline of every hit alongside instant
-              per-measure scoring.
+              Play along with a metronome while the app listens to your microphone, measures your
+              timing accuracy in milliseconds, and shows you a visual timeline of every hit
+              alongside instant per-measure scoring.
             </p>
 
             <div class="onboarding-steps">
               <div class="step" id="step-microphone">
                 <h3>
                   <span class="step-title">1. Select Your Microphone</span>
-                  <span class="step-status" id="mic-status"
-                    >⚠️ Not configured</span
-                  >
+                  <span class="step-status" id="mic-status">⚠️ Not configured</span>
                 </h3>
                 <div class="mic-selector-row">
                   <label for="mic-select">Microphone:</label>
@@ -53,13 +50,11 @@
                   >
                 </h3>
                 <p>
-                  Calibration measures system latency to ensure accurate hit
-                  detection. Play along with the metronome clicks.
+                  Calibration measures system latency to ensure accurate hit detection. Play along
+                  with the metronome clicks.
                 </p>
                 <div class="calibration-controls">
-                  <button id="calibration-btn" type="button">
-                    Start Calibration
-                  </button>
+                  <button id="calibration-btn" type="button">Start Calibration</button>
                   <div id="calibration-status">Calibration idle.</div>
                   <div id="calibration-result">Offset compensation: 0 ms</div>
                 </div>
@@ -67,15 +62,8 @@
 
               <div class="step">
                 <h3>3. Ready to Train!</h3>
-                <p>
-                  Once calibrated, proceed to create a plan and start
-                  practicing.
-                </p>
-                <button
-                  id="complete-onboarding-btn"
-                  class="primary-btn"
-                  data-pane="plan-edit"
-                >
+                <p>Once calibrated, proceed to create a plan and start practicing.</p>
+                <button id="complete-onboarding-btn" class="primary-btn" data-pane="plan-edit">
                   Go to Plan Editor
                 </button>
               </div>
@@ -95,30 +83,19 @@
                 <select id="plan-library-select" class="plan-library-select">
                   <option value="">Select a plan...</option>
                 </select>
-                <button
-                  id="new-plan-btn"
-                  class="secondary-btn"
-                  title="Create new plan"
-                >
+                <button id="new-plan-btn" class="secondary-btn" title="Create new plan">
                   ➕ New Plan
                 </button>
               </div>
 
               <!-- Plan Info Display -->
-              <div
-                id="plan-info-display"
-                class="plan-info-display"
-                style="display: none"
-              >
+              <div id="plan-info-display" class="plan-info-display" style="display: none">
                 <div class="plan-info-header">
                   <div>
                     <h3 id="plan-info-name"></h3>
                     <p id="plan-info-description" class="plan-description"></p>
                   </div>
-                  <span
-                    id="plan-info-difficulty"
-                    class="difficulty-badge"
-                  ></span>
+                  <span id="plan-info-difficulty" class="difficulty-badge"></span>
                 </div>
                 <div class="plan-stats">
                   <div class="stat">
@@ -138,27 +115,17 @@
             </div>
 
             <!-- Plan Editor -->
-            <div
-              id="plan-editor-section"
-              class="plan-editor-section"
-              style="display: none"
-            >
+            <div id="plan-editor-section" class="plan-editor-section" style="display: none">
               <h3>Plan Editor</h3>
 
               <!-- Plan Metadata -->
               <div class="plan-metadata-editor">
                 <div class="control-group">
                   <label for="plan-name-input">Plan Name:</label>
-                  <input
-                    type="text"
-                    id="plan-name-input"
-                    placeholder="My Custom Plan"
-                  />
+                  <input type="text" id="plan-name-input" placeholder="My Custom Plan" />
                 </div>
                 <div class="control-group">
-                  <label for="plan-description-input"
-                    >Description (optional):</label
-                  >
+                  <label for="plan-description-input">Description (optional):</label>
                   <textarea
                     id="plan-description-input"
                     rows="2"
@@ -181,9 +148,7 @@
               <div class="segments-editor">
                 <div class="segments-header">
                   <h4>Segments</h4>
-                  <button id="add-segment-btn" class="secondary-btn">
-                    ➕ Add Segment
-                  </button>
+                  <button id="add-segment-btn" class="secondary-btn">➕ Add Segment</button>
                 </div>
                 <div id="segments-list" class="segments-list">
                   <!-- Segments will be added here dynamically -->
@@ -192,17 +157,9 @@
 
               <!-- Editor Actions -->
               <div class="plan-editor-actions">
-                <button id="save-plan-btn" class="primary-btn">
-                  💾 Save Plan
-                </button>
-                <button id="cancel-edit-btn" class="secondary-btn">
-                  Cancel
-                </button>
-                <button
-                  id="delete-plan-btn"
-                  class="danger-btn"
-                  style="display: none"
-                >
+                <button id="save-plan-btn" class="primary-btn">💾 Save Plan</button>
+                <button id="cancel-edit-btn" class="secondary-btn">Cancel</button>
+                <button id="delete-plan-btn" class="danger-btn" style="display: none">
                   🗑️ Delete Plan
                 </button>
               </div>
@@ -210,18 +167,10 @@
 
             <!-- Quick Action Buttons -->
             <div class="pane-actions" id="plan-quick-actions">
-              <button
-                id="clone-plan-btn"
-                class="secondary-btn"
-                style="display: none"
-              >
+              <button id="clone-plan-btn" class="secondary-btn" style="display: none">
                 📋 Clone Plan
               </button>
-              <button
-                id="edit-plan-btn"
-                class="secondary-btn"
-                style="display: none"
-              >
+              <button id="edit-plan-btn" class="secondary-btn" style="display: none">
                 ✏️ Edit Plan
               </button>
               <button
@@ -234,10 +183,7 @@
               </button>
             </div>
 
-            <div
-              id="plan-visualization-container"
-              class="plan-visualization-container"
-            >
+            <div id="plan-visualization-container" class="plan-visualization-container">
               <h3>Plan Visualization</h3>
             </div>
           </div>
@@ -251,13 +197,7 @@
               <div class="session-info">
                 <div class="control-group-inline">
                   <label for="bpm">BPM:</label>
-                  <input
-                    type="number"
-                    id="bpm"
-                    value="120"
-                    min="40"
-                    max="300"
-                  />
+                  <input type="number" id="bpm" value="120" min="40" max="300" />
                 </div>
                 <div class="control-group-inline">
                   <label for="time-signature">Time Signature:</label>
@@ -286,16 +226,10 @@
               <div id="timeline-now-line"></div>
             </div>
 
-            <div id="overall-score" class="overall-score">
-              Overall Score: 00
-            </div>
+            <div id="overall-score" class="overall-score">Overall Score: 00</div>
 
             <div class="pane-actions">
-              <button
-                id="finish-play-btn"
-                class="secondary-btn"
-                data-pane="plan-history"
-              >
+              <button id="finish-play-btn" class="secondary-btn" data-pane="plan-history">
                 View Results
               </button>
             </div>
@@ -311,11 +245,7 @@
             </div>
 
             <div class="pane-actions">
-              <button
-                id="back-to-plan-btn"
-                class="primary-btn"
-                data-pane="plan-edit"
-              >
+              <button id="back-to-plan-btn" class="primary-btn" data-pane="plan-edit">
                 Edit Another Plan
               </button>
             </div>
@@ -324,14 +254,10 @@
       </main>
 
       <nav class="pane-nav">
-        <button class="pane-link" data-pane="onboarding" title="Setup">
-          ⚙️
-        </button>
+        <button class="pane-link" data-pane="onboarding" title="Setup">⚙️</button>
         <button class="pane-link" data-pane="plan-edit" title="Plan">📋</button>
         <button class="pane-link" data-pane="plan-play" title="Play">▶️</button>
-        <button class="pane-link" data-pane="plan-history" title="History">
-          📊
-        </button>
+        <button class="pane-link" data-pane="plan-history" title="History">📊</button>
       </nav>
     </div>
 

@@ -98,7 +98,7 @@ class PracticeSessionManager {
       // Match hits to expected beats
       hits.forEach((hitBeat) => {
         const closest = expectedBeats.reduce((prev, curr) =>
-          Math.abs(curr - hitBeat) < Math.abs(prev - hitBeat) ? curr : prev,
+          Math.abs(curr - hitBeat) < Math.abs(prev - hitBeat) ? curr : prev
         );
         errors.push(hitBeat - closest); // Negative = early, positive = late
       });
@@ -118,10 +118,8 @@ class PracticeSessionManager {
 
     return {
       avgErrorBeats: Math.round(avgError * 100) / 100,
-      direction:
-        avgError > 0.05 ? "late" : avgError < -0.05 ? "early" : "balanced",
-      severity:
-        absAvgError > 0.3 ? "high" : absAvgError > 0.15 ? "medium" : "low",
+      direction: avgError > 0.05 ? "late" : avgError < -0.05 ? "early" : "balanced",
+      severity: absAvgError > 0.3 ? "high" : absAvgError > 0.15 ? "medium" : "low",
       count: errors.length,
       description: this.getDriftDescription(avgError),
     };
@@ -133,8 +131,7 @@ class PracticeSessionManager {
 
     if (absError < 0.05) return "Excellent tempo control";
     if (absError < 0.15) return `Consistently slightly ${direction}`;
-    if (absError < 0.3)
-      return `Noticeably ${direction} - focus on steadying tempo`;
+    if (absError < 0.3) return `Noticeably ${direction} - focus on steadying tempo`;
     return `Significantly ${direction} - major tempo control issue`;
   }
 
@@ -211,16 +208,14 @@ class PracticeSessionManager {
 
     const avg = intervals.reduce((a, b) => a + b) / intervals.length;
     const variance =
-      intervals.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) /
-      intervals.length;
+      intervals.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / intervals.length;
     const stdDev = Math.sqrt(variance);
     const coeffVar = stdDev / avg; // Coefficient of variation
 
     return {
       avgInterval: Math.round(avg * 100) / 100,
       variance: Math.round(coeffVar * 100),
-      consistency:
-        coeffVar < 0.1 ? "excellent" : coeffVar < 0.2 ? "good" : "variable",
+      consistency: coeffVar < 0.1 ? "excellent" : coeffVar < 0.2 ? "good" : "variable",
       description: this.getRhythmDescription(coeffVar),
     };
   }
@@ -228,8 +223,7 @@ class PracticeSessionManager {
   getRhythmDescription(coeffVar) {
     if (coeffVar < 0.1) return "Excellent rhythm consistency";
     if (coeffVar < 0.2) return "Good rhythm, minor timing variations";
-    if (coeffVar < 0.35)
-      return "Moderate timing variance - work on consistency";
+    if (coeffVar < 0.35) return "Moderate timing variance - work on consistency";
     return "Poor rhythm consistency - focus on even spacing";
   }
 
@@ -251,8 +245,7 @@ class PracticeSessionManager {
     return {
       weakestMeasures: scoredMeasures.slice(0, 5),
       avgScore: Math.round(
-        scoredMeasures.reduce((sum, m) => sum + m.score, 0) /
-          scoredMeasures.length,
+        scoredMeasures.reduce((sum, m) => sum + m.score, 0) / scoredMeasures.length
       ),
     };
   }
@@ -264,21 +257,18 @@ class PracticeSessionManager {
     const { measureScores, drillPlan } = sessionData;
 
     const scores = measureScores.filter(
-      (score, index) => score !== null && drillPlan[index]?.type !== "click-in",
+      (score, index) => score !== null && drillPlan[index]?.type !== "click-in"
     );
 
     if (scores.length === 0) return { variance: 0, consistency: "unknown" };
 
     const avg = scores.reduce((a, b) => a + b) / scores.length;
-    const variance =
-      scores.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) /
-      scores.length;
+    const variance = scores.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / scores.length;
     const stdDev = Math.sqrt(variance);
 
     return {
       stdDeviation: Math.round(stdDev),
-      consistency:
-        stdDev < 8 ? "steady" : stdDev < 15 ? "variable" : "inconsistent",
+      consistency: stdDev < 8 ? "steady" : stdDev < 15 ? "variable" : "inconsistent",
       minScore: Math.min(...scores),
       maxScore: Math.max(...scores),
       range: Math.max(...scores) - Math.min(...scores),
@@ -299,9 +289,7 @@ class PracticeSessionManager {
     return {
       completed,
       percentage: Math.min(100, percentage),
-      description: completed
-        ? "Full session completed"
-        : "Session stopped early",
+      description: completed ? "Full session completed" : "Session stopped early",
     };
   }
 
@@ -332,15 +320,12 @@ class PracticeSessionManager {
     if (sessions.length === 0) return null;
 
     const completedSessions = sessions.filter((s) => s.completed);
-    const avgScore =
-      sessions.reduce((sum, s) => sum + s.overallScore, 0) / sessions.length;
+    const avgScore = sessions.reduce((sum, s) => sum + s.overallScore, 0) / sessions.length;
 
     return {
       totalSessions: sessions.length,
       completedSessions: completedSessions.length,
-      completionRate: Math.round(
-        (completedSessions.length / sessions.length) * 100,
-      ),
+      completionRate: Math.round((completedSessions.length / sessions.length) * 100),
       averageScore: Math.round(avgScore),
       bestScore: Math.max(...sessions.map((s) => s.overallScore)),
       mostPracticedPlan: this.findMostPracticedPlan(sessions),
@@ -354,9 +339,7 @@ class PracticeSessionManager {
       planCounts[key] = (planCounts[key] || 0) + 1;
     });
 
-    const mostUsed = Object.entries(planCounts).sort(
-      ([, a], [, b]) => b - a,
-    )[0];
+    const mostUsed = Object.entries(planCounts).sort(([, a], [, b]) => b - a)[0];
 
     if (!mostUsed) return null;
 

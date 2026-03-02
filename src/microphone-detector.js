@@ -146,8 +146,7 @@ class MicrophoneDetector {
   }
 
   async populateDevices() {
-    if (!this.elements.select || !navigator.mediaDevices?.enumerateDevices)
-      return;
+    if (!this.elements.select || !navigator.mediaDevices?.enumerateDevices) return;
 
     let devices;
     try {
@@ -156,9 +155,7 @@ class MicrophoneDetector {
       return;
     }
 
-    const inputDevices = devices.filter(
-      (device) => device.kind === "audioinput",
-    );
+    const inputDevices = devices.filter((device) => device.kind === "audioinput");
     const previousValue = this.elements.select.value;
     this.elements.select.innerHTML = "";
 
@@ -179,14 +176,9 @@ class MicrophoneDetector {
       this.elements.select.appendChild(option);
     });
 
-    const candidateId =
-      this.selectedDeviceId || previousValue || inputDevices[0].deviceId;
-    const exists = inputDevices.some(
-      (device) => device.deviceId === candidateId,
-    );
-    this.elements.select.value = exists
-      ? candidateId
-      : inputDevices[0].deviceId;
+    const candidateId = this.selectedDeviceId || previousValue || inputDevices[0].deviceId;
+    const exists = inputDevices.some((device) => device.deviceId === candidateId);
+    this.elements.select.value = exists ? candidateId : inputDevices[0].deviceId;
     this.selectedDeviceId = this.elements.select.value;
     StorageManager.set(this.storageKeys.device, this.selectedDeviceId);
   }
@@ -237,7 +229,7 @@ class MicrophoneDetector {
     } else if (now > this.peakHoldUntil) {
       this.peakHoldValue = Math.max(
         maxVal,
-        this.peakHoldValue - this.peakFallPerSecond * deltaSeconds,
+        this.peakHoldValue - this.peakFallPerSecond * deltaSeconds
       );
     }
 
@@ -247,10 +239,7 @@ class MicrophoneDetector {
 
     // Update threshold indicator
     if (this.elements.level) {
-      this.elements.level.classList.toggle(
-        "over-threshold",
-        maxVal >= this.threshold,
-      );
+      this.elements.level.classList.toggle("over-threshold", maxVal >= this.threshold);
     }
 
     // Detect hit
@@ -272,9 +261,7 @@ class MicrophoneDetector {
       this.elements.hitsList.appendChild(hitElement);
 
       while (this.elements.hitsList.children.length > this.maxVisibleHits) {
-        this.elements.hitsList.removeChild(
-          this.elements.hitsList.firstElementChild,
-        );
+        this.elements.hitsList.removeChild(this.elements.hitsList.firstElementChild);
       }
 
       setTimeout(() => {

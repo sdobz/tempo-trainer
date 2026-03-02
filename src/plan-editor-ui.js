@@ -26,9 +26,7 @@ class PlanEditorUI {
     this.planStatDuration = document.getElementById("plan-stat-duration");
     this.planEditorSection = document.getElementById("plan-editor-section");
     this.planNameInput = document.getElementById("plan-name-input");
-    this.planDescriptionInput = document.getElementById(
-      "plan-description-input",
-    );
+    this.planDescriptionInput = document.getElementById("plan-description-input");
     this.planDifficultyInput = document.getElementById("plan-difficulty-input");
     this.segmentsList = document.getElementById("segments-list");
     this.addSegmentBtn = document.getElementById("add-segment-btn");
@@ -154,8 +152,7 @@ class PlanEditorUI {
 
   populatePlanLibrary() {
     const plans = this.planLibrary.getAllPlans();
-    this.planLibrarySelect.innerHTML =
-      '<option value="">Select a plan...</option>';
+    this.planLibrarySelect.innerHTML = '<option value="">Select a plan...</option>';
 
     const builtInPlans = plans.filter((p) => p.isBuiltIn);
     const customPlans = plans.filter((p) => !p.isBuiltIn);
@@ -192,28 +189,17 @@ class PlanEditorUI {
     this.planInfoName.textContent = plan.name;
     this.planInfoDescription.textContent = plan.description || "";
     this.planInfoDifficulty.textContent = plan.difficulty || "";
-    this.planInfoDifficulty.setAttribute(
-      "data-difficulty",
-      plan.difficulty || "",
-    );
+    this.planInfoDifficulty.setAttribute("data-difficulty", plan.difficulty || "");
 
     // Calculate and show stats
     const stats = this.planLibrary.calculateStats(plan.segments);
     const bpm = parseInt(this.bpmInput.value, 10);
-    const beatsPerMeasure = parseInt(
-      this.timeSignatureSelect.value.split("/")[0],
-      10,
-    );
-    const duration = this.planLibrary.estimateDuration(
-      plan.segments,
-      bpm,
-      beatsPerMeasure,
-    );
+    const beatsPerMeasure = parseInt(this.timeSignatureSelect.value.split("/")[0], 10);
+    const duration = this.planLibrary.estimateDuration(plan.segments, bpm, beatsPerMeasure);
 
     this.planStatSegments.textContent = stats.segments;
     this.planStatMeasures.textContent = stats.totalMeasures + 1; // +1 for click-in
-    this.planStatDuration.textContent =
-      this.planLibrary.formatDuration(duration);
+    this.planStatDuration.textContent = this.planLibrary.formatDuration(duration);
 
     this.planInfoDisplay.style.display = "block";
 
@@ -269,9 +255,7 @@ class PlanEditorUI {
   updateEditingVisualization() {
     // Update the plan visualization with current editing segments
     if (this.editingSegments.length > 0) {
-      const planString = this.planLibrary.segmentsToString(
-        this.editingSegments,
-      );
+      const planString = this.planLibrary.segmentsToString(this.editingSegments);
       this.drillPlan.parse(planString);
     }
   }
@@ -336,10 +320,7 @@ class PlanEditorUI {
       input.addEventListener("change", (e) => {
         const index = parseInt(e.target.dataset.index);
         const field = e.target.dataset.field;
-        const value = Math.max(
-          1,
-          Math.min(99, parseInt(e.target.value, 10) || 1),
-        );
+        const value = Math.max(1, Math.min(99, parseInt(e.target.value, 10) || 1));
         if (field === "off") {
           this.editingSegments[index][field] = Math.max(0, value); // Off can be 0
         } else {
@@ -416,9 +397,7 @@ class PlanEditorUI {
     }
 
     if (
-      !confirm(
-        `Are you sure you want to delete "${this.editingPlan.name}"? This cannot be undone.`,
-      )
+      !confirm(`Are you sure you want to delete "${this.editingPlan.name}"? This cannot be undone.`)
     ) {
       return;
     }
@@ -438,17 +417,11 @@ class PlanEditorUI {
   clonePlan() {
     if (!this.currentPlan) return;
 
-    const newName = prompt(
-      "Enter a name for the cloned plan:",
-      `${this.currentPlan.name} (Copy)`,
-    );
+    const newName = prompt("Enter a name for the cloned plan:", `${this.currentPlan.name} (Copy)`);
     if (!newName || !newName.trim()) return;
 
     try {
-      const cloned = this.planLibrary.clonePlan(
-        this.currentPlan.id,
-        newName.trim(),
-      );
+      const cloned = this.planLibrary.clonePlan(this.currentPlan.id, newName.trim());
       this.populatePlanLibrary();
 
       // Select and show the cloned plan

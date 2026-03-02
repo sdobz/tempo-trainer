@@ -81,7 +81,7 @@ class Calibration {
     try {
       if (!this.audioContext) {
         this._setStatus(
-          "Calibration failed to start: audio context not available. Try starting a drill first.",
+          "Calibration failed to start: audio context not available. Try starting a drill first."
         );
         return false;
       }
@@ -103,19 +103,14 @@ class Calibration {
       }
 
       this._setStatus(
-        "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable.",
+        "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable."
       );
 
-      this.schedulerIntervalID = window.setInterval(
-        () => this._scheduler(),
-        this.lookahead,
-      );
+      this.schedulerIntervalID = window.setInterval(() => this._scheduler(), this.lookahead);
 
       return true;
     } catch (_error) {
-      this._setStatus(
-        "Calibration failed to start: microphone or audio unavailable.",
-      );
+      this._setStatus("Calibration failed to start: microphone or audio unavailable.");
       return false;
     }
   }
@@ -183,24 +178,21 @@ class Calibration {
   }
 
   _scheduler() {
-    while (
-      this.nextNoteTime <
-      this.audioContext.currentTime + this.scheduleAheadTime
-    ) {
+    while (this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime) {
       this._scheduleClick(this.nextNoteTime);
       this.nextNoteTime += this.beatDuration;
     }
 
     const staleBefore = this.audioContext.currentTime - 1.5;
     this.expectedBeats = this.expectedBeats.filter(
-      (entry) => entry.time >= staleBefore || !entry.matched,
+      (entry) => entry.time >= staleBefore || !entry.matched
     );
 
     if (Date.now() - this.startedAt > this.maxDurationMs) {
       this.stop(
         this.goodHits >= this.minHits
           ? "Calibration ended on time limit with best estimate."
-          : "Calibration timed out before enough consistent hits.",
+          : "Calibration timed out before enough consistent hits."
       );
     }
   }
@@ -227,7 +219,7 @@ class Calibration {
   _maybeFinish() {
     if (this.goodHits < this.minHits) {
       this._setStatus(
-        `Calibration: hits ${this.goodHits}/${this.minHits} | learning timing pattern...`,
+        `Calibration: hits ${this.goodHits}/${this.minHits} | learning timing pattern...`
       );
       return;
     }
@@ -239,19 +231,13 @@ class Calibration {
 
     const recentMedian = this._median(recentOffsets);
     const recentMad = this._computeMad(recentOffsets, recentMedian);
-    const previousOffsets = this.offsetsMs.slice(
-      -this.windowSize * 2,
-      -this.windowSize,
-    );
-    const previousMean =
-      previousOffsets.length > 0 ? this._mean(previousOffsets) : recentMedian;
+    const previousOffsets = this.offsetsMs.slice(-this.windowSize * 2, -this.windowSize);
+    const previousMean = previousOffsets.length > 0 ? this._mean(previousOffsets) : recentMedian;
     const driftMs = Math.abs(recentMedian - previousMean);
 
-    const strictStable =
-      recentMad <= this.madThresholdMs && driftMs <= this.driftThresholdMs;
+    const strictStable = recentMad <= this.madThresholdMs && driftMs <= this.driftThresholdMs;
     const relaxedStable =
-      recentMad <= this.madRelaxedThresholdMs &&
-      driftMs <= this.driftRelaxedThresholdMs;
+      recentMad <= this.madRelaxedThresholdMs && driftMs <= this.driftRelaxedThresholdMs;
 
     if (strictStable) {
       this.stableWindows++;
@@ -270,15 +256,13 @@ class Calibration {
     const stabilityPercent = Math.round(this.confidence);
 
     this._setStatus(
-      `Calibration: hits ${this.goodHits}/${this.minHits}+ | median ${Math.round(recentMedian)} ms | spread ${Math.round(recentMad)} ms | confidence ${stabilityPercent}%`,
+      `Calibration: hits ${this.goodHits}/${this.minHits}+ | median ${Math.round(recentMedian)} ms | spread ${Math.round(recentMad)} ms | confidence ${stabilityPercent}%`
     );
 
     const strictDone =
-      this.stableWindows >= this.requiredStableWindows &&
-      this.confidence >= this.confidenceTarget;
+      this.stableWindows >= this.requiredStableWindows && this.confidence >= this.confidenceTarget;
     const relaxedDone =
-      this.goodHits >= this.minHitsRelaxed &&
-      this.confidence >= this.confidenceRelaxedTarget;
+      this.goodHits >= this.minHitsRelaxed && this.confidence >= this.confidenceRelaxedTarget;
 
     if (strictDone || relaxedDone) {
       this.stop("Calibration complete: stable offset acquired.");

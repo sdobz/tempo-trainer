@@ -29,22 +29,18 @@ class HistoryDisplayUI {
     }
 
     sessions.forEach((session, index) => {
-      const isExpanded = expandSessionId
-        ? session.id === expandSessionId
-        : index === 0;
+      const isExpanded = expandSessionId ? session.id === expandSessionId : index === 0;
       const sessionEl = this.renderSession(session, isExpanded);
       this.listContainer.appendChild(sessionEl);
     });
 
     // Set up click handlers for expanding/collapsing
-    this.listContainer
-      .querySelectorAll(".history-session-header")
-      .forEach((header) => {
-        header.addEventListener("click", (e) => {
-          const sessionId = header.dataset.sessionId;
-          this.toggleSessionExpanded(sessionId);
-        });
+    this.listContainer.querySelectorAll(".history-session-header").forEach((header) => {
+      header.addEventListener("click", (e) => {
+        const sessionId = header.dataset.sessionId;
+        this.toggleSessionExpanded(sessionId);
       });
+    });
 
     // Set up action button handlers
     this.listContainer.querySelectorAll(".retry-session-btn").forEach((btn) => {
@@ -71,14 +67,7 @@ class HistoryDisplayUI {
    * Render a single session with collapsible details
    */
   renderSession(session, isExpanded = false) {
-    const {
-      plan,
-      overallScore,
-      completed,
-      timestamp,
-      metrics,
-      durationSeconds,
-    } = session;
+    const { plan, overallScore, completed, timestamp, metrics, durationSeconds } = session;
     const date = new Date(timestamp);
     const dateStr = date.toLocaleDateString("en-US", {
       month: "short",
@@ -194,7 +183,7 @@ class HistoryDisplayUI {
                       <span style="color: #aaa; font-size: 0.9em;">${r.suggestion}</span><br>
                       <span style="color: #888; font-size: 0.85em; font-style: italic;">→ ${r.action}</span>
                     </p>
-                  `,
+                  `
                   )
                   .join("")}
               </div>
@@ -239,8 +228,7 @@ class HistoryDisplayUI {
         category: "Tempo",
         priority: "high",
         suggestion: `Tempo control needed: You're consistently ${metrics.drift.direction} by ~${Math.abs(metrics.drift.avgErrorBeats * 500)}ms. Focus on steady internal clock.`,
-        action:
-          "Slow down and count in your head. Try the calibration exercise again.",
+        action: "Slow down and count in your head. Try the calibration exercise again.",
       });
     } else if (metrics.drift.severity === "medium") {
       recommendations.push({
@@ -267,22 +255,17 @@ class HistoryDisplayUI {
         category: "Accuracy",
         priority: "medium",
         suggestion: `Several measures had incomplete hits. Clean up your technique.`,
-        action:
-          "Work on the weak measures separately. Slow down and focus on each beat.",
+        action: "Work on the weak measures separately. Slow down and focus on each beat.",
       });
     }
 
     // Rhythm recommendations
-    if (
-      metrics.rhythm.consistency === "variable" ||
-      metrics.rhythm.consistency === "unknown"
-    ) {
+    if (metrics.rhythm.consistency === "variable" || metrics.rhythm.consistency === "unknown") {
       recommendations.push({
         category: "Rhythm",
         priority: "medium",
         suggestion: `Timing between hits is inconsistent. Your rhythm sense needs work.`,
-        action:
-          "Practice with a metronome. Feel the pulse, don't just hit randomly.",
+        action: "Practice with a metronome. Feel the pulse, don't just hit randomly.",
       });
     }
 
@@ -292,8 +275,7 @@ class HistoryDisplayUI {
         category: "Performance",
         priority: "high",
         suggestion: `Your scores vary wildly (${metrics.consistency.range} point range). Some measures are much weaker.`,
-        action:
-          "Focus on the weakest measures. Identify when you perform best and replicate that.",
+        action: "Focus on the weakest measures. Identify when you perform best and replicate that.",
       });
     } else if (metrics.consistency.consistency === "variable") {
       recommendations.push({
@@ -353,15 +335,9 @@ class HistoryDisplayUI {
     const firstHalf = scores.slice(0, Math.floor(len / 2));
     const secondHalf = scores.slice(Math.floor(len / 2));
 
-    const avgFirst = Math.round(
-      firstHalf.reduce((a, b) => a + b) / firstHalf.length,
-    );
-    const avgSecond = Math.round(
-      secondHalf.reduce((a, b) => a + b) / secondHalf.length,
-    );
-    const avgOverall = Math.round(
-      scores.reduce((a, b) => a + b) / scores.length,
-    );
+    const avgFirst = Math.round(firstHalf.reduce((a, b) => a + b) / firstHalf.length);
+    const avgSecond = Math.round(secondHalf.reduce((a, b) => a + b) / secondHalf.length);
+    const avgOverall = Math.round(scores.reduce((a, b) => a + b) / scores.length);
 
     // Calculate variance to detect consistency
     const variance = (arr) => {
@@ -423,14 +399,11 @@ class HistoryDisplayUI {
     ];
 
     const quarterlyAvg = quarters.map((q) =>
-      q.length > 0 ? Math.round(q.reduce((a, b) => a + b) / q.length) : 0,
+      q.length > 0 ? Math.round(q.reduce((a, b) => a + b) / q.length) : 0
     );
 
     // Detect middle slump (weak middle section)
-    if (
-      quarterlyAvg[1] < quarterlyAvg[0] - 5 ||
-      quarterlyAvg[2] < quarterlyAvg[0] - 5
-    ) {
+    if (quarterlyAvg[1] < quarterlyAvg[0] - 5 || quarterlyAvg[2] < quarterlyAvg[0] - 5) {
       return "Middle section dip detected—focus on maintaining energy through the middle.";
     }
 
@@ -440,10 +413,7 @@ class HistoryDisplayUI {
     }
 
     // Detect slow warm-up then improvement
-    if (
-      quarterlyAvg[0] < quarterlyAvg[1] &&
-      quarterlyAvg[1] < quarterlyAvg[3]
-    ) {
+    if (quarterlyAvg[0] < quarterlyAvg[1] && quarterlyAvg[1] < quarterlyAvg[3]) {
       return "Slow warm-up, then steady improvement—good learning curve.";
     }
 
@@ -452,7 +422,7 @@ class HistoryDisplayUI {
     const lastThird = scores.slice(Math.floor((2 * len) / 3));
     const driftAmount = Math.round(
       lastThird.reduce((a, b) => a + b) / lastThird.length -
-        firstThird.reduce((a, b) => a + b) / firstThird.length,
+        firstThird.reduce((a, b) => a + b) / firstThird.length
     );
 
     if (driftAmount > 8) {
@@ -469,7 +439,7 @@ class HistoryDisplayUI {
    */
   toggleSessionExpanded(sessionId) {
     const sessionElement = this.listContainer.querySelector(
-      `.history-session[data-session-id="${sessionId}"]`,
+      `.history-session[data-session-id="${sessionId}"]`
     );
     if (!sessionElement) return;
 

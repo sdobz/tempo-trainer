@@ -99,10 +99,7 @@ class DrillPlan {
       block.style.fontWeight = "bold";
 
       block.addEventListener("click", (event) => {
-        const idx = parseInt(
-          event.currentTarget.dataset.measureIndex || "",
-          10,
-        );
+        const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
         if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
           this.onMeasureClickCallback(idx);
         }
@@ -138,10 +135,7 @@ class DrillPlan {
           block.textContent = "00";
 
           block.addEventListener("click", (event) => {
-            const idx = parseInt(
-              event.currentTarget.dataset.measureIndex || "",
-              10,
-            );
+            const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
             if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
               this.onMeasureClickCallback(idx);
             }
@@ -160,10 +154,7 @@ class DrillPlan {
           block.style.opacity = "0.4";
 
           block.addEventListener("click", (event) => {
-            const idx = parseInt(
-              event.currentTarget.dataset.measureIndex || "",
-              10,
-            );
+            const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
             if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
               this.onMeasureClickCallback(idx);
             }
@@ -183,9 +174,7 @@ class DrillPlan {
   }
 
   updateMeasureScore(measureIndex, score) {
-    const blocks = this.container.querySelectorAll(
-      "#plan-visualization .measure-block",
-    );
+    const blocks = this.container.querySelectorAll("#plan-visualization .measure-block");
     if (measureIndex >= 0 && measureIndex < blocks.length) {
       const block = blocks[measureIndex];
       const measureType = this.plan[measureIndex]?.type;
@@ -209,9 +198,7 @@ class DrillPlan {
 
   setHighlight(measureIndex) {
     this.currentMeasureIndex = measureIndex;
-    const blocks = this.container.querySelectorAll(
-      "#plan-visualization .measure-block",
-    );
+    const blocks = this.container.querySelectorAll("#plan-visualization .measure-block");
 
     blocks.forEach((block, index) => {
       if (index === measureIndex) {

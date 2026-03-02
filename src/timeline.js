@@ -36,8 +36,7 @@ class Timeline {
       return;
     }
 
-    const totalBeats =
-      this.drillPlan.length * this.beatsPerMeasure + this.tailBeats;
+    const totalBeats = this.drillPlan.length * this.beatsPerMeasure + this.tailBeats;
     const contentWidth = totalBeats * this.pxPerBeat;
     const paddingWidth = viewportWidth;
     const totalWidth = paddingWidth + contentWidth + paddingWidth;

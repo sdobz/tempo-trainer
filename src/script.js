@@ -6,16 +6,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const stopBtn = document.getElementById("stop-btn");
   const beatIndicator = document.querySelector(".beat-indicator");
   const statusDiv = document.getElementById("status");
-  const planVisualizationContainer = document.getElementById(
-    "plan-visualization-container",
-  );
+  const planVisualizationContainer = document.getElementById("plan-visualization-container");
   const overallScoreDisplay = document.getElementById("overall-score");
   const drillHistoryList = document.getElementById("drill-history-list");
   const timelineViewport = document.getElementById("timeline-viewport");
   const timelineTrack = document.getElementById("timeline-track");
-  const completeOnboardingBtn = document.getElementById(
-    "complete-onboarding-btn",
-  );
+  const completeOnboardingBtn = document.getElementById("complete-onboarding-btn");
   const startPlanPlayBtn = document.getElementById("start-plan-play-btn");
   const finishPlayBtn = document.getElementById("finish-play-btn");
   const backToPlanBtn = document.getElementById("back-to-plan-btn");
@@ -38,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const timeline = new Timeline(timelineViewport, timelineTrack);
   const scorer = new Scorer(
     parseInt(timeSignatureSelect.value.split("/")[0], 10),
-    60.0 / parseInt(bpmInput.value, 10),
+    60.0 / parseInt(bpmInput.value, 10)
   );
   const drillHistory = new DrillHistory(drillHistoryList);
   const practiceSessionManager = new PracticeSessionManager();
@@ -56,23 +52,14 @@ document.addEventListener("DOMContentLoaded", () => {
     status: document.getElementById("calibration-status"),
     result: document.getElementById("calibration-result"),
   });
-  const planEditorUI = new PlanEditorUI(
-    planLibrary,
-    drillPlan,
-    bpmInput,
-    timeSignatureSelect,
-  );
+  const planEditorUI = new PlanEditorUI(planLibrary, drillPlan, bpmInput, timeSignatureSelect);
 
   // --- Pane Manager (after DOM elements ready) ---
   const paneManager = new PaneManager();
 
   // --- History Display UI (after DOM elements ready) ---
   const drillHistoryListEl = document.getElementById("drill-history-list");
-  const historyDisplayUI = new HistoryDisplayUI(
-    drillHistoryListEl,
-    planEditorUI,
-    paneManager,
-  );
+  const historyDisplayUI = new HistoryDisplayUI(drillHistoryListEl, planEditorUI, paneManager);
 
   // --- Setup Feature Callbacks ---
 
@@ -83,10 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   drillPlan.onMeasureClick((measureIndex) => {
     if (!metronome.isRunning) {
-      const beatsPerMeasure = parseInt(
-        timeSignatureSelect.value.split("/")[0],
-        10,
-      );
+      const beatsPerMeasure = parseInt(timeSignatureSelect.value.split("/")[0], 10);
       timeline.centerAt(measureIndex * beatsPerMeasure);
     }
   });
@@ -102,11 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const downbeatFreq = 880.0;
     const beatFreq = 440.0;
     const freq =
-      measureType === "click-in"
-        ? clickInFreq
-        : beatInMeasure === 0
-          ? downbeatFreq
-          : beatFreq;
+      measureType === "click-in" ? clickInFreq : beatInMeasure === 0 ? downbeatFreq : beatFreq;
 
     metronome.scheduleClick(time, freq);
 
@@ -146,7 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const detectedBeatPosition = calibration.getCalibratedBeatPosition(
         hitAudioTime,
         timelineRunStartAudioTime,
-        metronome.beatDuration,
+        metronome.beatDuration
       );
 
       timeline.addDetection(detectedBeatPosition);
@@ -167,9 +147,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateOnboardingStatus() {
     const micStatusEl = document.getElementById("mic-status");
-    const calibStatusEl = document.getElementById(
-      "calibration-status-indicator",
-    );
+    const calibStatusEl = document.getElementById("calibration-status-indicator");
     const micStepEl = document.getElementById("step-microphone");
     const calibStepEl = document.getElementById("step-calibration");
 
@@ -236,9 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Ensure AudioContext exists for microphone access
       if (!audioContext) {
         try {
-          audioContext = new (
-            window.AudioContext || window.webkitAudioContext
-          )();
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
           metronome.audioContext = audioContext;
           micDetector.audioContext = audioContext;
           calibration.audioContext = audioContext;
@@ -255,11 +231,7 @@ document.addEventListener("DOMContentLoaded", () => {
           console.error("Failed to start microphone detector:", err);
         }
       }
-    } else if (
-      pane !== "plan-play" &&
-      micDetector.isRunning &&
-      !calibration.isCalibrating
-    ) {
+    } else if (pane !== "plan-play" && micDetector.isRunning && !calibration.isCalibrating) {
       // Stop microphone detector when leaving onboarding (but not when going to play)
       // Keep it running during play
       micDetector.stop();
@@ -309,9 +281,7 @@ document.addEventListener("DOMContentLoaded", () => {
       async (e) => {
         if (!audioContext && !calibration.isCalibrating) {
           try {
-            audioContext = new (
-              window.AudioContext || window.webkitAudioContext
-            )();
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
             metronome.audioContext = audioContext;
             micDetector.audioContext = audioContext;
             calibration.audioContext = audioContext;
@@ -327,7 +297,7 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
       },
-      true,
+      true
     );
   }
 
@@ -339,10 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   timeSignatureSelect.addEventListener("change", () => {
-    const beatsPerMeasure = parseInt(
-      timeSignatureSelect.value.split("/")[0],
-      10,
-    );
+    const beatsPerMeasure = parseInt(timeSignatureSelect.value.split("/")[0], 10);
     metronome.setTimeSignature(beatsPerMeasure);
     scorer.setBeatsPerMeasure(beatsPerMeasure);
     timeline.setBeatsPerMeasure(beatsPerMeasure);
@@ -373,10 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const bpm = parseInt(bpmInput.value, 10);
-    const beatsPerMeasure = parseInt(
-      timeSignatureSelect.value.split("/")[0],
-      10,
-    );
+    const beatsPerMeasure = parseInt(timeSignatureSelect.value.split("/")[0], 10);
 
     metronome.setBPM(bpm);
     metronome.setTimeSignature(beatsPerMeasure);
@@ -432,11 +396,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Give extra time for final hits - need full late window plus some margin
     const finalHitGraceMs = Math.max(
       300,
-      Math.round(
-        (scorer.lateHitAssignmentWindowBeats + 0.5) *
-          metronome.beatDuration *
-          1000,
-      ),
+      Math.round((scorer.lateHitAssignmentWindowBeats + 0.5) * metronome.beatDuration * 1000)
     );
 
     statusDiv.textContent = "Drill complete. Capturing final hits...";
@@ -515,9 +475,7 @@ document.addEventListener("DOMContentLoaded", () => {
     planEditorUI.init();
 
     // Determine which pane to show
-    const hasCompletedOnboarding = StorageManager.get(
-      "tempoTrainer.hasCompletedOnboarding",
-    );
+    const hasCompletedOnboarding = StorageManager.get("tempoTrainer.hasCompletedOnboarding");
     const hasCalibration = calibration.getOffsetMs() !== 0;
 
     let initialPane = "onboarding";
@@ -559,7 +517,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const beatPosition = calibration.getCalibratedBeatPosition(
         audioContext.currentTime,
         timelineRunStartAudioTime,
-        metronome.beatDuration,
+        metronome.beatDuration
       );
       timeline.centerAt(beatPosition);
     }
