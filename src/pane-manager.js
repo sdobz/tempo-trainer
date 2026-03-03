@@ -48,7 +48,7 @@ class PaneManager {
    */
   getCurrentParams() {
     const hash = window.location.hash.slice(1); // Remove #
-    const [pane, queryString] = hash.split("?");
+    const [, queryString] = hash.split("?");
     const params = new URLSearchParams(queryString);
     const result = {};
     params.forEach((value, key) => {
@@ -79,11 +79,11 @@ class PaneManager {
    */
   _onHashChange() {
     const hash = window.location.hash.slice(1); // Remove #
-    const [pane] = hash.split("?");
-    const paneName = pane || "onboarding"; // Default to onboarding
+    const [paneName] = hash.split("?");
+    const currentPaneName = paneName || "onboarding"; // Default to onboarding
 
-    if (this.currentPane !== paneName) {
-      this.currentPane = paneName;
+    if (this.currentPane !== currentPaneName) {
+      this.currentPane = currentPaneName;
       this._notifyListeners();
     }
   }

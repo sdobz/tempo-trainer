@@ -1,3 +1,9 @@
+/** @typedef {any} PlanEditorUI */
+
+/** @typedef {any} PaneManager */
+
+/** @typedef {any} Session */
+
 /**
  * HistoryDisplayUI manages the display of practice session history with detailed metrics and recommendations.
  * Consolidates historical review, performance analysis, and learning suggestions.
@@ -18,8 +24,8 @@ class HistoryDisplayUI {
 
   /**
    * Displays all practice sessions with detailed metrics and options.
-   * @param {Array<Object>} sessions - Array of session objects to display
-   * @param {string} [expandSessionId=null] - Optional session ID to expand, defaults to first session
+   * @param {Array<Session>} sessions - Array of session objects to display
+   * @param {string|null} [expandSessionId=null] - Optional session ID to expand, defaults to first session
    */
   displaySessions(sessions, expandSessionId = null) {
     if (!this.listContainer) return;
@@ -43,17 +49,19 @@ class HistoryDisplayUI {
 
     // Set up click handlers for expanding/collapsing
     this.listContainer.querySelectorAll(".history-session-header").forEach((header) => {
-      header.addEventListener("click", (e) => {
-        const sessionId = header.dataset.sessionId;
+      const headerEl = /** @type {HTMLElement} */ (header);
+      header.addEventListener("click", (_e) => {
+        const sessionId = headerEl.dataset.sessionId || "";
         this.toggleSessionExpanded(sessionId);
       });
     });
 
     // Set up action button handlers
     this.listContainer.querySelectorAll(".retry-session-btn").forEach((btn) => {
+      const btnEl = /** @type {HTMLElement} */ (btn);
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const sessionId = btn.dataset.sessionId;
+        const sessionId = btnEl.dataset.sessionId;
         const session = sessions.find((s) => s.id === sessionId);
         if (session && session.plan) {
           this.planEditorUI.selectPlanByObject(session.plan);
@@ -72,7 +80,7 @@ class HistoryDisplayUI {
 
   /**
    * Renders a single session element with collapsible details.
-   * @param {Object} session - Session object containing plan, score, timestamps, and metrics
+   * @param {Session} session - Session object containing plan, score, timestamps, and metrics
    * @param {boolean} [isExpanded=false] - Whether to show session details initially expanded
    * @returns {HTMLElement} The rendered session element
    */
@@ -117,9 +125,9 @@ class HistoryDisplayUI {
 
   /**
    * Renders detailed session information with analysis, metrics, and recommendations.
-   * @param {Object} session - Session object with all timing and scoring data
-   * @param {Object} plan - The practice plan used in the session
-   * @param {Object} metrics - Analyzed metrics object (drift, accuracy, rhythm, consistency)
+   * @param {Session} session - Session object with all timing and scoring data
+   * @param {any} plan - The practice plan used in the session
+   * @param {any} metrics - Analyzed metrics object (drift, accuracy, rhythm, consistency)
    * @param {number} duration - Session duration in seconds
    * @returns {string} HTML string with detailed session information
    */
@@ -232,9 +240,9 @@ class HistoryDisplayUI {
 
   /**
    * Generates personalized recommendations based on session performance metrics.
-   * @param {Object} session - Session object with overall score and completion status
-   * @param {Object} metrics - Analyzed metrics object with drift, accuracy, rhythm data
-   * @returns {Array<Object>} Array of recommendation objects with category, priority, suggestion, and action
+   * @param {Session} session - Session object with overall score and completion status
+   * @param {any} metrics - Analyzed metrics object with drift, accuracy, rhythm data
+   * @returns {Array<any>} Array of recommendation objects with category, priority, suggestion, and action
    */
   generateRecommendations(session, metrics) {
     const recommendations = [];
@@ -347,7 +355,7 @@ class HistoryDisplayUI {
   /**
    * Analyzes measure scores for meaningful performance patterns and trends.
    * @param {Array<number>} scores - Array of measure scores
-   * @returns {Object} Object with primary, secondary, and insight trend descriptions
+   * @returns {{ primary: string, secondary: string, insight?: string }} Object with primary, secondary, and insight trend descriptions
    */
   analyzeTrend(scores) {
     const len = scores.length;
@@ -361,6 +369,7 @@ class HistoryDisplayUI {
     const avgOverall = Math.round(scores.reduce((a, b) => a + b) / scores.length);
 
     // Calculate variance to detect consistency
+    /** @param {number[]} arr */
     const variance = (arr) => {
       const mean = arr.reduce((a, b) => a + b) / arr.length;
       const sq = arr.map((x) => Math.pow(x - mean, 2));

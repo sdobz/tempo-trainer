@@ -337,7 +337,7 @@ class PracticeSessionManager {
     try {
       const stored = StorageManager.get(this.storageKey, "[]");
       return JSON.parse(stored);
-    } catch (_e) {
+    } catch {
       return [];
     }
   }

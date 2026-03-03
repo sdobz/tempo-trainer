@@ -13,7 +13,7 @@ class StorageManager {
     try {
       const value = localStorage.getItem(key);
       return value !== null ? value : defaultValue;
-    } catch (_err) {
+    } catch {
       return defaultValue;
     }
   }
@@ -54,7 +54,7 @@ class StorageManager {
     try {
       localStorage.setItem(key, String(value));
       return true;
-    } catch (_err) {
+    } catch {
       return false;
     }
   }

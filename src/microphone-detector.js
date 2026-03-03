@@ -154,7 +154,7 @@ class MicrophoneDetector {
     let devices;
     try {
       devices = await navigator.mediaDevices.enumerateDevices();
-    } catch (_err) {
+    } catch {
       return;
     }
 

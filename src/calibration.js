@@ -40,7 +40,9 @@ class Calibration {
     this.schedulerIntervalID = null;
     this.nextNoteTime = 0;
     this.beatInMeasure = 0;
+    /** @type {number[]} */
     this.expectedBeats = [];
+    /** @type {number[]} */
     this.offsetsMs = [];
     this.goodHits = 0;
     this.stableWindows = 0;
@@ -141,7 +143,7 @@ class Calibration {
       this.schedulerIntervalID = window.setInterval(() => this._scheduler(), this.lookahead);
 
       return true;
-    } catch (_error) {
+    } catch {
       this._setStatus("Calibration failed to start: microphone or audio unavailable.");
       return false;
     }
@@ -248,6 +250,9 @@ class Calibration {
     }
   }
 
+  /**
+   * @param {number} time - AudioContext currentTime
+   */
   _scheduleClick(time) {
     const isDownbeat = this.beatInMeasure === 0;
     const freq = isDownbeat ? 880.0 : 440.0;
@@ -320,6 +325,9 @@ class Calibration {
     }
   }
 
+  /**
+   * @param {string} message - Status message to display
+   */
   _setStatus(message) {
     if (this.elements.status) {
       this.elements.status.textContent = message;
@@ -333,6 +341,10 @@ class Calibration {
     }
   }
 
+  /**
+   * @param {number[]} values - Array of values
+   * @returns {number}
+   */
   _median(values) {
     if (values.length === 0) return 0;
     const sorted = [...values].sort((a, b) => a - b);
@@ -343,14 +355,28 @@ class Calibration {
     return sorted[middle];
   }
 
+  /**
+   * @param {number[]} values - Array of values
+   * @returns {number}
+   */
   _mean(values) {
     if (values.length === 0) return 0;
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
+    return (
+      values.reduce((/** @type {number} */ sum, /** @type {number} */ value) => sum + value, 0) /
+      values.length
+    );
   }
 
+  /**
+   * @param {number[]} values - Array of values
+   * @param {number} medianValue - The median value
+   * @returns {number}
+   */
   _computeMad(values, medianValue) {
     if (values.length === 0) return 0;
-    const absDeviations = values.map((value) => Math.abs(value - medianValue));
+    const absDeviations = values.map((/** @type {number} */ value) =>
+      Math.abs(value - medianValue)
+    );
     return this._median(absDeviations);
   }
 }

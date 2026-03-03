@@ -1,3 +1,32 @@
+import {
+  getElementByID,
+  getInputElement,
+  getSelectElement,
+  getButtonElement,
+} from "./dom-utils.js";
+
+/**
+ * @typedef {{ on: number, off: number, reps: number }} Segment
+ */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   name: string,
+ *   description: string,
+ *   difficulty: string,
+ *   segments: Segment[],
+ *   isBuiltIn?: boolean,
+ *   createdAt?: number
+ * }} Plan
+ */
+
+/** @typedef {any} PlanLibrary */
+
+/**
+ * @typedef {{ parse: (planString: string) => void }} DrillPlan
+ */
+
 /**
  * PlanEditorUI manages the plan library interface, plan info display, and visual plan editor.
  * Handles plan selection, creation, editing, deletion, and cloning.
@@ -17,32 +46,35 @@ class PlanEditorUI {
     this.timeSignatureSelect = timeSignatureSelect;
 
     // State
+    /** @type {Plan|null} */
     this.currentPlan = null;
+    /** @type {Plan|null} */
     this.editingPlan = null;
+    /** @type {Segment[]} */
     this.editingSegments = [];
 
     // Get DOM elements
-    this.planLibrarySelect = document.getElementById("plan-library-select");
-    this.newPlanBtn = document.getElementById("new-plan-btn");
-    this.planInfoDisplay = document.getElementById("plan-info-display");
-    this.planInfoName = document.getElementById("plan-info-name");
-    this.planInfoDescription = document.getElementById("plan-info-description");
-    this.planInfoDifficulty = document.getElementById("plan-info-difficulty");
-    this.planStatSegments = document.getElementById("plan-stat-segments");
-    this.planStatMeasures = document.getElementById("plan-stat-measures");
-    this.planStatDuration = document.getElementById("plan-stat-duration");
-    this.planEditorSection = document.getElementById("plan-editor-section");
-    this.planNameInput = document.getElementById("plan-name-input");
-    this.planDescriptionInput = document.getElementById("plan-description-input");
-    this.planDifficultyInput = document.getElementById("plan-difficulty-input");
-    this.segmentsList = document.getElementById("segments-list");
-    this.addSegmentBtn = document.getElementById("add-segment-btn");
-    this.savePlanBtn = document.getElementById("save-plan-btn");
-    this.cancelEditBtn = document.getElementById("cancel-edit-btn");
-    this.deletePlanBtn = document.getElementById("delete-plan-btn");
-    this.clonePlanBtn = document.getElementById("clone-plan-btn");
-    this.editPlanBtn = document.getElementById("edit-plan-btn");
-    this.startPlanPlayBtn = document.getElementById("start-plan-play-btn");
+    this.planLibrarySelect = getSelectElement("plan-library-select");
+    this.newPlanBtn = getButtonElement("new-plan-btn");
+    this.planInfoDisplay = getElementByID("plan-info-display");
+    this.planInfoName = getElementByID("plan-info-name");
+    this.planInfoDescription = getElementByID("plan-info-description");
+    this.planInfoDifficulty = getElementByID("plan-info-difficulty");
+    this.planStatSegments = getElementByID("plan-stat-segments");
+    this.planStatMeasures = getElementByID("plan-stat-measures");
+    this.planStatDuration = getElementByID("plan-stat-duration");
+    this.planEditorSection = getElementByID("plan-editor-section");
+    this.planNameInput = getInputElement("plan-name-input");
+    this.planDescriptionInput = getInputElement("plan-description-input");
+    this.planDifficultyInput = getInputElement("plan-difficulty-input");
+    this.segmentsList = getElementByID("segments-list");
+    this.addSegmentBtn = getButtonElement("add-segment-btn");
+    this.savePlanBtn = getButtonElement("save-plan-btn");
+    this.cancelEditBtn = getButtonElement("cancel-edit-btn");
+    this.deletePlanBtn = getButtonElement("delete-plan-btn");
+    this.clonePlanBtn = getButtonElement("clone-plan-btn");
+    this.editPlanBtn = getButtonElement("edit-plan-btn");
+    this.startPlanPlayBtn = getButtonElement("start-plan-play-btn");
 
     // Setup event listeners
     this.setupEventListeners();
@@ -147,7 +179,7 @@ class PlanEditorUI {
    */
   updateUrlWithPlan(planId) {
     // Update URL with selected plan without reloading
-    const url = new URL(window.location);
+    const url = new URL(window.location.href);
     if (planId) {
       url.searchParams.set("plan", planId);
     } else {
@@ -158,7 +190,7 @@ class PlanEditorUI {
 
   /**
    * Gets the currently displayed plan.
-   * @returns {Object|null} The currently selected plan or null if none selected
+   * @returns {Plan|null} The currently selected plan or null if none selected
    */
   getCurrentPlan() {
     return this.currentPlan;
@@ -167,7 +199,7 @@ class PlanEditorUI {
   /**
    * Selects and displays a plan by its object reference.
    * Useful for retrying a plan from session history.
-   * @param {Object} planObject - The plan object to select
+   * @param {Plan} planObject - The plan object to select
    */
   selectPlanByObject(planObject) {
     // Select a plan by its object (used for retrying from history)
@@ -189,13 +221,13 @@ class PlanEditorUI {
     const plans = this.planLibrary.getAllPlans();
     this.planLibrarySelect.innerHTML = '<option value="">Select a plan...</option>';
 
-    const builtInPlans = plans.filter((p) => p.isBuiltIn);
-    const customPlans = plans.filter((p) => !p.isBuiltIn);
+    const builtInPlans = plans.filter((/** @type {Plan} */ p) => p.isBuiltIn);
+    const customPlans = plans.filter((/** @type {Plan} */ p) => !p.isBuiltIn);
 
     if (builtInPlans.length > 0) {
       const builtInGroup = document.createElement("optgroup");
       builtInGroup.label = "Built-in Plans";
-      builtInPlans.forEach((plan) => {
+      builtInPlans.forEach((/** @type {Plan} */ plan) => {
         const option = document.createElement("option");
         option.value = plan.id;
         option.textContent = plan.name;
@@ -207,7 +239,7 @@ class PlanEditorUI {
     if (customPlans.length > 0) {
       const customGroup = document.createElement("optgroup");
       customGroup.label = "My Plans";
-      customPlans.forEach((plan) => {
+      customPlans.forEach((/** @type {Plan} */ plan) => {
         const option = document.createElement("option");
         option.value = plan.id;
         option.textContent = plan.name;
@@ -220,7 +252,7 @@ class PlanEditorUI {
   /**
    * Displays plan information and statistics for the given plan.
    * Updates the visualization with the plan's structure.
-   * @param {Object} plan - The plan object to display
+   * @param {Plan} plan - The plan object to display
    */
   showPlanInfo(plan) {
     this.currentPlan = plan;
@@ -237,8 +269,8 @@ class PlanEditorUI {
     const beatsPerMeasure = parseInt(this.timeSignatureSelect.value.split("/")[0], 10);
     const duration = this.planLibrary.estimateDuration(plan.segments, bpm, beatsPerMeasure);
 
-    this.planStatSegments.textContent = stats.segments;
-    this.planStatMeasures.textContent = stats.totalMeasures + 1; // +1 for click-in
+    this.planStatSegments.textContent = String(stats.segments);
+    this.planStatMeasures.textContent = String(stats.totalMeasures + 1); // +1 for click-in
     this.planStatDuration.textContent = this.planLibrary.formatDuration(duration);
 
     this.planInfoDisplay.style.display = "block";
@@ -266,7 +298,7 @@ class PlanEditorUI {
 
   /**
    * Shows the plan editor interface for creating or editing a plan.
-   * @param {Object} [plan=null] - Plan to edit, or null to create a new one
+   * @param {Plan|null} [plan=null] - Plan to edit, or null to create a new one
    */
   showPlanEditor(plan = null) {
     if (plan) {
@@ -374,15 +406,19 @@ class PlanEditorUI {
     // Add change listeners to all inputs
     this.segmentsList.querySelectorAll("input").forEach((input) => {
       input.addEventListener("change", (e) => {
-        const index = parseInt(e.target.dataset.index);
-        const field = e.target.dataset.field;
-        const value = Math.max(1, Math.min(99, parseInt(e.target.value, 10) || 1));
+        const target = /** @type {HTMLInputElement} */ (e.target);
+        const index = parseInt(target.dataset.index || "0", 10);
+        const field = target.dataset.field;
+        if (field !== "on" && field !== "off" && field !== "reps") {
+          return;
+        }
+        const value = Math.max(1, Math.min(99, parseInt(target.value, 10) || 1));
         if (field === "off") {
           this.editingSegments[index][field] = Math.max(0, value); // Off can be 0
         } else {
           this.editingSegments[index][field] = value;
         }
-        e.target.value = this.editingSegments[index][field];
+        target.value = String(this.editingSegments[index][field]);
         this.updateEditingVisualization();
       });
     });
@@ -428,7 +464,9 @@ class PlanEditorUI {
       return;
     }
 
+    /** @type {Plan} */
     const plan = {
+      id: this.editingPlan?.id || "",
       name: name,
       description: this.planDescriptionInput.value.trim(),
       difficulty: this.planDifficultyInput.value,
@@ -454,7 +492,8 @@ class PlanEditorUI {
         this.updateUrlWithPlan(plan.id);
       }
     } catch (error) {
-      alert("Error saving plan: " + error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      alert("Error saving plan: " + message);
     }
   }
 
@@ -481,7 +520,8 @@ class PlanEditorUI {
       this.planLibrarySelect.value = "";
       this.updateUrlWithPlan(null);
     } catch (error) {
-      alert("Error deleting plan: " + error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      alert("Error deleting plan: " + message);
     }
   }
 
@@ -504,7 +544,8 @@ class PlanEditorUI {
       this.showPlanInfo(cloned);
       this.updateUrlWithPlan(cloned.id);
     } catch (error) {
-      alert("Error cloning plan: " + error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      alert("Error cloning plan: " + message);
     }
   }
 }
