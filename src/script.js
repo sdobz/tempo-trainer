@@ -186,6 +186,14 @@ document.addEventListener("DOMContentLoaded", () => {
     paneManager.navigate("plan-edit");
   });
 
+  // Handle navigation from plan-edit-pane
+  planEditPane.addEventListener("navigate", (/** @type {CustomEvent} */ event) => {
+    const { pane } = event.detail;
+    if (pane) {
+      paneManager.navigate(pane);
+    }
+  });
+
   //--- Onboarding Status Update ---
 
   function updateOnboardingStatus() {

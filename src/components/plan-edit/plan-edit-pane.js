@@ -400,16 +400,16 @@ export default class PlanEditPane extends BaseComponent {
       segmentEl.innerHTML = `
         <div class="segment-controls">
           <div class="segment-control">
-            <label>Measures:</label>
-            <input type="number" data-measures value="${segment.measures || 0}" min="1" />
+            <label>On (measures):</label>
+            <input type="number" data-on value="${segment.on || 1}" min="0" />
           </div>
           <div class="segment-control">
-            <label>Hits/Measure:</label>
-            <input type="number" data-hits value="${segment.hitsPerMeasure || 0}" min="0" />
+            <label>Off (measures):</label>
+            <input type="number" data-off value="${segment.off || 0}" min="0" />
           </div>
           <div class="segment-control">
-            <label>Type:</label>
-            <input type="text" data-type value="${segment.type || ''}" placeholder="e.g., quarter-notes" />
+            <label>Reps:</label>
+            <input type="number" data-reps value="${segment.reps || 1}" min="1" />
           </div>
         </div>
         <div class="segment-actions">
@@ -417,38 +417,34 @@ export default class PlanEditPane extends BaseComponent {
         </div>
       `;
 
-      const measuresInput = segmentEl.querySelector("[data-measures]");
-      const hitsInput = segmentEl.querySelector("[data-hits]");
-      const typeInput = segmentEl.querySelector("[data-type]");
+      const onInput = segmentEl.querySelector("[data-on]");
+      const offInput = segmentEl.querySelector("[data-off]");
+      const repsInput = segmentEl.querySelector("[data-reps]");
       const deleteBtn = segmentEl.querySelector("[data-delete-segment]");
 
-      this._cleanups.push(
-        bindEvent(measuresInput, "change", () => {
-          this.editingSegments[index].measures = parseInt(measuresInput.value) || 0;
-        })
-      );
+      const updateSegment = () => {
+        this.editingSegments[index].on = parseInt(onInput.value) || 0;
+        this.editingSegments[index].off = parseInt(offInput.value) || 0;
+        this.editingSegments[index].reps = parseInt(repsInput.value) || 1;
+        this._updateEditorVisualization();
+      };
 
-      this._cleanups.push(
-        bindEvent(hitsInput, "change", () => {
-          this.editingSegments[index].hitsPerMeasure = parseInt(hitsInput.value) || 0;
-        })
-      );
-
-      this._cleanups.push(
-        bindEvent(typeInput, "change", () => {
-          this.editingSegments[index].type = typeInput.value;
-        })
-      );
+      this._cleanups.push(bindEvent(onInput, "change", updateSegment));
+      this._cleanups.push(bindEvent(offInput, "change", updateSegment));
+      this._cleanups.push(bindEvent(repsInput, "change", updateSegment));
 
       this._cleanups.push(
         bindEvent(deleteBtn, "click", () => {
           this.editingSegments.splice(index, 1);
           this._renderSegmentsList();
+          this._updateEditorVisualization();
         })
       );
 
       this.segmentsList.appendChild(segmentEl);
     });
+
+    this._updateEditorVisualization();
   }
 
   /**
@@ -568,11 +564,29 @@ export default class PlanEditPane extends BaseComponent {
    */
   _onAddSegment() {
     this.editingSegments.push({
-      measures: 1,
-      hitsPerMeasure: 0,
-      type: "",
+      on: 1,
+      off: 1,
+      reps: 1,
     });
     this._renderSegmentsList();
+  }
+
+  /**
+   * Update visualization during editing
+   */
+  _updateEditorVisualization() {
+    if (!this.drillPlan || this.editingSegments.length === 0) {
+      return;
+    }
+
+    try {
+      const planString = this._segmentsToPlanString(this.editingSegments);
+      if (planString) {
+        this.drillPlan.parse(planString);
+      }
+    } catch (e) {
+      console.error("Failed to update visualization:", e);
+    }
   }
 
   /**
