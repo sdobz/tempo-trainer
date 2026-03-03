@@ -1,24 +1,51 @@
 /**
- * DrillPlan manages drill plan parsing, visualization, and measure tracking.
+ * DrillPlanVisualization - Web component for displaying drill plan visualization
+ *
+ * Manages drill plan parsing, visualization, and measure tracking.
  */
+
+import BaseComponent from "../base/base-component.js";
+import { querySelector } from "../base/component-utils.js";
+
 /** @typedef {{ type: string }} Measure */
 /** @typedef {{ on: number, off: number, reps: number, startIndex: number }} DrillSegment */
-class DrillPlan {
-  /**
-   * Creates a new DrillPlan instance.
-   * @param {HTMLElement} container - DOM element to render plan into
-   */
-  constructor(container) {
-    this.container = container;
+
+/**
+ * DrillPlanVisualization component - displays drill plan as colored measure blocks
+ */
+export default class DrillPlanVisualization extends BaseComponent {
+  constructor() {
+    super();
+
+    /** @type {HTMLElement|null} */
+    this.container = null;
+
     /** @type {Measure[]} */
     this.plan = [];
+
     /** @type {DrillSegment[]} */
     this.segments = [];
+
     this.currentMeasureIndex = 0;
+
     /** @type {((plan: Measure[]) => void)|null} */
     this.onPlanChangeCallback = null;
+
     /** @type {((measureIndex: number) => void)|null} */
     this.onMeasureClickCallback = null;
+  }
+
+  getTemplateUrl() {
+    return "/src/features/plan-edit/drill-plan-visualization.html";
+  }
+
+  getStyleUrl() {
+    return "/src/features/plan-edit/drill-plan-visualization.css";
+  }
+
+  async onMount() {
+    // Get the container element that we'll render the plan into
+    this.container = querySelector(this, "[data-plan-visualization-container]");
   }
 
   /**
@@ -100,6 +127,8 @@ class DrillPlan {
    * Creates visual representations of click, silent, and click-in measures.
    */
   render() {
+    if (!this.container) return;
+
     // Remove old visualization
     const oldViz = this.container.querySelector("#plan-visualization");
     if (oldViz) oldViz.remove();
@@ -113,34 +142,7 @@ class DrillPlan {
     viz.style.gap = "0.8em";
 
     let measureIndex = 0;
-
-    // Click-in measure (always first, show alone)
-    if (this.plan[0]?.type === "click-in") {
-      const clickInLine = document.createElement("div");
-      clickInLine.style.display = "flex";
-      clickInLine.style.gap = "0.4em";
-      clickInLine.style.marginBottom = "0.4em";
-
-      const block = document.createElement("div");
-      block.className = "measure-block click-in";
-      block.dataset.measureIndex = "0";
-      block.textContent = "▶";
-      block.style.minWidth = "2.5em";
-      block.style.textAlign = "center";
-      block.style.fontWeight = "bold";
-
-      block.addEventListener("click", (event) => {
-        const target = /** @type {HTMLElement} */ (event.currentTarget);
-        const idx = parseInt(target.dataset.measureIndex || "", 10);
-        if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
-          this.onMeasureClickCallback(idx);
-        }
-      });
-
-      clickInLine.appendChild(block);
-      viz.appendChild(clickInLine);
-      measureIndex = 1;
-    }
+    let isFirstSegment = true;
 
     // Render each segment with its repetitions grouped
     this.segments.forEach((segment) => {
@@ -151,6 +153,32 @@ class DrillPlan {
       segmentContainer.style.display = "flex";
       segmentContainer.style.flexDirection = "column";
       segmentContainer.style.gap = "0.2em";
+
+      // First segment: add click-in row at the top
+      if (isFirstSegment && this.plan[0]?.type === "click-in") {
+        const clickInLine = document.createElement("div");
+        clickInLine.style.display = "flex";
+        clickInLine.style.gap = "0.3em";
+        clickInLine.style.alignItems = "center";
+
+        const block = document.createElement("div");
+        block.className = "measure-block click-in";
+        block.dataset.measureIndex = "0";
+        block.textContent = "▶";
+
+        block.addEventListener("click", (event) => {
+          const target = /** @type {HTMLElement} */ (event.currentTarget);
+          const idx = parseInt(target.dataset.measureIndex || "", 10);
+          if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
+            this.onMeasureClickCallback(idx);
+          }
+        });
+
+        clickInLine.appendChild(block);
+        segmentContainer.appendChild(clickInLine);
+        measureIndex = 1;
+        isFirstSegment = false;
+      }
 
       // Render each repetition as a line
       for (let rep = 0; rep < segment.reps; rep++) {
@@ -210,6 +238,8 @@ class DrillPlan {
    * @param {number} [score] - Score value (0-99, clamped), undefined clears the score
    */
   updateMeasureScore(measureIndex, score) {
+    if (!this.container) return;
+
     const blocks = this.container.querySelectorAll("#plan-visualization .measure-block");
     if (measureIndex >= 0 && measureIndex < blocks.length) {
       const block = blocks[measureIndex];
@@ -242,6 +272,8 @@ class DrillPlan {
    * @param {number} measureIndex - Index of the measure to highlight
    */
   setHighlight(measureIndex) {
+    if (!this.container) return;
+
     this.currentMeasureIndex = measureIndex;
     const blocks = this.container.querySelectorAll("#plan-visualization .measure-block");
 
@@ -280,4 +312,7 @@ class DrillPlan {
   }
 }
 
-export default DrillPlan;
+// Register custom element
+if (!customElements.get("drill-plan-visualization")) {
+  customElements.define("drill-plan-visualization", DrillPlanVisualization);
+}

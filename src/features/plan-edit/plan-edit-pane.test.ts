@@ -115,11 +115,13 @@ Deno.test("PlanEditPane: should pass string plan format to drillPlan.parse", asy
   const component = await createComponent();
 
   let parseArg = "";
-  component.drillPlan = {
+
+  // Mock the visualization component's parse method
+  component.drillPlanViz = {
     parse: (input: string) => {
       parseArg = input;
     },
-  } as unknown as typeof component.drillPlan;
+  } as any;
 
   component._showPlanInfo({
     id: "p1",

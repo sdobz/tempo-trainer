@@ -6,6 +6,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
+import "./drill-plan-visualization.js";
 
 /**
  * @typedef {Object} PlanEditState
@@ -38,9 +39,11 @@ export default class PlanEditPane extends BaseComponent {
 
     // Injected dependencies (set externally)
     this.planLibrary = null;
-    this.drillPlan = null;
     this.bpmInput = null;
     this.timeSignatureSelect = null;
+
+    // Component references (set in onMount)
+    this.drillPlanViz = null;
 
     // DOM element references (set in onMount)
     this.planLibrarySelect = null;
@@ -108,7 +111,9 @@ export default class PlanEditPane extends BaseComponent {
     this.editPlanBtn = querySelector(this, "[data-edit-plan-btn]");
     this.startPlanPlayBtn = querySelector(this, "[data-start-plan-play-btn]");
     this.planQuickActions = querySelector(this, "[data-plan-quick-actions]");
-    this.planVisualizationContainer = querySelector(this, "[data-plan-visualization-container]");
+
+    // Get reference to drill-plan-visualization component
+    this.drillPlanViz = this.querySelector("drill-plan-visualization");
 
     // Bind event listeners
     this._cleanups.push(bindEvent(this.planLibrarySelect, "change", () => this._onPlanSelected()));
@@ -130,13 +135,11 @@ export default class PlanEditPane extends BaseComponent {
   /**
    * Initialize the component with dependencies
    * @param {PlanLibrary} planLibrary
-   * @param {DrillPlan} drillPlan
    * @param {HTMLInputElement} bpmInput
    * @param {HTMLSelectElement} timeSignatureSelect
    */
-  init(planLibrary, drillPlan, bpmInput, timeSignatureSelect) {
+  init(planLibrary, bpmInput, timeSignatureSelect) {
     this.planLibrary = planLibrary;
-    this.drillPlan = drillPlan;
     this.bpmInput = bpmInput;
     this.timeSignatureSelect = timeSignatureSelect;
 
@@ -323,9 +326,9 @@ export default class PlanEditPane extends BaseComponent {
     this.planInfoDisplay.style.display = "block";
 
     // Update visualization
-    if (this.drillPlan) {
+    if (this.drillPlanViz) {
       try {
-        this.drillPlan.parse(planString);
+        this.drillPlanViz.parse(planString);
       } catch (e) {
         console.error("Failed to visualize plan:", e);
       }
@@ -573,14 +576,14 @@ export default class PlanEditPane extends BaseComponent {
    * Update visualization during editing
    */
   _updateEditorVisualization() {
-    if (!this.drillPlan || this.editingSegments.length === 0) {
+    if (!this.drillPlanViz || this.editingSegments.length === 0) {
       return;
     }
 
     try {
       const planString = this._segmentsToPlanString(this.editingSegments);
       if (planString) {
-        this.drillPlan.parse(planString);
+        this.drillPlanViz.parse(planString);
       }
     } catch (e) {
       console.error("Failed to update visualization:", e);
@@ -593,10 +596,10 @@ export default class PlanEditPane extends BaseComponent {
   _onStartTraining() {
     if (this.currentPlan) {
       // Parse plan for visualization
-      if (this.drillPlan) {
+      if (this.drillPlanViz) {
         try {
           const planString = this._segmentsToPlanString(this.currentPlan.segments || []);
-          this.drillPlan.parse(planString);
+          this.drillPlanViz.parse(planString);
         } catch (e) {
           console.error("Failed to parse plan:", e);
         }

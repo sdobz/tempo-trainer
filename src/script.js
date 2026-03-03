@@ -3,18 +3,13 @@ import StorageManager from "./features/base/storage-manager.js";
 import Metronome from "./features/plan-play/metronome.js";
 import Scorer from "./features/plan-play/scorer.js";
 import PlanLibrary from "./features/plan-edit/plan-library.js";
-import DrillPlan from "./features/plan-edit/drill-plan.js";
-import Timeline from "./features/plan-play/timeline.js";
 import PaneManager from "./features/base/pane-manager.js";
 import "./features/plan-edit/plan-edit-pane.js";
 import "./features/plan-play/plan-play-pane.js";
 import "./features/plan-history/plan-history-pane.js";
 import PracticeSessionManager from "./features/plan-history/practice-session-manager.js";
 import "./features/onboarding/onboarding-pane.js";
-import {
-  getElementByID,
-  getAllElements,
-} from "./features/base/dom-utils.js";
+import { getElementByID, getAllElements } from "./features/base/dom-utils.js";
 
 /** @typedef {import("./features/plan-edit/plan-edit-pane.js").default} PlanEditPane */
 /** @typedef {import("./features/plan-play/plan-play-pane.js").default} PlanPlayPane */
@@ -47,7 +42,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Feature Instances (partial - some created after component ready) ---
   const planLibrary = new PlanLibrary();
   const metronome = new Metronome(/** @type {AudioContext} */ (/** @type {unknown} */ (null)));
-  const timeline = new Timeline(null, null); // Will be attached by plan-play-pane
   const scorer = new Scorer(4, 0.5); // Will be configured when session starts
   const practiceSessionManager = new PracticeSessionManager();
 
@@ -58,6 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let micDetector;
   let calibration;
   let drillPlan; // Will be initialized after plan-edit-pane is ready
+  let timeline; // Will be initialized after plan-play-pane is ready
 
   const onboardingReady = onboardingPane.componentReady.then(() => {
     // Get microphone detector from microphone-control sub-component
@@ -98,8 +93,14 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const planEditReady = planEditPane.componentReady.then(() => {
-    // Create DrillPlan with the visualization container from the component
-    drillPlan = new DrillPlan(planEditPane.planVisualizationContainer);
+    // Get the drill-plan-visualization component
+    const drillPlanVizComponent = planEditPane.querySelector("drill-plan-visualization");
+    if (!drillPlanVizComponent) {
+      throw new Error("drill-plan-visualization component not found");
+    }
+
+    // Use the component directly
+    drillPlan = drillPlanVizComponent;
 
     // Setup feature callbacks for drill plan
     drillPlan.onPlanChange((/** @type {any[]} */ plan) => {
@@ -164,8 +165,17 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const planPlayReady = planPlayPane.componentReady.then(() => {
+    // Get the timeline-visualization component
+    const timelineVizComponent = planPlayPane.querySelector("timeline-visualization");
+    if (!timelineVizComponent) {
+      throw new Error("timeline-visualization component not found");
+    }
+
+    // Use the component directly
+    timeline = timelineVizComponent;
+
     // Initialize plan-play pane with dependencies
-    planPlayPane.init(timeline, drillPlan, scorer);
+    planPlayPane.init(drillPlan, scorer);
 
     // Handle session start
     planPlayPane.addEventListener("session-start", (/** @type {CustomEvent} */ event) => {
@@ -571,12 +581,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initialize plan editor pane
     if (planEditPane) {
-      planEditPane.init(
-        planLibrary,
-        drillPlan,
-        planPlayPane.bpmInput,
-        planPlayPane.timeSignatureSelect
-      );
+      planEditPane.init(planLibrary, planPlayPane.bpmInput, planPlayPane.timeSignatureSelect);
     }
 
     // Determine which pane to show

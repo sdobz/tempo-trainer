@@ -1,16 +1,26 @@
 /**
- * Timeline provides beat-by-beat visualization with scrolling display.
+ * TimelineVisualization - Web component for displaying training timeline
+ *
+ * Provides beat-by-beat visualization with scrolling display.
  */
+
+import BaseComponent from "../base/base-component.js";
+import { querySelector } from "../base/component-utils.js";
+
 /** @typedef {{ type: string }} Measure */
-class Timeline {
-  /**
-   * Creates a new Timeline instance.
-   * @param {HTMLElement} viewportElement - Viewport container
-   * @param {HTMLElement} trackElement - Scrollable track element
-   */
-  constructor(viewportElement, trackElement) {
-    this.viewport = viewportElement;
-    this.track = trackElement;
+
+/**
+ * TimelineVisualization component - displays training timeline with beats and expectations
+ */
+export default class TimelineVisualization extends BaseComponent {
+  constructor() {
+    super();
+
+    /** @type {HTMLElement|null} */
+    this.viewport = null;
+
+    /** @type {HTMLElement|null} */
+    this.track = null;
 
     // Configuration
     this.pxPerBeat = 18;
@@ -21,6 +31,20 @@ class Timeline {
     this.drillPlan = [];
     this.beatsPerMeasure = 4;
     this.lastBeatPosition = 0;
+  }
+
+  getTemplateUrl() {
+    return "/src/features/plan-play/timeline-visualization.html";
+  }
+
+  getStyleUrl() {
+    return "/src/features/plan-play/timeline-visualization.css";
+  }
+
+  onMount() {
+    // Get the viewport and track elements
+    this.viewport = querySelector(this, "[data-timeline-viewport]");
+    this.track = querySelector(this, "[data-timeline-track]");
   }
 
   /**
@@ -45,6 +69,8 @@ class Timeline {
    * Defers operation if viewport is not yet visible.
    */
   build() {
+    if (!this.track || !this.viewport) return;
+
     this.track.innerHTML = "";
 
     if (this.drillPlan.length === 0) return;
@@ -121,6 +147,8 @@ class Timeline {
    * @param {number} beatPosition - Beat position for the detection marker
    */
   addDetection(beatPosition) {
+    if (!this.track) return;
+
     const detectionsLayer = this.track.querySelector(".timeline-detections");
     if (!detectionsLayer) return;
 
@@ -136,6 +164,8 @@ class Timeline {
    * @param {number} beatPosition - Beat position to center on
    */
   centerAt(beatPosition) {
+    if (!this.viewport || !this.track) return;
+
     this.lastBeatPosition = beatPosition;
     const viewportWidth = this.viewport.clientWidth;
     const trackWidth = this.track.offsetWidth;
@@ -162,6 +192,8 @@ class Timeline {
    * @returns {number} The pixel position relative to the track
    */
   _beatToX(beatPosition) {
+    if (!this.viewport) return 0;
+
     const viewportWidth = this.viewport.clientWidth;
     const offsetX = viewportWidth;
     return offsetX + beatPosition * this.pxPerBeat;
@@ -176,4 +208,7 @@ class Timeline {
   }
 }
 
-export default Timeline;
+// Register custom element
+if (!customElements.get("timeline-visualization")) {
+  customElements.define("timeline-visualization", TimelineVisualization);
+}

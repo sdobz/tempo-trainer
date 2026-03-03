@@ -6,6 +6,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
+import "./timeline-visualization.js";
 
 /**
  * @typedef {Object} PlanPlayState
@@ -39,9 +40,11 @@ export default class PlanPlayPane extends BaseComponent {
     this._cleanups = [];
 
     // Injected dependencies (set externally)
-    this.timeline = null;
     this.drillPlan = null;
     this.scorer = null;
+
+    // Component references (set in onMount)
+    this.timelineViz = null;
 
     // DOM element references (set in onMount)
     this.bpmInput = null;
@@ -73,11 +76,11 @@ export default class PlanPlayPane extends BaseComponent {
     this.statusDiv = querySelector(this, "[data-status]");
     this.startBtn = querySelector(this, "[data-start-btn]");
     this.stopBtn = querySelector(this, "[data-stop-btn]");
-    this.timelineViewport = querySelector(this, "[data-timeline-viewport]");
-    this.timelineTrack = querySelector(this, "[data-timeline-track]");
-    this.timelineNowLine = querySelector(this, "[data-timeline-now-line]");
     this.overallScoreDisplay = querySelector(this, "[data-overall-score]");
     this.viewResultsBtn = querySelector(this, "[data-view-results-btn]");
+
+    // Get reference to timeline-visualization component
+    this.timelineViz = this.querySelector("timeline-visualization");
 
     // Bind event listeners
     this._cleanups.push(bindEvent(this.startBtn, "click", () => this._onStart()));
@@ -92,20 +95,12 @@ export default class PlanPlayPane extends BaseComponent {
 
   /**
    * Initialize the component with dependencies
-   * @param {Timeline} timeline
    * @param {DrillPlan} drillPlan
    * @param {Scorer} scorer
    */
-  init(timeline, drillPlan, scorer) {
-    this.timeline = timeline;
+  init(drillPlan, scorer) {
     this.drillPlan = drillPlan;
     this.scorer = scorer;
-
-    // Connect timeline to component's DOM elements
-    if (this.timeline && this.timelineViewport && this.timelineTrack) {
-      this.timeline.viewport = this.timelineViewport;
-      this.timeline.track = this.timelineTrack;
-    }
   }
 
   // --- Public Methods ---

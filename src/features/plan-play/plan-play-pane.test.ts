@@ -122,13 +122,11 @@ Deno.test("PlanPlayPane: setState should throw on invalid argument", async () =>
 
 Deno.test("PlanPlayPane: should initialize dependencies via init()", async () => {
   const component = await createComponent();
-  const mockTimeline = new MockTimeline();
   const mockDrillPlan = new MockDrillPlan();
   const mockScorer = new MockScorer();
 
-  component.init(mockTimeline, mockDrillPlan, mockScorer);
+  component.init(mockDrillPlan, mockScorer);
 
-  assertEquals(component.timeline, mockTimeline);
   assertEquals(component.drillPlan, mockDrillPlan);
   assertEquals(component.scorer, mockScorer);
 });
@@ -162,7 +160,7 @@ Deno.test("PlanPlayPane: setTimeSignature should set time signature value", asyn
 Deno.test("PlanPlayPane: updateBeatIndicator should update display", async () => {
   const component = await createComponent();
   const beatIndicator = component.beatIndicator as HTMLElement;
-  
+
   component.updateBeatIndicator(1, true, true);
   assertEquals(beatIndicator.textContent, "1");
   assertEquals(beatIndicator.classList.contains("downbeat"), true);
@@ -173,23 +171,26 @@ Deno.test("PlanPlayPane: updateBeatIndicator should update display", async () =>
   assertEquals(beatIndicator.classList.contains("downbeat"), false);
 });
 
-Deno.test("PlanPlayPane: updateBeatIndicator should not show beat when shouldShow is false", async () => {
-  const component = await createComponent();
-  const beatIndicator = component.beatIndicator as HTMLElement;
-  
-  component.updateBeatIndicator(3, false, false);
-  assertEquals(beatIndicator.textContent, "3");
-  assertEquals(beatIndicator.classList.contains("active"), false);
-  assertEquals(beatIndicator.classList.contains("downbeat"), false);
-});
+Deno.test(
+  "PlanPlayPane: updateBeatIndicator should not show beat when shouldShow is false",
+  async () => {
+    const component = await createComponent();
+    const beatIndicator = component.beatIndicator as HTMLElement;
+
+    component.updateBeatIndicator(3, false, false);
+    assertEquals(beatIndicator.textContent, "3");
+    assertEquals(beatIndicator.classList.contains("active"), false);
+    assertEquals(beatIndicator.classList.contains("downbeat"), false);
+  }
+);
 
 Deno.test("PlanPlayPane: clearBeatIndicator should clear display", async () => {
   const component = await createComponent();
   const beatIndicator = component.beatIndicator as HTMLElement;
-  
+
   component.updateBeatIndicator(4, false, true);
   assertEquals(beatIndicator.textContent, "4");
-  
+
   component.clearBeatIndicator();
   assertEquals(beatIndicator.textContent, "");
   assertEquals(beatIndicator.className, "beat-indicator");
@@ -198,10 +199,10 @@ Deno.test("PlanPlayPane: clearBeatIndicator should clear display", async () => {
 Deno.test("PlanPlayPane: setStatus should update status message", async () => {
   const component = await createComponent();
   const statusDiv = component.statusDiv as HTMLElement;
-  
+
   component.setStatus("Running...");
   assertEquals(statusDiv.textContent, "Running...");
-  
+
   component.setStatus("Completed!");
   assertEquals(statusDiv.textContent, "Completed!");
 });
@@ -209,11 +210,11 @@ Deno.test("PlanPlayPane: setStatus should update status message", async () => {
 Deno.test("PlanPlayPane: updateScore should update score display", async () => {
   const component = await createComponent();
   const scoreDisplay = component.overallScoreDisplay as HTMLElement;
-  
+
   component.updateScore(75);
   assertEquals(component.state.overallScore, 75);
   assertEquals(scoreDisplay.textContent, "Overall Score: 75");
-  
+
   component.updateScore(5);
   assertEquals(component.state.overallScore, 5);
   assertEquals(scoreDisplay.textContent, "Overall Score: 05");
@@ -222,10 +223,10 @@ Deno.test("PlanPlayPane: updateScore should update score display", async () => {
 Deno.test("PlanPlayPane: setStartDisabled should enable/disable start button", async () => {
   const component = await createComponent();
   const startBtn = component.startBtn as HTMLButtonElement;
-  
+
   component.setStartDisabled(true);
   assertEquals(startBtn.disabled, true);
-  
+
   component.setStartDisabled(false);
   assertEquals(startBtn.disabled, false);
 });
@@ -233,10 +234,10 @@ Deno.test("PlanPlayPane: setStartDisabled should enable/disable start button", a
 Deno.test("PlanPlayPane: setStopDisabled should enable/disable stop button", async () => {
   const component = await createComponent();
   const stopBtn = component.stopBtn as HTMLButtonElement;
-  
+
   component.setStopDisabled(true);
   assertEquals(stopBtn.disabled, true);
-  
+
   component.setStopDisabled(false);
   assertEquals(stopBtn.disabled, false);
 });
@@ -245,12 +246,12 @@ Deno.test("PlanPlayPane: setPlaying should update state and button states", asyn
   const component = await createComponent();
   const startBtn = component.startBtn as HTMLButtonElement;
   const stopBtn = component.stopBtn as HTMLButtonElement;
-  
+
   component.setPlaying(true);
   assertEquals(component.state.isPlaying, true);
   assertEquals(startBtn.disabled, true);
   assertEquals(stopBtn.disabled, false);
-  
+
   component.setPlaying(false);
   assertEquals(component.state.isPlaying, false);
   assertEquals(startBtn.disabled, false);
@@ -259,22 +260,22 @@ Deno.test("PlanPlayPane: setPlaying should update state and button states", asyn
 
 Deno.test("PlanPlayPane: reset should reset to initial state", async () => {
   const component = await createComponent();
-  
+
   // Set some state
   component.updateBeatIndicator(3, false, true);
   component.setStatus("Running...");
   component.updateScore(75);
   component.setPlaying(true);
   component.setState({ currentMeasure: 5 });
-  
+
   // Reset
   component.reset();
-  
+
   const beatIndicator = component.beatIndicator as HTMLElement;
   const statusDiv = component.statusDiv as HTMLElement;
   const startBtn = component.startBtn as HTMLButtonElement;
   const stopBtn = component.stopBtn as HTMLButtonElement;
-  
+
   assertEquals(beatIndicator.textContent, "");
   assertEquals(statusDiv.textContent, "Ready.");
   assertEquals(component.state.overallScore, 0);
