@@ -30,7 +30,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const stopBtn = getButtonElement("stop-btn");
   const beatIndicator = /** @type {HTMLElement} */ (getElementBySelector(".beat-indicator"));
   const statusDiv = getElementByID("status");
-  const planVisualizationContainer = getElementByID("plan-visualization-container");
   const overallScoreDisplay = getElementByID("overall-score");
   const drillHistoryList = /** @type {HTMLUListElement} */ (getElementByID("drill-history-list"));
   const timelineViewport = getElementByID("timeline-viewport");
@@ -52,10 +51,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let completionTimeoutId;
   let timelineRunStartAudioTime = 0;
 
-  // --- Feature Instances ---
+  // --- Feature Instances (partial - drillPlan created after component ready) ---
   const planLibrary = new PlanLibrary();
   const metronome = new Metronome(/** @type {AudioContext} */ (/** @type {unknown} */ (null)));
-  const drillPlan = new DrillPlan(planVisualizationContainer);
   const timeline = new Timeline(timelineViewport, timelineTrack);
   const scorer = new Scorer(
     parseInt(timeSignatureSelect.value.split("/")[0], 10),
@@ -64,9 +62,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const drillHistory = new DrillHistory(drillHistoryList);
   const practiceSessionManager = new PracticeSessionManager();
 
-  // Wait for onboarding component to be ready
+  // --- Pane Manager (after DOM elements ready) ---
+  const paneManager = new PaneManager();
+
+  // --- History Display UI (after pane manager ready) ---
+  const historyDisplayUI = new HistoryDisplayUI(drillHistoryList, planEditPane, paneManager);
+
+  // Wait for both onboarding and plan-edit components to be ready
   let micDetector;
   let calibration;
+  let drillPlan; // Will be initialized after plan-edit-pane is ready
 
   const onboardingReady = onboardingPane.componentReady.then(() => {
     // Get microphone detector from microphone-control sub-component
@@ -106,76 +111,74 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- Pane Manager (after DOM elements ready) ---
-  const paneManager = new PaneManager();
+  const planEditReady = planEditPane.componentReady.then(() => {
+    // Create DrillPlan with the visualization container from the component
+    drillPlan = new DrillPlan(planEditPane.planVisualizationContainer);
 
-  // --- History Display UI (after DOM elements ready) ---
-  const drillHistoryListEl = drillHistoryList;
-  const historyDisplayUI = new HistoryDisplayUI(drillHistoryListEl, planEditPane, paneManager);
+    // Setup feature callbacks for drill plan
+    drillPlan.onPlanChange((/** @type {any[]} */ plan) => {
+      scorer.setDrillPlan(plan);
+      timeline.setDrillPlan(plan);
+    });
 
-  // --- Setup Feature Callbacks ---
-
-  drillPlan.onPlanChange((/** @type {any[]} */ plan) => {
-    scorer.setDrillPlan(plan);
-    timeline.setDrillPlan(plan);
-  });
-
-  drillPlan.onMeasureClick((/** @type {number} */ measureIndex) => {
-    if (!metronome.isRunning) {
-      const beatsPerMeasure = parseInt(timeSignatureSelect.value.split("/")[0], 10);
-      timeline.centerAt(measureIndex * beatsPerMeasure);
-    }
-  });
-
-  metronome.onBeat(
-    (
-      /** @type {number} */ beatInMeasure,
-      /** @type {number} */ time,
-      /** @type {number} */ timeUntilBeat
-    ) => {
-      const measureType = drillPlan.getMeasureType(currentMeasureInTotal);
-
-      if (measureType === "silent") {
-        return false;
+    drillPlan.onMeasureClick((/** @type {number} */ measureIndex) => {
+      if (!metronome.isRunning) {
+        const beatsPerMeasure = parseInt(timeSignatureSelect.value.split("/")[0], 10);
+        timeline.centerAt(measureIndex * beatsPerMeasure);
       }
+    });
 
-      const clickInFreq = 660.0;
-      const downbeatFreq = 880.0;
-      const beatFreq = 440.0;
-      const freq =
-        measureType === "click-in" ? clickInFreq : beatInMeasure === 0 ? downbeatFreq : beatFreq;
+    // Setup metronome callbacks (requires drillPlan)
+    metronome.onBeat(
+      (
+        /** @type {number} */ beatInMeasure,
+        /** @type {number} */ time,
+        /** @type {number} */ timeUntilBeat
+      ) => {
+        const measureType = drillPlan.getMeasureType(currentMeasureInTotal);
 
-      metronome.scheduleClick(time, freq);
-
-      const beatNumber = (beatInMeasure % metronome.beatsPerMeasure) + 1;
-      const shouldShowBeat = measureType !== "silent";
-
-      setTimeout(() => {
-        if (!metronome.isRunning) return;
-        beatIndicator.textContent = String(beatNumber);
-        beatIndicator.className = "beat-indicator";
-        if (shouldShowBeat) {
-          beatIndicator.classList.add(beatNumber === 1 ? "downbeat" : "active");
+        if (measureType === "silent") {
+          return false;
         }
-      }, timeUntilBeat * 1000);
 
-      return true;
-    }
-  );
+        const clickInFreq = 660.0;
+        const downbeatFreq = 880.0;
+        const beatFreq = 440.0;
+        const freq =
+          measureType === "click-in" ? clickInFreq : beatInMeasure === 0 ? downbeatFreq : beatFreq;
 
-  metronome.onMeasureComplete(() => {
-    if (isCompletingRun) return;
+        metronome.scheduleClick(time, freq);
 
-    currentMeasureInTotal++;
-    drillPlan.setHighlight(currentMeasureInTotal);
+        const beatNumber = (beatInMeasure % metronome.beatsPerMeasure) + 1;
+        const shouldShowBeat = measureType !== "silent";
 
-    const finalizedWithLagMeasureIndex = currentMeasureInTotal - 2;
-    scorer.finalizeMeasure(finalizedWithLagMeasureIndex);
-    updateScoreDisplay();
+        setTimeout(() => {
+          if (!metronome.isRunning) return;
+          beatIndicator.textContent = String(beatNumber);
+          beatIndicator.className = "beat-indicator";
+          if (shouldShowBeat) {
+            beatIndicator.classList.add(beatNumber === 1 ? "downbeat" : "active");
+          }
+        }, timeUntilBeat * 1000);
 
-    if (currentMeasureInTotal >= drillPlan.getLength()) {
-      handleDrillComplete();
-    }
+        return true;
+      }
+    );
+
+    metronome.onMeasureComplete(() => {
+      if (isCompletingRun) return;
+
+      currentMeasureInTotal++;
+      drillPlan.setHighlight(currentMeasureInTotal);
+
+      const finalizedWithLagMeasureIndex = currentMeasureInTotal - 2;
+      scorer.finalizeMeasure(finalizedWithLagMeasureIndex);
+      updateScoreDisplay();
+
+      if (currentMeasureInTotal >= drillPlan.getLength()) {
+        handleDrillComplete();
+      }
+    });
   });
 
   // Handle onboarding completion
@@ -543,6 +546,9 @@ document.addEventListener("DOMContentLoaded", () => {
   async function init() {
     stopBtn.disabled = true;
 
+    // Wait for both components to be ready
+    await Promise.all([onboardingReady, planEditReady]);
+
     // Initialize plan editor pane
     if (planEditPane) {
       planEditPane.init(planLibrary, drillPlan, bpmInput, timeSignatureSelect);
@@ -573,9 +579,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // This will trigger updatePaneVisibility which will now handle mic setup
     hasInitialized = true;
 
-    // Navigate to appropriate pane (will trigger paneChange which shows the pane)
+    // Navigate to appropriate pane
     if (window.location.hash === "" || window.location.hash === "#") {
+      // Keep URL state consistent, then force initial render in case pane manager
+      // already has the same current pane and doesn't emit a change callback.
       paneManager.navigate(initialPane);
+      await updatePaneVisibility(initialPane);
     } else {
       // Hash is already set, trigger updatePaneVisibility manually
       await updatePaneVisibility(paneManager.getCurrentPane() || "onboarding");

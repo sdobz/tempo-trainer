@@ -110,3 +110,93 @@ Deno.test("PlanEditPane: should have element references after mount", async () =
   assertEquals(component.planNameInput !== null, true);
   assertEquals(component.segmentsList !== null, true);
 });
+
+Deno.test("PlanEditPane: should pass string plan format to drillPlan.parse", async () => {
+  const component = await createComponent();
+
+  let parseArg = "";
+  component.drillPlan = {
+    parse: (input: string) => {
+      parseArg = input;
+    },
+  } as unknown as typeof component.drillPlan;
+
+  component._showPlanInfo({
+    id: "p1",
+    name: "Test",
+    description: "",
+    difficulty: "Beginner",
+    bpm: 120,
+    segments: [
+      { on: 1, off: 1, reps: 2 },
+      { on: 2, off: 0, reps: 1 },
+    ],
+  });
+
+  assertEquals(typeof parseArg, "string");
+  assertEquals(parseArg, "1,1,2;2,0,1");
+});
+
+Deno.test("PlanEditPane: should hide edit action for built-in plans", async () => {
+  const component = await createComponent();
+
+  component._showPlanInfo({
+    id: "builtin-1",
+    name: "Built-in Plan",
+    isBuiltIn: true,
+    segments: [{ on: 1, off: 1, reps: 1 }],
+  });
+
+  assertEquals(component.editPlanBtn !== null, true);
+  assertEquals(component.clonePlanBtn !== null, true);
+  assertEquals(component.startPlanPlayBtn !== null, true);
+
+  const editBtn = component.editPlanBtn as HTMLElement;
+  const cloneBtn = component.clonePlanBtn as HTMLElement;
+  const startBtn = component.startPlanPlayBtn as HTMLElement;
+
+  assertEquals(editBtn.style.display, "none");
+  assertEquals(cloneBtn.style.display, "inline-block");
+  assertEquals(startBtn.style.display, "inline-block");
+});
+
+Deno.test("PlanEditPane: should not open editor for built-in plans", async () => {
+  const component = await createComponent();
+
+  component.currentPlan = {
+    id: "builtin-1",
+    name: "Built-in Plan",
+    isBuiltIn: true,
+    segments: [{ on: 1, off: 1, reps: 1 }],
+  };
+
+  component._onEditPlan();
+
+  assertEquals(component.state.isEditing, false);
+  assertEquals(component.planEditorSection !== null, true);
+  const editorSection = component.planEditorSection as HTMLElement;
+  assertEquals(editorSection.style.display, "none");
+});
+
+Deno.test("PlanEditPane: should block delete for built-in plans", async () => {
+  const component = await createComponent();
+
+  let deleteCalled = false;
+  component.planLibrary = {
+    deletePlan: () => {
+      deleteCalled = true;
+      return true;
+    },
+  } as unknown as typeof component.planLibrary;
+
+  component.editingPlan = {
+    id: "builtin-1",
+    name: "Built-in Plan",
+    isBuiltIn: true,
+    segments: [{ on: 1, off: 1, reps: 1 }],
+  };
+
+  component._onDeletePlan();
+
+  assertEquals(deleteCalled, false);
+});

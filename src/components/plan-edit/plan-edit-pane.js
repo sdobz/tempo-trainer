@@ -239,6 +239,48 @@ export default class PlanEditPane extends BaseComponent {
   }
 
   /**
+   * Normalize UI/library segment shapes into DrillPlan parse string format.
+   * Format: "on,off,reps;on,off,reps"
+   * @param {Array} segments
+   * @returns {string}
+   */
+  _segmentsToPlanString(segments) {
+    if (!Array.isArray(segments) || segments.length === 0) return "";
+
+    const normalized = segments
+      .map((segment) => {
+        const hasLibraryShape =
+          typeof segment?.on === "number" &&
+          typeof segment?.off === "number" &&
+          typeof segment?.reps === "number";
+
+        if (hasLibraryShape) {
+          return {
+            on: Math.max(0, segment.on),
+            off: Math.max(0, segment.off),
+            reps: Math.max(1, segment.reps),
+          };
+        }
+
+        const hasLegacyShape = typeof segment?.measures === "number";
+        if (hasLegacyShape) {
+          return {
+            on: Math.max(0, segment.measures),
+            off: 0,
+            reps: 1,
+          };
+        }
+
+        return null;
+      })
+      .filter((segment) => segment !== null);
+
+    return normalized
+      .map((segment) => `${segment.on},${segment.off},${segment.reps}`)
+      .join(";");
+  }
+
+  /**
    * Display plan information
    * @param {Object} plan
    */
@@ -258,9 +300,20 @@ export default class PlanEditPane extends BaseComponent {
     }
 
     const segments = plan.segments || [];
-    this.planStatSegments.textContent = segments.length;
+    const planString = this._segmentsToPlanString(segments);
+    const normalizedSegments = planString
+      ? planString.split(";").map((step) => {
+          const [on, off, reps] = step.split(",").map((value) => parseInt(value, 10));
+          return { on, off, reps };
+        })
+      : [];
 
-    const totalMeasures = segments.reduce((sum, seg) => sum + (seg.measures || 0), 0);
+    this.planStatSegments.textContent = normalizedSegments.length;
+
+    const totalMeasures = normalizedSegments.reduce(
+      (sum, seg) => sum + (seg.on + seg.off) * seg.reps,
+      0
+    );
     this.planStatMeasures.textContent = totalMeasures;
 
     const bpm = plan.bpm || 120;
@@ -274,12 +327,7 @@ export default class PlanEditPane extends BaseComponent {
     // Update visualization
     if (this.drillPlan) {
       try {
-        this.drillPlan.parse(plan.segments);
-        const vizEl = this.drillPlan.render();
-        this.planVisualizationContainer.innerHTML = "<h3>Plan Visualization</h3>";
-        if (vizEl) {
-          this.planVisualizationContainer.appendChild(vizEl);
-        }
+        this.drillPlan.parse(planString);
       } catch (e) {
         console.error("Failed to visualize plan:", e);
       }
@@ -287,7 +335,7 @@ export default class PlanEditPane extends BaseComponent {
 
     // Show/hide action buttons
     this.clonePlanBtn.style.display = "inline-block";
-    this.editPlanBtn.style.display = "inline-block";
+    this.editPlanBtn.style.display = plan.isBuiltIn ? "none" : "inline-block";
     this.startPlanPlayBtn.style.display = "inline-block";
   }
 
@@ -316,7 +364,7 @@ export default class PlanEditPane extends BaseComponent {
       this.planNameInput.value = plan.name || "";
       this.planDescriptionInput.value = plan.description || "";
       this.planDifficultyInput.value = plan.difficulty || "";
-      this.deletePlanBtn.style.display = "inline-block";
+      this.deletePlanBtn.style.display = plan.isBuiltIn ? "none" : "inline-block";
     } else {
       this.planNameInput.value = "";
       this.planDescriptionInput.value = "";
@@ -415,7 +463,7 @@ export default class PlanEditPane extends BaseComponent {
    * Handle "Edit Plan" button
    */
   _onEditPlan() {
-    if (this.currentPlan) {
+    if (this.currentPlan && !this.currentPlan.isBuiltIn) {
       this._showPlanEditor(this.currentPlan);
     }
   }
@@ -441,8 +489,12 @@ export default class PlanEditPane extends BaseComponent {
   _onSavePlan() {
     if (!this.planLibrary) return;
 
+    // Built-in plans are immutable; if this path is reached unexpectedly,
+    // save as a new custom plan instead of mutating built-in identity.
+    const editingBuiltIn = Boolean(this.editingPlan?.isBuiltIn);
+
     const planData = {
-      id: this.editingPlan.id,
+      id: editingBuiltIn ? undefined : this.editingPlan.id,
       name: this.planNameInput.value || "Untitled",
       description: this.planDescriptionInput.value,
       difficulty: this.planDifficultyInput.value || undefined,
@@ -493,7 +545,7 @@ export default class PlanEditPane extends BaseComponent {
    * Handle "Delete Plan" button
    */
   _onDeletePlan() {
-    if (!this.planLibrary || !this.editingPlan?.id) return;
+    if (!this.planLibrary || !this.editingPlan?.id || this.editingPlan.isBuiltIn) return;
 
     if (!confirm(`Delete "${this.editingPlan.name}"?`)) {
       return;
@@ -531,7 +583,8 @@ export default class PlanEditPane extends BaseComponent {
       // Parse plan for visualization
       if (this.drillPlan) {
         try {
-          this.drillPlan.parse(this.currentPlan.segments);
+          const planString = this._segmentsToPlanString(this.currentPlan.segments || []);
+          this.drillPlan.parse(planString);
         } catch (e) {
           console.error("Failed to parse plan:", e);
         }
