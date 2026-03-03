@@ -9,9 +9,8 @@ import Timeline from "./timeline.js";
 import PaneManager from "./pane-manager.js";
 import PlanEditPane from "./components/plan-edit/plan-edit-pane.js";
 import PlanPlayPane from "./components/plan-play/plan-play-pane.js";
-import HistoryDisplayUI from "./history-display-ui.js";
+import PlanHistoryPane from "./components/plan-history/plan-history-pane.js";
 import PracticeSessionManager from "./practice-session-manager.js";
-import DrillHistory from "./drill-history.js";
 import OnboardingPane from "./components/onboarding/onboarding-pane.js";
 import CalibrationControl from "./components/calibration/calibration-control.js";
 import {
@@ -25,9 +24,11 @@ import {
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- DOM Elements ---
-  const drillHistoryList = /** @type {HTMLUListElement} */ (getElementByID("drill-history-list"));
   const onboardingPane = /** @type {OnboardingPane} */ (document.querySelector("onboarding-pane"));
   const planEditPane = /** @type {PlanEditPane} */ (document.querySelector("plan-edit-pane"));
+  const planHistoryPane = /** @type {PlanHistoryPane} */ (
+    document.querySelector("plan-history-pane")
+  );
   const planPlayPane = /** @type {PlanPlayPane} */ (document.querySelector("plan-play-pane"));
 
   // --- Audio Context ---
@@ -49,14 +50,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const metronome = new Metronome(/** @type {AudioContext} */ (/** @type {unknown} */ (null)));
   const timeline = new Timeline(null, null); // Will be attached by plan-play-pane
   const scorer = new Scorer(4, 0.5); // Will be configured when session starts
-  const drillHistory = new DrillHistory(drillHistoryList);
   const practiceSessionManager = new PracticeSessionManager();
 
   // --- Pane Manager (after DOM elements ready) ---
   const paneManager = new PaneManager();
-
-  // --- History Display UI (after pane manager ready) ---
-  const historyDisplayUI = new HistoryDisplayUI(drillHistoryList, planEditPane, paneManager);
 
   // Wait for components to be ready
   let micDetector;
@@ -184,6 +181,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle navigation
     planPlayPane.addEventListener("navigate", (/** @type {CustomEvent} */ event) => {
+      const { pane } = event.detail;
+      if (pane) {
+        paneManager.navigate(pane);
+      }
+    });
+  });
+
+  // Initialize plan-history-pane event listeners
+  const planHistoryReady = planHistoryPane.componentReady.then(() => {
+    // Handle retry plan
+    planHistoryPane.addEventListener("retry-plan", (/** @type {CustomEvent} */ event) => {
+      const { plan } = event.detail;
+      planEditPane.selectPlanByObject(plan);
+      paneManager.navigate("plan-play");
+    });
+
+    // Handle navigation
+    planHistoryPane.addEventListener("navigate", (/** @type {CustomEvent} */ event) => {
       const { pane } = event.detail;
       if (pane) {
         paneManager.navigate(pane);
@@ -503,8 +518,6 @@ document.addEventListener("DOMContentLoaded", () => {
       ? Math.max(0, Math.round((Date.now() - runStartedAt) / 1000))
       : 0;
 
-    drillHistory.addEntry(completed, scorer.getOverallScore(), elapsedSeconds);
-
     // Save detailed session data with metrics and recommendations
     const currentPlan = planEditPane.getCurrentPlan();
     const sessionPlan = currentPlan
@@ -539,7 +552,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update history display and navigate to history pane with expanded session
     if (session) {
       const allSessions = practiceSessionManager.getSessions();
-      historyDisplayUI.displaySessions(allSessions, session.id);
+      planHistoryPane.displaySessions(allSessions, session.id);
       paneManager.navigate("plan-history");
     }
 
@@ -555,7 +568,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function init() {
     // Wait for all components to be ready
-    await Promise.all([onboardingReady, planEditReady, planPlayReady]);
+    await Promise.all([onboardingReady, planEditReady, planPlayReady, planHistoryReady]);
 
     // Initialize plan editor pane
     if (planEditPane) {
@@ -578,12 +591,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     timeline.centerAt(0);
     updateScoreDisplay();
-    drillHistory.render();
 
     // Display existing sessions from history
     const sessions = practiceSessionManager.getSessions();
     if (sessions.length > 0) {
-      historyDisplayUI.displaySessions(sessions);
+      planHistoryPane.displaySessions(sessions);
     }
 
     planPlayPane.setStatus("Ready.");

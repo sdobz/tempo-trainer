@@ -1,0 +1,212 @@
+/* Plan History Pane Styles */
+
+.drill-history {
+  width: 100%;
+  padding-bottom: 0.75em;
+}
+
+.drill-history [data-history-list] {
+  padding: 0;
+  margin: 0;
+}
+
+.empty-history {
+  text-align: center;
+  padding: 3em 1em;
+  color: #999;
+}
+
+.empty-history p {
+  font-size: 1.1em;
+  margin: 0;
+}
+
+.history-session {
+  background-color: #2a2a2a;
+  border-radius: 8px;
+  margin-bottom: 1em;
+  overflow: hidden;
+  transition: background-color 0.2s ease;
+}
+
+.history-session:hover {
+  background-color: #333;
+}
+
+.history-session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1em 1.2em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.history-session-header:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.session-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  flex: 1;
+}
+
+.session-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  font-size: 0.9em;
+}
+
+.session-chevron {
+  transition: transform 0.2s ease;
+  width: 16px;
+  color: #999;
+}
+
+.history-session.expanded .session-chevron {
+  transform: rotate(180deg);
+}
+
+.session-score {
+  font-size: 1.4em;
+  font-weight: bold;
+  color: #4caf50;
+  min-width: 40px;
+}
+
+.session-plan {
+  font-weight: 500;
+  color: #e0e0e0;
+}
+
+.session-status {
+  font-weight: 500;
+}
+
+.session-datetime {
+  color: #999;
+  white-space: nowrap;
+}
+
+.session-details {
+  display: none;
+  padding: 0 1.2em 1.5em 1.2em;
+  border-top: 1px solid #3a3a3a;
+  animation: slideDown 0.2s ease;
+}
+
+.history-session.expanded .session-details {
+  display: block;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.details-row {
+  display: flex;
+  gap: 1.5em;
+  margin-top: 1.2em;
+  flex-wrap: wrap;
+}
+
+.detail-section {
+  flex: 1;
+  min-width: 250px;
+  background-color: #252525;
+  padding: 1em;
+  border-radius: 6px;
+}
+
+.detail-title {
+  font-weight: 600;
+  color: #4caf50;
+  margin-bottom: 0.8em;
+  font-size: 1.05em;
+}
+
+.detail-content {
+  color: #d0d0d0;
+  line-height: 1.6;
+}
+
+.detail-content p {
+  margin: 0.4em 0;
+}
+
+.detail-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.4em 0;
+  border-bottom: 1px solid #333;
+}
+
+.metric-item:last-child {
+  border-bottom: none;
+}
+
+.metric-name {
+  color: #aaa;
+  font-size: 0.95em;
+}
+
+.metric-value {
+  color: #e0e0e0;
+  font-weight: 500;
+}
+
+.session-actions {
+  display: flex;
+  gap: 0.8em;
+  margin-top: 1.5em;
+  padding-top: 1em;
+  border-top: 1px solid #3a3a3a;
+  flex-wrap: wrap;
+}
+
+.retry-session-btn,
+.select-plan-btn {
+  padding: 0.6em 1.2em;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-session-btn {
+  background-color: #4caf50;
+  color: white;
+}
+
+.retry-session-btn:hover {
+  background-color: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.select-plan-btn {
+  background-color: #555;
+  color: white;
+}
+
+.select-plan-btn:hover {
+  background-color: #666;
+}
