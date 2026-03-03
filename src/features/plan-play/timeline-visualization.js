@@ -53,6 +53,7 @@ export default class TimelineVisualization extends BaseComponent {
    */
   setBeatsPerMeasure(beatsPerMeasure) {
     this.beatsPerMeasure = beatsPerMeasure;
+    this.build();
   }
 
   /**
