@@ -2,6 +2,10 @@
  * Scorer manages the scoring system for measuring hit accuracy against expected beats.
  */
 class Scorer {
+  /**
+   * @param {number} beatsPerMeasure
+   * @param {number} beatDuration
+   */
   constructor(beatsPerMeasure, beatDuration) {
     this.beatsPerMeasure = beatsPerMeasure;
     this.beatDuration = beatDuration;
@@ -12,20 +16,27 @@ class Scorer {
     this.lateHitAssignmentWindowBeats = 0.65;
 
     // State
+    /** @type {(number|null)[]} */
     this.measureScores = [];
+    /** @type {number[][]} */
     this.measureHits = [];
+    /** @type {boolean[]} */
     this.finalizedMeasures = [];
+    /** @type {{ type: string }[]} */
     this.drillPlan = [];
   }
 
+  /** @param {number} beatsPerMeasure */
   setBeatsPerMeasure(beatsPerMeasure) {
     this.beatsPerMeasure = beatsPerMeasure;
   }
 
+  /** @param {number} beatDuration */
   setBeatDuration(beatDuration) {
     this.beatDuration = beatDuration;
   }
 
+  /** @param {{ type: string }[]} plan */
   setDrillPlan(plan) {
     this.drillPlan = plan;
     this.reset();
@@ -39,6 +50,7 @@ class Scorer {
     this.finalizedMeasures = Array.from({ length: this.drillPlan.length }, () => false);
   }
 
+  /** @param {number} beatPosition */
   registerHit(beatPosition) {
     const measureIndex = this._findClosestScoringMeasure(beatPosition);
     if (measureIndex >= 0) {
@@ -48,6 +60,7 @@ class Scorer {
     return -1;
   }
 
+  /** @param {number} measureIndex */
   finalizeMeasure(measureIndex) {
     if (measureIndex < 0 || measureIndex >= this.drillPlan.length) return;
     if (this.finalizedMeasures[measureIndex]) return;
@@ -68,6 +81,7 @@ class Scorer {
       return;
     }
 
+    /** @type {number[]} */
     const expectedBeats = [];
     const measureStartBeat = measureIndex * this.beatsPerMeasure;
     for (let beatOffset = 0; beatOffset < this.beatsPerMeasure; beatOffset++) {
@@ -106,6 +120,7 @@ class Scorer {
     this.finalizedMeasures[measureIndex] = true;
   }
 
+  /** @param {number} measureIndex */
   getMeasureScore(measureIndex) {
     return this.measureScores[measureIndex];
   }
@@ -130,6 +145,7 @@ class Scorer {
     return Math.max(0, Math.min(99, Math.round(total / count)));
   }
 
+  /** @param {number} errorMs */
   _scoreFromErrorMs(errorMs) {
     const adjustedErrorMs = Math.max(0, errorMs - this.bestFeasibleErrorMs);
     const normalized = Math.min(1, adjustedErrorMs / this.maxScorableErrorMs);
@@ -137,6 +153,7 @@ class Scorer {
     return Math.max(0, Math.min(99, Math.round((1 - curved) * 99)));
   }
 
+  /** @param {number} beatPosition */
   _findClosestScoringMeasure(beatPosition) {
     const roughIndex = Math.floor(beatPosition / this.beatsPerMeasure);
     const candidates = [roughIndex - 1, roughIndex, roughIndex + 1];

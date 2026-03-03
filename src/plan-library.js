@@ -1,5 +1,29 @@
 import StorageManager from "./storage-manager.js";
 
+/** @typedef {{ on: number, off: number, reps: number }} Segment */
+/**
+ * @typedef {{
+ *   id?: string,
+ *   name: string,
+ *   description?: string,
+ *   difficulty?: string,
+ *   segments: Segment[],
+ *   isBuiltIn?: boolean,
+ *   tags?: string[],
+ *   createdAt?: string,
+ *   updatedAt?: string
+ * }} Plan
+ */
+
+/**
+ * @typedef {{
+ *   totalMeasures: number,
+ *   playingMeasures: number,
+ *   restMeasures: number,
+ *   segments: number
+ * }} PlanStats
+ */
+
 /**
  * PlanLibrary manages drill plans including built-in patterns and custom user-created plans.
  * Provides methods for retrieving, creating, modifying, and analyzing practice plans.
@@ -15,6 +39,7 @@ class PlanLibrary {
   }
 
   // Get all built-in (immutable) plans
+  /** @returns {Plan[]} */
   _getBuiltInPlans() {
     return [
       {
@@ -119,7 +144,7 @@ class PlanLibrary {
 
   /**
    * Gets all available plans (built-in and custom).
-   * @returns {Array} Array of plan objects
+   * @returns {Plan[]} Array of plan objects
    */
   getAllPlans() {
     const customPlans = this.getCustomPlans();
@@ -128,7 +153,7 @@ class PlanLibrary {
 
   /**
    * Gets only user-created custom plans.
-   * @returns {Array} Array of custom plan objects
+   * @returns {Plan[]} Array of custom plan objects
    */
   getCustomPlans() {
     const stored = StorageManager.get(this.storageKey);
@@ -146,11 +171,11 @@ class PlanLibrary {
   /**
    * Retrieves a specific plan by its ID.
    * @param {string} id - The plan ID
-   * @returns {Object|undefined} The plan object or undefined if not found
+   * @returns {Plan|undefined} The plan object or undefined if not found
    */
   getPlanById(id) {
     const allPlans = this.getAllPlans();
-    return allPlans.find((p) => p.id === id);
+    return allPlans.find((/** @type {Plan} */ p) => p.id === id);
   }
 
   /**
@@ -158,12 +183,15 @@ class PlanLibrary {
    * Creates a new plan or updates existing one by ID.
    * @param {Object} plan - The plan object to save
    * @param {string} plan.name - Plan name (required)
-   * @param {Array} plan.segments - Array of segment objects with on/off/reps (required)
+   * @param {Segment[]} plan.segments - Array of segment objects with on/off/reps (required)
    * @param {string} [plan.id] - Optional ID (auto-generates if not provided)
    * @param {string} [plan.description] - Optional description
    * @param {string} [plan.difficulty] - Optional difficulty level
-   * @param {Array} [plan.tags] - Optional array of tags
-   * @returns {Object} The saved plan object with assigned ID and timestamps
+   * @param {string[]} [plan.tags] - Optional array of tags
+   * @param {boolean} [plan.isBuiltIn] - Built-in flag
+   * @param {string} [plan.createdAt] - Creation timestamp
+   * @param {string} [plan.updatedAt] - Update timestamp
+   * @returns {Plan} The saved plan object with assigned ID and timestamps
    * @throws {Error} If plan lacks required name or segments
    */
   savePlan(plan) {
@@ -221,7 +249,7 @@ class PlanLibrary {
    * Useful for creating variations of built-in (immutable) plans.
    * @param {string} id - ID of the plan to clone
    * @param {string} [newName] - Optional custom name for the clone
-   * @returns {Object} The newly created cloned plan
+   * @returns {Plan} The newly created cloned plan
    * @throws {Error} If source plan not found
    */
   clonePlan(id, newName) {
@@ -230,6 +258,7 @@ class PlanLibrary {
       throw new Error("Plan not found");
     }
 
+    /** @type {Plan} */
     const cloned = {
       name: newName || `${source.name} (Copy)`,
       description: source.description || "",
@@ -244,7 +273,7 @@ class PlanLibrary {
   /**
    * Converts segment array to legacy plan string format.
    * Format: "on,off,reps;on,off,reps;..."
-   * @param {Array} segments - Array of segment objects with on/off/reps properties
+   * @param {Segment[]} segments - Array of segment objects with on/off/reps properties
    * @returns {string} Formatted plan string
    */
   segmentsToString(segments) {
@@ -255,9 +284,10 @@ class PlanLibrary {
    * Converts legacy plan string format to segment array.
    * Parses format: "on,off,reps;on,off,reps;..."
    * @param {string} planString - Legacy format plan string
-   * @returns {Array} Array of segment objects with on/off/reps properties
+   * @returns {Segment[]} Array of segment objects with on/off/reps properties
    */
   stringToSegments(planString) {
+    /** @type {Segment[]} */
     const segments = [];
     const trimmed = planString.trim();
 
@@ -281,8 +311,8 @@ class PlanLibrary {
 
   /**
    * Calculates statistics for the given segments.
-   * @param {Array} segments - Array of segment objects with on/off/reps properties
-   * @returns {Object} Statistics object with totalMeasures, playingMeasures, restMeasures, segments count
+   * @param {Segment[]} segments - Array of segment objects with on/off/reps properties
+   * @returns {PlanStats} Statistics object with totalMeasures, playingMeasures, restMeasures, segments count
    */
   calculateStats(segments) {
     let totalMeasures = 0;
@@ -307,7 +337,7 @@ class PlanLibrary {
 
   /**
    * Estimates the duration of a practice session based on plan and tempo.
-   * @param {Array} segments - Array of segment objects
+   * @param {Segment[]} segments - Array of segment objects
    * @param {number} bpm - Beats per minute (tempo)
    * @param {number} beatsPerMeasure - Number of beats in each measure
    * @returns {number} Estimated duration in seconds (rounded up)

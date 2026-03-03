@@ -6,7 +6,9 @@ class PaneManager {
    * Creates a new PaneManager instance.
    */
   constructor() {
+    /** @type {string|null} */
     this.currentPane = null;
+    /** @type {((pane: string) => void)[]} */
     this.paneChangeCallbacks = [];
 
     // Listen for hash changes
@@ -18,7 +20,7 @@ class PaneManager {
 
   /**
    * Registers a callback to be invoked when the pane changes.
-   * @param {Function} callback - Function to call with new pane name
+   * @param {(pane: string) => void} callback - Function to call with new pane name
    */
   onPaneChange(callback) {
     this.paneChangeCallbacks.push(callback);
@@ -36,7 +38,7 @@ class PaneManager {
 
   /**
    * Gets the currently active pane name.
-   * @returns {string} The name of the current pane
+   * @returns {string|null} The name of the current pane
    */
   getCurrentPane() {
     return this.currentPane;
@@ -50,6 +52,7 @@ class PaneManager {
     const hash = window.location.hash.slice(1); // Remove #
     const [, queryString] = hash.split("?");
     const params = new URLSearchParams(queryString);
+    /** @type {Record<string, string>} */
     const result = {};
     params.forEach((value, key) => {
       result[key] = value;
@@ -93,7 +96,9 @@ class PaneManager {
    */
   _notifyListeners() {
     this.paneChangeCallbacks.forEach((callback) => {
-      callback(this.currentPane);
+      if (this.currentPane) {
+        callback(this.currentPane);
+      }
     });
   }
 

@@ -3,6 +3,18 @@ import StorageManager from "./storage-manager.js";
  * MicrophoneDetector detects impact sounds from a microphone and triggers hit callbacks.
  */
 class MicrophoneDetector {
+  /**
+   * @param {AudioContext|null} audioContext
+   * @param {{
+   *   level: HTMLElement,
+   *   levelBar: HTMLElement,
+   *   peakHold: HTMLElement,
+   *   thresholdLine: HTMLElement,
+   *   thresholdLabel: HTMLElement,
+   *   hitsList: HTMLElement,
+   *   select: HTMLSelectElement
+   * }} elements
+   */
   constructor(audioContext, elements) {
     this.audioContext = audioContext;
     this.elements = elements; // { level, levelBar, peakHold, thresholdLine, thresholdLabel, hitsList, select }
@@ -32,12 +44,14 @@ class MicrophoneDetector {
     this.selectedDeviceId = "";
 
     // Callbacks
+    /** @type {((hitAudioTime: number) => void)|null} */
     this.onHitCallback = null;
 
     this._loadSettings();
     this._setupEventListeners();
   }
 
+  /** @param {(hitAudioTime: number) => void} callback */
   onHit(callback) {
     this.onHitCallback = callback;
   }
@@ -46,14 +60,14 @@ class MicrophoneDetector {
     this.threshold = StorageManager.getInt(this.storageKeys.threshold, 52);
     this.threshold = Math.max(0, Math.min(128, this.threshold));
 
-    this.selectedDeviceId = StorageManager.get(this.storageKeys.device, "");
+    this.selectedDeviceId = StorageManager.get(this.storageKeys.device, "") || "";
 
     this._updateThresholdUI();
   }
 
   _setupEventListeners() {
     if (this.elements.level) {
-      this.elements.level.addEventListener("pointerdown", (event) => {
+      this.elements.level.addEventListener("pointerdown", (/** @type {PointerEvent} */ event) => {
         this.isAdjustingThreshold = true;
         this._setThresholdFromPointer(event.clientX);
         if (this.elements.level.setPointerCapture) {
@@ -61,7 +75,7 @@ class MicrophoneDetector {
         }
       });
 
-      this.elements.level.addEventListener("pointermove", (event) => {
+      this.elements.level.addEventListener("pointermove", (/** @type {PointerEvent} */ event) => {
         if (!this.isAdjustingThreshold) return;
         this._setThresholdFromPointer(event.clientX);
       });
@@ -80,6 +94,11 @@ class MicrophoneDetector {
 
   async start() {
     try {
+      const audioContext = this.audioContext;
+      if (!audioContext) {
+        return false;
+      }
+
       this._stopCurrentStream();
 
       const audioConstraints = this.selectedDeviceId
@@ -96,8 +115,8 @@ class MicrophoneDetector {
         this.elements.hitsList.innerHTML = "";
       }
 
-      const source = this.audioContext.createMediaStreamSource(this.stream);
-      this.analyserNode = this.audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(this.stream);
+      this.analyserNode = audioContext.createAnalyser();
       this.analyserNode.fftSize = 256;
       this.analyserNode.smoothingTimeConstant = 0;
 
@@ -125,7 +144,8 @@ class MicrophoneDetector {
       return true;
     } catch (err) {
       if (this.elements.hitsList) {
-        this.elements.hitsList.textContent = `Mic unavailable: ${err.message}`;
+        const message = err instanceof Error ? err.message : String(err);
+        this.elements.hitsList.textContent = `Mic unavailable: ${message}`;
       }
       return false;
     }
@@ -264,7 +284,11 @@ class MicrophoneDetector {
       this.elements.hitsList.appendChild(hitElement);
 
       while (this.elements.hitsList.children.length > this.maxVisibleHits) {
-        this.elements.hitsList.removeChild(this.elements.hitsList.firstElementChild);
+        const firstChild = this.elements.hitsList.firstElementChild;
+        if (!firstChild) {
+          break;
+        }
+        this.elements.hitsList.removeChild(firstChild);
       }
 
       setTimeout(() => {
@@ -273,7 +297,7 @@ class MicrophoneDetector {
     }
 
     // Callback
-    if (this.onHitCallback) {
+    if (this.onHitCallback && this.audioContext) {
       this.onHitCallback(this.audioContext.currentTime);
     }
   }
@@ -289,6 +313,7 @@ class MicrophoneDetector {
     }
   }
 
+  /** @param {number} clientX */
   _setThresholdFromPointer(clientX) {
     if (!this.elements.level) return;
 

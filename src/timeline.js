@@ -16,6 +16,7 @@ class Timeline {
     this.tailBeats = 1;
 
     // State
+    /** @type {{ type: string }[]} */
     this.drillPlan = [];
     this.beatsPerMeasure = 4;
     this.lastBeatPosition = 0;
@@ -31,7 +32,7 @@ class Timeline {
 
   /**
    * Sets the drill plan and triggers a rebuild of the timeline visualization.
-   * @param {Array} plan - Array of measure objects with type property
+   * @param {{ type: string }[]} plan - Array of measure objects with type property
    */
   setDrillPlan(plan) {
     this.drillPlan = plan;

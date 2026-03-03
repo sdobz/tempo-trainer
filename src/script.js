@@ -391,7 +391,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Plan is already parsed by planEditorUI when selected
     scorer.reset();
-    drillPlan.updateAllScores(scorer.getAllScores());
+    drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
 
     currentMeasureInTotal = 0;
     runStartedAt = Date.now();
@@ -487,7 +487,7 @@ document.addEventListener("DOMContentLoaded", () => {
       completed,
       durationSeconds: elapsedSeconds,
       measureHits: scorer.measureHits,
-      measureScores: scorer.getAllScores(),
+      measureScores: scorer.getAllScores().map((score) => score ?? 0),
       drillPlan: drillPlan.plan,
       overallScore: scorer.getOverallScore(),
     };
@@ -507,7 +507,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateScoreDisplay() {
-    drillPlan.updateAllScores(scorer.getAllScores());
+    drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
 
     if (overallScoreDisplay) {
       const overall = scorer.getOverallScore();
@@ -553,7 +553,7 @@ document.addEventListener("DOMContentLoaded", () => {
       paneManager.navigate(initialPane);
     } else {
       // Hash is already set, trigger updatePaneVisibility manually
-      await updatePaneVisibility(paneManager.getCurrentPane());
+      await updatePaneVisibility(paneManager.getCurrentPane() || "onboarding");
     }
   }
 

@@ -40,7 +40,7 @@ class Calibration {
     this.schedulerIntervalID = null;
     this.nextNoteTime = 0;
     this.beatInMeasure = 0;
-    /** @type {number[]} */
+    /** @type {{ time: number, matched: boolean }[]} */
     this.expectedBeats = [];
     /** @type {number[]} */
     this.offsetsMs = [];

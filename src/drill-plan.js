@@ -8,15 +8,20 @@ class DrillPlan {
    */
   constructor(container) {
     this.container = container;
+    /** @type {{ type: string }[]} */
     this.plan = [];
+    /** @type {{ on: number, off: number, reps: number, startIndex: number }[]} */
+    this.segments = [];
     this.currentMeasureIndex = 0;
+    /** @type {((plan: { type: string }[]) => void)|null} */
     this.onPlanChangeCallback = null;
+    /** @type {((measureIndex: number) => void)|null} */
     this.onMeasureClickCallback = null;
   }
 
   /**
    * Registers a callback to be invoked when the plan changes.
-   * @param {Function} callback - Function to call with new plan array
+   * @param {(plan: { type: string }[]) => void} callback - Function to call with new plan array
    */
   onPlanChange(callback) {
     this.onPlanChangeCallback = callback;
@@ -24,7 +29,7 @@ class DrillPlan {
 
   /**
    * Registers a callback to be invoked when a measure is clicked.
-   * @param {Function} callback - Function to call with measure index parameter
+   * @param {(measureIndex: number) => void} callback - Function to call with measure index parameter
    */
   onMeasureClick(callback) {
     this.onMeasureClickCallback = callback;
@@ -34,7 +39,7 @@ class DrillPlan {
    * Parses a plan string into measures and renders visualization.
    * Format: "on,off,reps;on,off,reps;..." (separated by semicolons)
    * @param {string} planString - Plan string to parse
-   * @returns {Array} Array of measure objects with type (click, silent, or click-in)
+   * @returns {{ type: string }[]} Array of measure objects with type (click, silent, or click-in)
    */
   parse(planString) {
     this.plan = [];
@@ -123,7 +128,8 @@ class DrillPlan {
       block.style.fontWeight = "bold";
 
       block.addEventListener("click", (event) => {
-        const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+        const target = /** @type {HTMLElement} */ (event.currentTarget);
+        const idx = parseInt(target.dataset.measureIndex || "", 10);
         if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
           this.onMeasureClickCallback(idx);
         }
@@ -159,7 +165,8 @@ class DrillPlan {
           block.textContent = "00";
 
           block.addEventListener("click", (event) => {
-            const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+            const target = /** @type {HTMLElement} */ (event.currentTarget);
+            const idx = parseInt(target.dataset.measureIndex || "", 10);
             if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
               this.onMeasureClickCallback(idx);
             }
@@ -178,7 +185,8 @@ class DrillPlan {
           block.style.opacity = "0.4";
 
           block.addEventListener("click", (event) => {
-            const idx = parseInt(event.currentTarget.dataset.measureIndex || "", 10);
+            const target = /** @type {HTMLElement} */ (event.currentTarget);
+            const idx = parseInt(target.dataset.measureIndex || "", 10);
             if (!Number.isNaN(idx) && this.onMeasureClickCallback) {
               this.onMeasureClickCallback(idx);
             }
@@ -206,15 +214,16 @@ class DrillPlan {
     const blocks = this.container.querySelectorAll("#plan-visualization .measure-block");
     if (measureIndex >= 0 && measureIndex < blocks.length) {
       const block = blocks[measureIndex];
+      const blockEl = /** @type {HTMLElement} */ (block);
       const measureType = this.plan[measureIndex]?.type;
 
       if (measureType === "click-in") {
-        block.textContent = "";
-        delete block.dataset.score;
+        blockEl.textContent = "";
+        delete blockEl.dataset.score;
       } else {
         const clampedScore = Math.max(0, Math.min(99, score ?? 0));
-        block.textContent = String(clampedScore).padStart(2, "0");
-        block.dataset.score = String(clampedScore);
+        blockEl.textContent = String(clampedScore).padStart(2, "0");
+        blockEl.dataset.score = String(clampedScore);
       }
     }
   }
@@ -265,7 +274,7 @@ class DrillPlan {
 
   /**
    * Gets the entire parsed plan array.
-   * @returns {Array} Array of measure objects
+   * @returns {{ type: string }[]} Array of measure objects
    */
   getPlan() {
     return this.plan;

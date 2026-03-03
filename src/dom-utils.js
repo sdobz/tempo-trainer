@@ -15,7 +15,7 @@ export function getElementByID(id) {
   if (!element) {
     throw new Error(`DOM element with id "${id}" not found`);
   }
-  return element;
+  return /** @type {T} */ (element);
 }
 
 /**
@@ -30,7 +30,7 @@ export function getElementBySelector(selector) {
   if (!element) {
     throw new Error(`DOM element matching selector "${selector}" not found`);
   }
-  return element;
+  return /** @type {T} */ (element);
 }
 
 /**

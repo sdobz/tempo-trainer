@@ -9,6 +9,7 @@ class DrillHistory {
    */
   constructor(listElement) {
     this.listElement = listElement;
+    /** @type {{ completed: boolean, score: number, elapsedSeconds: number, timeLabel: string }[]} */
     this.history = [];
     this.maxEntries = 12;
   }
@@ -64,7 +65,7 @@ class DrillHistory {
 
   /**
    * Gets a copy of the current history.
-   * @returns {Array<Object>} Array of history entry objects
+   * @returns {{ completed: boolean, score: number, elapsedSeconds: number, timeLabel: string }[]} Array of history entry objects
    */
   getHistory() {
     return [...this.history];
