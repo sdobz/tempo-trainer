@@ -6,11 +6,8 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
-import MicrophoneControl from "../microphone/microphone-control.js";
-import CalibrationControl from "../calibration/calibration-control.js";
-import MicrophoneDetector from "../../microphone-detector.js";
-import CalibrationDetector from "../../calibration-detector.js";
-import StorageManager from "../../storage-manager.js";
+import "../microphone/microphone-control.js";
+import "../calibration/calibration-control.js";
 
 /**
  * @typedef {Object} OnboardingState
@@ -47,11 +44,11 @@ export default class OnboardingPane extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/components/onboarding/onboarding-pane.html";
+    return "/src/features/onboarding/onboarding-pane.html";
   }
 
   getStyleUrl() {
-    return "/src/components/onboarding/onboarding-pane.css";
+    return "/src/features/onboarding/onboarding-pane.css";
   }
 
   async onMount() {

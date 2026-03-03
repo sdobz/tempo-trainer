@@ -236,7 +236,7 @@ Tested on Chrome, Firefox, and Edge.
 ### Root Files
 
 - `index.html` - Main application interface with four semantic pane sections
-- `style.css` - Visual styling with dark theme and responsive pane layout
+- `src/styles/theme.css` + `src/styles/globals.css` - Global theme tokens and app-wide layout styles
 - `.nojekyll` - Prevents GitHub Pages from processing files through Jekyll
 
 ### Source Code (`src/`)

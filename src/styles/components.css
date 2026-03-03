@@ -8,9 +8,9 @@
 /* === Component Imports === */
 /* These @import statements will be added as components are created */
 
-/* Example structure for future components:
-@import url('../components/microphone/microphone.css');
-@import url('../components/timeline/timeline.css');
-@import url('../components/plan-editor/plan-editor.css');
-@import url('../components/history/history-display.css');
+/* Example structure for future features:
+@import url('../features/microphone/microphone-control.css');
+@import url('../features/plan-play/plan-play-pane.css');
+@import url('../features/plan-edit/plan-edit-pane.css');
+@import url('../features/plan-history/plan-history-pane.css');
 */

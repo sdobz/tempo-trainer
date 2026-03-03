@@ -7,10 +7,10 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
-import CalibrationDetector from "../../calibration-detector.js";
-import StorageManager from "../../storage-manager.js";
+import CalibrationDetector from "./calibration-detector.js";
+import StorageManager from "../base/storage-manager.js";
 
-/** @typedef {import("../../calibration-detector.js").CalibrationDetectorDelegate} CalibrationDetectorDelegate */
+/** @typedef {import("./calibration-detector.js").CalibrationDetectorDelegate} CalibrationDetectorDelegate */
 
 /**
  * CalibrationControl component - system calibration UI and logic
@@ -47,11 +47,11 @@ export default class CalibrationControl extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/components/calibration/calibration-control.html";
+    return "/src/features/calibration/calibration-control.html";
   }
 
   getStyleUrl() {
-    return "/src/components/calibration/calibration-control.css";
+    return "/src/features/calibration/calibration-control.css";
   }
 
   async onMount() {

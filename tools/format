@@ -21,7 +21,7 @@ echo "🎨 Formatting code..."
 if [[ $# -gt 0 ]]; then
   deno fmt "$@"
 else
-  deno fmt src/ index.html style.css
+  deno fmt src/ index.html
 fi
 
 echo "✅ Formatting complete"

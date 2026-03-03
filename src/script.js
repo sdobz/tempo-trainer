@@ -1,26 +1,25 @@
 // --- ESM Module Imports ---
-import StorageManager from "./storage-manager.js";
-import Metronome from "./metronome.js";
-import Scorer from "./scorer.js";
-import MicrophoneDetector from "./microphone-detector.js";
-import PlanLibrary from "./plan-library.js";
-import DrillPlan from "./drill-plan.js";
-import Timeline from "./timeline.js";
-import PaneManager from "./pane-manager.js";
-import PlanEditPane from "./components/plan-edit/plan-edit-pane.js";
-import PlanPlayPane from "./components/plan-play/plan-play-pane.js";
-import PlanHistoryPane from "./components/plan-history/plan-history-pane.js";
-import PracticeSessionManager from "./practice-session-manager.js";
-import OnboardingPane from "./components/onboarding/onboarding-pane.js";
-import CalibrationControl from "./components/calibration/calibration-control.js";
+import StorageManager from "./features/base/storage-manager.js";
+import Metronome from "./features/plan-play/metronome.js";
+import Scorer from "./features/plan-play/scorer.js";
+import PlanLibrary from "./features/plan-edit/plan-library.js";
+import DrillPlan from "./features/plan-edit/drill-plan.js";
+import Timeline from "./features/plan-play/timeline.js";
+import PaneManager from "./features/base/pane-manager.js";
+import "./features/plan-edit/plan-edit-pane.js";
+import "./features/plan-play/plan-play-pane.js";
+import "./features/plan-history/plan-history-pane.js";
+import PracticeSessionManager from "./features/plan-history/practice-session-manager.js";
+import "./features/onboarding/onboarding-pane.js";
 import {
   getElementByID,
-  getElementBySelector,
   getAllElements,
-  getInputElement,
-  getSelectElement,
-  getButtonElement,
-} from "./dom-utils.js";
+} from "./features/base/dom-utils.js";
+
+/** @typedef {import("./features/plan-edit/plan-edit-pane.js").default} PlanEditPane */
+/** @typedef {import("./features/plan-play/plan-play-pane.js").default} PlanPlayPane */
+/** @typedef {import("./features/plan-history/plan-history-pane.js").default} PlanHistoryPane */
+/** @typedef {import("./features/onboarding/onboarding-pane.js").default} OnboardingPane */
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- DOM Elements ---
@@ -271,8 +270,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!audioContext) {
         try {
           const webkitWindow =
-            /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (window);
-          const AudioContextClass = window.AudioContext || webkitWindow.webkitAudioContext;
+            /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (globalThis);
+          const AudioContextClass = globalThis.AudioContext || webkitWindow.webkitAudioContext;
           if (!AudioContextClass) {
             throw new Error("Web Audio API not available");
           }
@@ -355,7 +354,7 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
               const webkitWindow =
                 /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (window);
-              const AudioContextClass = window.AudioContext || webkitWindow.webkitAudioContext;
+              const AudioContextClass = globalThis.AudioContext || webkitWindow.webkitAudioContext;
               if (!AudioContextClass) {
                 throw new Error("Web Audio API not available");
               }
@@ -412,9 +411,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!audioContext) {
       try {
         const webkitWindow = /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (
-          window
+          globalThis
         );
-        const AudioContextClass = window.AudioContext || webkitWindow.webkitAudioContext;
+        const AudioContextClass = globalThis.AudioContext || webkitWindow.webkitAudioContext;
         if (!AudioContextClass) {
           throw new Error("Web Audio API not available");
         }
@@ -463,7 +462,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function stopDrill() {
     if (completionTimeoutId) {
-      window.clearTimeout(completionTimeoutId);
+      globalThis.clearTimeout(completionTimeoutId);
       completionTimeoutId = undefined;
     }
 
@@ -490,7 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     planPlayPane.setStatus("Drill complete. Capturing final hits...");
 
-    completionTimeoutId = window.setTimeout(() => {
+    completionTimeoutId = globalThis.setTimeout(() => {
       scorer.finalizeMeasure(drillPlan.getLength() - 2);
       scorer.finalizeMeasure(drillPlan.getLength() - 1);
       updateScoreDisplay();
@@ -605,7 +604,7 @@ document.addEventListener("DOMContentLoaded", () => {
     hasInitialized = true;
 
     // Navigate to appropriate pane
-    if (window.location.hash === "" || window.location.hash === "#") {
+    if (globalThis.location.hash === "" || globalThis.location.hash === "#") {
       // Keep URL state consistent, then force initial render in case pane manager
       // already has the same current pane and doesn't emit a change callback.
       paneManager.navigate(initialPane);

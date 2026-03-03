@@ -7,10 +7,10 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent } from "../base/component-utils.js";
-import MicrophoneDetector from "../../microphone-detector.js";
-import StorageManager from "../../storage-manager.js";
+import MicrophoneDetector from "./microphone-detector.js";
+import StorageManager from "../base/storage-manager.js";
 
-/** @typedef {import("../../microphone-detector.js").MicrophoneDetectorDelegate} MicrophoneDetectorDelegate */
+/** @typedef {import("./microphone-detector.js").MicrophoneDetectorDelegate} MicrophoneDetectorDelegate */
 
 /**
  * @typedef {Object} MicrophoneControlState
@@ -54,11 +54,11 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/components/microphone/microphone-control.html";
+    return "/src/features/microphone/microphone-control.html";
   }
 
   getStyleUrl() {
-    return "/src/components/microphone/microphone-control.css";
+    return "/src/features/microphone/microphone-control.css";
   }
 
   async onMount() {

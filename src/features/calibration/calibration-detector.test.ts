@@ -3,7 +3,7 @@ import "../base/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals } from "../base/assert.ts";
 
 // Import the pure domain detector
-const { default: CalibrationDetector } = await import("../../calibration-detector.js");
+const { default: CalibrationDetector } = await import("./calibration-detector.js");
 
 /**
  * Test suite for CalibrationDetector behavior (pure domain logic, no UI).

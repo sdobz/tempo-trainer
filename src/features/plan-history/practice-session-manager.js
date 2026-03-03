@@ -1,4 +1,4 @@
-import StorageManager from "./storage-manager.js";
+import StorageManager from "../base/storage-manager.js";
 
 /** @typedef {{ on: number, off: number, reps: number }} Segment */
 /** @typedef {{ id: string, name: string, description: string, difficulty: string, segments: Segment[] }} PlanSummary */

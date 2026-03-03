@@ -55,11 +55,11 @@ export default class PlanHistoryPane extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/components/plan-history/plan-history-pane.html";
+    return "/src/features/plan-history/plan-history-pane.html";
   }
 
   getStyleUrl() {
-    return "/src/components/plan-history/plan-history-pane.css";
+    return "/src/features/plan-history/plan-history-pane.css";
   }
 
   onMount() {
