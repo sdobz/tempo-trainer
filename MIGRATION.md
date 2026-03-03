@@ -1,200 +1,229 @@
 # Migration Plan: Rebuild UI with Component Pattern
 
 ## Goal
-Rebuild `index.html` and runtime wiring using the new component pattern while preserving current product behavior.
+Incrementally migrate the app to use Web Components while maintaining continuous functionality. Each step is tested in a browser before proceeding.
 
-This plan is incremental by design: each step ends with a **Pause Point** where a human validates behavior in a real browser before continuing.
+## Migration Strategy
+Work directly in the codebase with incremental, testable changes:
+- Migrate one capability at a time
+- Commit after each verified step
+- Keep domain logic modules unchanged (reuse scorer, metronome, timeline, etc.)
+- New components wrap and compose existing business logic
 
-## Working Rules
-- Keep behavior parity first; postpone UX changes until after parity.
-- Migrate one semantic capability at a time.
-- Keep old implementation available as reference until each migrated capability is verified.
-- Use unit tests for safety, then require human browser checks for product fit.
-
-## Reference Map (Current Implementation)
-Use these as behavioral references while migrating:
-- Product behavior and pane flow: `README.md`
-- Current app shell and pane markup: `index.html`
-- Main orchestration and control flow: `src/script.js`
-- Pane routing semantics: `src/pane-manager.js`
+## Reference Map
+Current implementation behavioral references:
+- Product features and flows: `README.md`
+- Current markup structure: `index.html`
+- Orchestration and wiring: `src/script.js`
+- Pane routing: `src/pane-manager.js`
 - Plan editing interactions: `src/plan-editor-ui.js`
-- History rendering and retry flow: `src/history-display-ui.js`
-- Existing component base contract: `src/components/base/base-component.js`
-- Existing component utility patterns: `src/components/base/component-utils.js`
-- Existing component test bootstrap pattern: `src/components/base/setup-dom.ts`
+- History display: `src/history-display-ui.js`
+- Component base pattern: `src/components/base/base-component.js`
+- Component utilities: `src/components/base/component-utils.js`
+- Test environment: `src/components/base/setup-dom.ts`
 
 ---
 
-## Step 1 — Establish Migration Harness and Dual-Run Baseline
+## Step 1 — Create Microphone Component (Already Exists)
 
-### Agent Implementation Tasks
-1. Add a migration-safe app entry path that can mount new components without deleting old code paths.
-2. Introduce a compatibility shell in `index.html` for component-based panes, while preserving existing pane IDs and navigation anchors.
-3. Add a feature flag (query param or constant) to switch between legacy orchestration and migrated orchestration.
-4. Ensure no regressions in lint/check/test commands before changing behavior.
+**Status**: ✅ Complete
+
+The microphone detector component already exists with tests:
+- `src/components/microphone/microphone-detector.js`
+- `src/components/microphone/microphone-detector.html`
+- `src/components/microphone/microphone.css`
+- `src/components/microphone/microphone-detector.test.ts`
+
+Tests passing: 19/19
+
+---
+
+## Step 2 — Migrate Onboarding Pane to Components
+
+## Step 2 — Migrate Onboarding Pane to Components
+
+### Implementation Tasks
+1. Create onboarding pane component that composes:
+   - Microphone selector and level display (reuse existing microphone component)
+   - Calibration controls and status
+   - Completion button and navigation
+2. Replace onboarding pane content in `index.html` with `<onboarding-pane>` custom element
+3. Update `src/script.js` to instantiate and wire onboarding component instead of direct DOM manipulation
+4. Preserve all existing behavior: device selection, calibration flow, settings persistence
 
 ### Reference Implementation
-- Legacy pane structure and IDs in `index.html`
-- Legacy startup and wiring in `src/script.js`
-- Routing assumptions in `src/pane-manager.js`
+- Current onboarding markup: `index.html` lines ~30-80
+- Current onboarding logic: `src/script.js` onboarding setup section
+- Microphone behavior: `src/microphone-detector.js`
+- Calibration behavior: `src/calibration.js`
 
-### Human Verification Pause Point
-- Open the app in a browser and confirm both modes are runnable (legacy and migration mode).
-- Confirm URL hash navigation still reaches all panes.
-- Confirm no obvious visual regressions in static layout before interactions.
+### Human Verification (Browser)
+- ✓ Microphone list populates
+- ✓ Device selection works
+- ✓ Level meter shows audio input
+- ✓ Threshold adjustment works
+- ✓ Calibration starts/stops correctly
+- ✓ Calibration result displays
+- ✓ "Go to Plan Editor" button navigates to plan-edit pane
+- ✓ Settings persist on reload
 
 ---
 
-## Step 2 — Rebuild App Shell as Composed Pane Components
+## Step 3 — Migrate Plan Edit Pane to Components
 
-### Agent Implementation Tasks
-1. Create top-level pane components for semantic sections (Onboarding, Plan Edit, Plan Play, Plan History).
-2. Move pane-local markup from `index.html` into component templates while preserving user-facing structure and text intent.
-3. Keep pane mounting/orchestration centralized (do not let panes directly control global navigation).
-4. Keep component interfaces minimal: inputs as properties/methods, outputs as custom events.
+### Implementation Tasks
+1. Create plan-edit pane component that composes:
+   - Plan library selector
+   - Plan info display (name, description, difficulty, stats)
+   - Plan editor (metadata fields, segment editor)
+   - Plan visualization (reuse existing `DrillPlan` or wrap it)
+   - Action buttons (new, edit, clone, delete, start training)
+2. Replace plan-edit pane content in `index.html` with `<plan-edit-pane>` custom element
+3. Update `src/script.js` to wire plan-edit component
+4. Preserve URL-based plan selection and all editor workflows
 
 ### Reference Implementation
-- Existing pane sections in `index.html`
-- Navigation flow in `src/pane-manager.js`
-- Cross-pane behavior currently handled in `src/script.js`
+- Current plan-edit markup: `index.html` lines ~90-220
+- Current plan-edit logic: `src/plan-editor-ui.js`
+- Plan storage: `src/plan-library.js`
+- Plan visualization: `src/drill-plan.js`
 
-### Human Verification Pause Point
-- In browser, verify all panes render with expected content and controls.
-- Confirm pane switching via nav buttons and hash links still works.
-- Confirm no pane appears empty or duplicated.
+### Human Verification (Browser)
+- ✓ Plan library dropdown populates with built-in and custom plans
+- ✓ Selecting plan shows details and visualization
+- ✓ "New Plan" creates editable plan
+- ✓ "Edit Plan" opens editor for existing plan
+- ✓ "Clone Plan" duplicates selected plan
+- ✓ Segment editor adds/removes/edits segments
+- ✓ "Save Plan" persists changes
+- ✓ "Delete Plan" removes custom plans
+- ✓ "Start Training" navigates to plan-play with selected plan
+- ✓ URL param `?plan=<id>` restores plan selection
 
 ---
 
-## Step 3 — Migrate Onboarding Capability (Mic + Calibration + Completion)
+## Step 4 — Migrate Plan Play Pane to Components
 
-### Agent Implementation Tasks
-1. Implement onboarding as component composition (microphone config, calibration status, completion action).
-2. Reuse or wrap existing domain logic for microphone detection and calibration; do not re-implement core algorithms in UI components.
-3. Standardize emitted events for onboarding progress (configured, calibrated, completed).
-4. Preserve persisted settings behavior and initial-state restoration.
+### Implementation Tasks
+1. Create plan-play pane component that composes:
+   - Session controls (BPM, time signature, start/stop)
+   - Beat indicator display
+   - Timeline visualization (reuse or wrap `Timeline`)
+   - Score display
+   - Finish/results navigation
+2. Replace plan-play pane content in `index.html` with `<plan-play-pane>` custom element
+3. Update `src/script.js` to wire play session through component events
+4. Preserve metronome timing, hit detection, scoring, and timeline behavior
 
 ### Reference Implementation
-- Onboarding pane markup and controls in `index.html`
-- Runtime onboarding behavior in `src/script.js`
-- Microphone and calibration domain modules under `src/`
+- Current plan-play markup: `index.html` lines ~230-280
+- Current play logic: `src/script.js` play session section
+- Metronome: `src/metronome.js`
+- Scoring: `src/scorer.js`
+- Timeline: `src/timeline.js`
+- Hit detection: `src/microphone-detector.js`
 
-### Human Verification Pause Point
-- Confirm microphone list populates and device selection works.
-- Confirm calibration run can start/stop and updates status/results.
-- Confirm onboarding completion action routes to the plan editing flow.
+### Human Verification (Browser)
+- ✓ Session parameters (BPM, time signature) are editable
+- ✓ "Start" begins metronome and session
+- ✓ Beat indicator updates in sync with metronome
+- ✓ Hits register on timeline with color coding (green=accurate, red=missed)
+- ✓ Score updates in real-time
+- ✓ "Stop" halts session cleanly
+- ✓ Session completion auto-saves to history
+- ✓ "View Results" navigates to history
 
 ---
 
-## Step 4 — Migrate Plan Edit Capability (Library + Editor + Visualization)
+## Step 5 — Migrate History Pane to Components
 
-### Agent Implementation Tasks
-1. Componentize plan library selection, metadata display, segment editing, and editor actions.
-2. Keep plan parsing/validation/storage logic in domain modules; UI components only surface controls and feedback.
-3. Preserve URL-state behavior for selected plan where currently supported.
-4. Keep visualization output parity for plan structure feedback.
+### Implementation Tasks
+1. Create plan-history pane component that composes:
+   - Session list with expand/collapse
+   - Session detail view (metrics, trends, recommendations)
+   - Action buttons (retry plan, select different plan)
+2. Replace plan-history pane content in `index.html` with `<plan-history-pane>` custom element
+3. Update `src/script.js` to wire history display and retry flow
+4. Preserve session data rendering and recommendation logic
 
 ### Reference Implementation
-- Plan editing pane structure in `index.html`
-- Existing behavior in `src/plan-editor-ui.js`
-- Orchestration touchpoints in `src/script.js`
+- Current history markup: `index.html` lines ~290-320
+- Current history logic: `src/history-display-ui.js`
+- Session data: `src/practice-session-manager.js`
+- History storage: `src/drill-history.js`
 
-### Human Verification Pause Point
-- Confirm selecting a plan updates plan details and visualization.
-- Confirm create/edit/clone/delete flows work end-to-end.
-- Confirm Start Training transitions with the intended selected plan.
+### Human Verification (Browser)
+- ✓ Completed sessions appear in list
+- ✓ Session header shows score, plan name, status, date/time
+- ✓ Click to expand/collapse session details
+- ✓ Details show plan info, metrics, performance trends, recommendations
+- ✓ "Retry This Plan" navigates to plan-play with that plan selected
+- ✓ "Select Different Plan" navigates to plan-edit
 
 ---
 
-## Step 5 — Migrate Plan Play Capability (Metronome + Timeline + Scoring)
+## Step 6 — Consolidate Orchestration
 
-### Agent Implementation Tasks
-1. Build play-session components for transport controls, beat display, timeline display, and score summary.
-2. Preserve metronome timing and session control semantics by reusing existing domain modules.
-3. Preserve hit detection integration path from microphone/calibration into scoring and timeline updates.
-4. Keep stop/finish behavior and completion handling consistent with current experience.
+### Implementation Tasks
+1. Refactor `src/script.js` to orchestrate through component contracts (methods/events)
+2. Remove direct DOM manipulation for pane content (keep only pane visibility logic)
+3. Ensure one-way data flow: domain → component props, component events → orchestration handlers
+4. Keep routing, persistence, and startup logic intact
 
 ### Reference Implementation
-- Play pane controls and display in `index.html`
-- Session runtime orchestration in `src/script.js`
-- Domain behavior in `src/metronome.js`, `src/scorer.js`, `src/timeline.js`, related modules
+- Current orchestration: `src/script.js`
+- Pane manager: `src/pane-manager.js`
 
-### Human Verification Pause Point
-- Confirm Start/Stop behavior, beat display, and timeline motion feel correct.
-- Confirm hits visibly register and affect score during active play.
-- Confirm session completion transitions and result visibility are coherent.
-
----
-
-## Step 6 — Migrate History Capability (Session Review + Retry)
-
-### Agent Implementation Tasks
-1. Componentize history list, expandable session details, recommendations summary, and action buttons.
-2. Preserve retry-plan and select-different-plan flows through orchestration rather than direct peer coupling.
-3. Keep presentation concerns local; keep recommendation computation in domain logic.
-
-### Reference Implementation
-- History pane structure in `index.html`
-- Existing behavior in `src/history-display-ui.js`
-- Navigation and plan handoff in `src/script.js` + `src/pane-manager.js`
-
-### Human Verification Pause Point
-- Confirm completed sessions appear with meaningful detail.
-- Confirm expand/collapse behavior and action buttons work.
-- Confirm retrying a prior plan routes back into a playable flow correctly.
+### Human Verification (Browser)
+- ✓ Full user journey works: onboarding → plan edit → play → history → retry
+- ✓ Pane navigation via nav buttons, hash changes, back/forward
+- ✓ Settings persistence across reloads
+- ✓ Returning user starts at correct pane based on state
+- ✓ No console errors during normal flows
 
 ---
 
-## Step 7 — Unify Orchestration Around Component Contracts
+## Step 7 — Remove Legacy UI Modules
 
-### Agent Implementation Tasks
-1. Replace legacy direct DOM orchestration with component event/method contracts.
-2. Remove redundant glue code once parity is confirmed for each capability.
-3. Keep one-way data flow: domain state → component props/methods, component events → orchestration handlers.
-4. Ensure routing, persistence, and startup heuristics still match product intent.
+### Implementation Tasks
+1. Delete superseded UI-only modules:
+   - `src/plan-editor-ui.js` → replaced by plan-edit component
+   - `src/history-display-ui.js` → replaced by plan-history component
+2. Keep domain modules unchanged:
+   - `src/metronome.js`, `src/scorer.js`, `src/timeline.js`, etc.
+3. Update documentation to reflect component architecture
 
-### Reference Implementation
-- Legacy orchestrator in `src/script.js`
-- Routing semantics in `src/pane-manager.js`
-
-### Human Verification Pause Point
-- Run through full user journey (first-time setup, training run, history review, repeat run).
-- Confirm no dead controls, race conditions, or pane-routing anomalies.
-- Confirm returning-user startup behavior still feels correct.
+### Human Verification (Browser)
+- ✓ Final acceptance pass against all README features
+- ✓ No regressions in core workflows
 
 ---
 
-## Step 8 — Remove Legacy UI Path and Finalize Parity
+## Step 8 — Write Component Tests
 
-### Agent Implementation Tasks
-1. Remove migration flags and obsolete legacy pane markup once parity is accepted.
-2. Delete superseded UI-only legacy modules that are no longer referenced.
-3. Update documentation to reflect final component contracts and orchestration boundaries.
-4. Keep tests green and add/adjust tests around new component contracts where needed.
+### Implementation Tasks
+1. Add unit tests for each new component similar to microphone-detector.test.ts
+2. Test component state management, lifecycle, and event emission
+3. Ensure tests use consolidated setup-dom.ts for environment
 
-### Reference Implementation
-- Legacy references tracked throughout prior steps
-- Architecture constraints in `ARCHITECTURE.md`
-
-### Human Verification Pause Point
-- Perform final acceptance pass in browser against README feature expectations.
-- Validate that the migrated app feels equivalent for core workflows.
-- Sign off on parity before cleanup of any remaining compatibility artifacts.
+### Verification
+- ✓ All component tests pass via `./tools/test`
 
 ---
 
-## Suggested Verification Script for Human QA (Each Milestone)
-Use this quick checklist at every pause point:
-1. Navigation: pane switch, URL hash behavior, back/forward behavior
-2. Controls: all primary buttons/inputs respond
-3. Feedback: visible status/messages update for key actions
-4. Persistence: reload preserves expected settings/state
-5. Regression scan: no console errors during core flow
+## Quick Verification Checklist (Use at Every Step)
+1. **Navigation**: Pane switching, URL hash updates, back/forward buttons
+2. **Controls**: All buttons and inputs respond correctly
+3. **Feedback**: Status messages and visual updates appear
+4. **Persistence**: Settings saved and restored after reload
+5. **Console**: No errors during normal operation
 
 ---
 
-## Done Definition (Feature Parity)
-Migration is complete when all are true:
-- All four semantic pane capabilities are componentized.
-- User-visible behavior matches current product goals in `README.md`.
-- Legacy UI path is removed.
-- Test suite passes and human browser validation is signed off.
+## Done Definition
+Migration is complete when:
+- All four panes are componentized
+- All README features work identically
+- Legacy UI modules removed
+- Component tests passing
+- Human verification signed off

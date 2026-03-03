@@ -83,3 +83,17 @@ export function getButtonElement(id) {
   }
   return element;
 }
+
+/**
+ * Gets a textarea element by ID with proper HTMLTextAreaElement type.
+ * @param {string} id - The element ID
+ * @returns {HTMLTextAreaElement} The textarea element
+ * @throws {Error} If element is not found or is not a textarea
+ */
+export function getTextAreaElement(id) {
+  const element = getElementByID(id);
+  if (!(element instanceof HTMLTextAreaElement)) {
+    throw new Error(`Element with id "${id}" is not an HTMLTextAreaElement`);
+  }
+  return element;
+}

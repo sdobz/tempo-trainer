@@ -3,6 +3,7 @@ import {
   getInputElement,
   getSelectElement,
   getButtonElement,
+  getTextAreaElement,
 } from "./dom-utils.js";
 
 /** @typedef {import("./plan-library.js").Segment} Segment */
@@ -52,8 +53,8 @@ class PlanEditorUI {
     this.planStatDuration = getElementByID("plan-stat-duration");
     this.planEditorSection = getElementByID("plan-editor-section");
     this.planNameInput = getInputElement("plan-name-input");
-    this.planDescriptionInput = getInputElement("plan-description-input");
-    this.planDifficultyInput = getInputElement("plan-difficulty-input");
+    this.planDescriptionInput = getTextAreaElement("plan-description-input");
+    this.planDifficultyInput = getSelectElement("plan-difficulty-input");
     this.segmentsList = getElementByID("segments-list");
     this.addSegmentBtn = getButtonElement("add-segment-btn");
     this.savePlanBtn = getButtonElement("save-plan-btn");
