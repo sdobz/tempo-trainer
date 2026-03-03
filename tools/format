@@ -1,19 +1,27 @@
 #!/bin/bash
-# Format code with Prettier
+# Format code with Deno
 set -e
 
 # Re-enter via nix develop if not already in a nix shell
 if [[ -z "$IN_NIX_SHELL" ]]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-  exec nix develop "$PROJECT_ROOT" -c "$0"
+  exec nix develop "$PROJECT_ROOT" -c "$0" "$@"
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$PROJECT_ROOT"
+
 echo "🎨 Formatting code..."
-prettier --write \
-  src/**/*.js \
-  style.css \
-  index.html \
-  **/*.md
+
+# If arguments provided, format only those files
+# Otherwise format everything
+if [[ $# -gt 0 ]]; then
+  deno fmt "$@"
+else
+  deno fmt src/ index.html style.css
+fi
 
 echo "✅ Formatting complete"

@@ -17,10 +17,6 @@
 
           buildInputs = with pkgs; [
             deno
-            typescript
-            nodePackages.prettier
-            nodePackages.eslint
-            nodePackages.http-server
           ];
 
           shellHook = ''
@@ -28,16 +24,14 @@
             echo ""
             echo "Tools available:"
             echo "  deno       $(deno --version | head -n 1)"
-            echo "  tsc        $(tsc --version)"
-            echo "  prettier   $(prettier --version)"
-            echo "  eslint     $(eslint --version)"
             echo ""
             echo "Commands:"
-            echo "  ./tools/test           - Run component tests (Deno)"
-            echo "  ./tools/check          - Type check (TypeScript)"
-            echo "  ./tools/format         - Format code (Prettier)"
-            echo "  ./tools/lint           - Lint code (ESLint)"
-            echo "  ./tools/serve          - Dev server on localhost:8080"
+            echo "  ./tools/test           - Run tests + type check (Deno)"
+            echo "  ./tools/check          - Type check (Deno)"
+            echo "  ./tools/format         - Format code (Deno)"
+            echo "  ./tools/lint           - Lint code (Deno)"
+            echo "  ./tools/serve          - Dev server on localhost:8080 (Deno)"
+            echo "  ./tools/bundle         - Bundle for production"
             echo ""
           '';
         };

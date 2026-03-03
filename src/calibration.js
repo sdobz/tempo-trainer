@@ -141,7 +141,7 @@ class Calibration {
         "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable."
       );
 
-      this.schedulerIntervalID = window.setInterval(() => this._scheduler(), this.lookahead);
+      this.schedulerIntervalID = setInterval(() => this._scheduler(), this.lookahead);
 
       return true;
     } catch {
@@ -156,7 +156,7 @@ class Calibration {
    */
   stop(message) {
     if (this.schedulerIntervalID) {
-      window.clearInterval(this.schedulerIntervalID);
+      clearInterval(this.schedulerIntervalID);
       this.schedulerIntervalID = null;
     }
 

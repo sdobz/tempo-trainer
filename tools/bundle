@@ -1,23 +1,25 @@
 #!/bin/bash
-# Bundle for production with esbuild
+# Bundle for production with Deno
 set -e
 
 # Re-enter via nix develop if not already in a nix shell
 if [[ -z "$IN_NIX_SHELL" ]]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-  exec nix develop "$PROJECT_ROOT" -c "$0"
+  exec nix develop "$PROJECT_ROOT" -c "$0" "$@"
 fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$PROJECT_ROOT"
 
 mkdir -p dist
 
 echo "📦 Bundling for production..."
-esbuild src/wiring/app.js \
-  --bundle \
-  --minify \
-  --outfile=dist/app.js \
-  --platform=browser \
-  --target=es2020
+
+# Use Deno's native bundler to create a single bundle file
+deno bundle src/script.js dist/app.js
 
 echo "✅ Bundle created: dist/app.js"
 echo ""

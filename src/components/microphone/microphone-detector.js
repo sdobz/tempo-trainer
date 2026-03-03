@@ -14,12 +14,12 @@ import {
 
 /**
  * @typedef {Object} MicrophoneState
- * @property {string|null} [error] Error message if initialization failed
- * @property {boolean} [isConnected] Whether microphone is selected
- * @property {number} [level] Current audio level 0-100
- * @property {number} [peakLevel] Peak level held
- * @property {number} [threshold] Hit detection threshold
- * @property {Array<string>} [recentHits] Recent hit times or labels
+ * @property {string|null} error Error message if initialization failed
+ * @property {boolean} isConnected Whether microphone is selected
+ * @property {number} level Current audio level 0-100
+ * @property {number} peakLevel Peak level held
+ * @property {number} threshold Hit detection threshold
+ * @property {Array<string>} recentHits Recent hit times or labels
  */
 
 /**
@@ -256,8 +256,8 @@ export default class MicrophoneDetector extends BaseComponent {
     this.hitsListElement.innerHTML = "";
     const hits = /** @type {MicrophoneState} */ (this.state).recentHits || [];
     hits.forEach((hit) => {
-      const span = document.createElement('span');
-      span.className = 'microphone__hit-badge';
+      const span = document.createElement("span");
+      span.className = "microphone__hit-badge";
       span.textContent = hit;
       if (this.hitsListElement) {
         this.hitsListElement.appendChild(span);

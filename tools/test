@@ -21,54 +21,6 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "🧪 Running tests with Deno..."
-echo ""
 
-# Process arguments to build deno test command
-DENO_ARGS=(
-  "test"
-  "--allow-read"
-  "--allow-env"
-  "--allow-run"
-)
-
-# Check for special flags
-WATCH_MODE=false
-FILTER=""
-FILES=()
-
-for arg in "$@"; do
-  if [[ "$arg" == "--watch" ]]; then
-    WATCH_MODE=true
-  elif [[ -f "$arg" ]]; then
-    FILES+=("$arg")
-  elif [[ -f "src/$arg" ]]; then
-    FILES+=("src/$arg")
-  else
-    # Treat as filter pattern
-    if [[ -z "$FILTER" ]]; then
-      FILTER="$arg"
-    else
-      FILTER="$FILTER|$arg"
-    fi
-  fi
-done
-
-# Add watch flag if requested
-if [[ "$WATCH_MODE" == true ]]; then
-  DENO_ARGS+=("--watch")
-fi
-
-# Add filter if provided
-if [[ -n "$FILTER" ]]; then
-  DENO_ARGS+=("--filter" "$FILTER")
-fi
-
-# Add files or default to src/
-if [[ ${#FILES[@]} -gt 0 ]]; then
-  DENO_ARGS+=("${FILES[@]}")
-else
-  DENO_ARGS+=("src/")
-fi
-
-# Run deno test
-exec deno "${DENO_ARGS[@]}"
+# Transparent wrapper around deno test
+exec deno test --allow-read --allow-env "$@"

@@ -12,7 +12,7 @@ class PaneManager {
     this.paneChangeCallbacks = [];
 
     // Listen for hash changes
-    window.addEventListener("hashchange", () => this._onHashChange());
+    globalThis.addEventListener("hashchange", () => this._onHashChange());
 
     // Initialize based on current URL
     this._onHashChange();
@@ -33,7 +33,7 @@ class PaneManager {
    */
   navigate(paneName, params = {}) {
     const hash = this._buildHash(paneName, params);
-    window.location.hash = hash;
+    globalThis.location.hash = hash;
   }
 
   /**
@@ -49,7 +49,7 @@ class PaneManager {
    * @returns {Object} Key-value pairs of parameters
    */
   getCurrentParams() {
-    const hash = window.location.hash.slice(1); // Remove #
+    const hash = globalThis.location.hash.slice(1); // Remove #
     const [, queryString] = hash.split("?");
     const params = new URLSearchParams(queryString);
     /** @type {Record<string, string>} */
@@ -81,7 +81,7 @@ class PaneManager {
    * Updates currentPane if the hash has changed.
    */
   _onHashChange() {
-    const hash = window.location.hash.slice(1); // Remove #
+    const hash = globalThis.location.hash.slice(1); // Remove #
     const [paneName] = hash.split("?");
     const currentPaneName = paneName || "onboarding"; // Default to onboarding
 

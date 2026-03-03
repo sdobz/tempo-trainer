@@ -11,11 +11,7 @@
  */
 
 /**
- * @typedef {Object} ComponentState
- * @property {Array<*>} [items]
- * @property {string} [message]
- * @property {boolean} [isLoading]
- * @property {number} [threshold]
+ * @typedef {Object.<string, *>} ComponentState
  */
 
 /**

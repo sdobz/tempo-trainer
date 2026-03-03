@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start local development server
+# Start local development server with Deno
 set -e
 
 # Re-enter via nix develop if not already in a nix shell
@@ -9,10 +9,16 @@ if [[ -z "$IN_NIX_SHELL" ]]; then
   exec nix develop "$PROJECT_ROOT" -c "$0" "$@"
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$PROJECT_ROOT"
+
 PORT=${1:-8080}
 
 echo "🚀 Starting development server on http://localhost:$PORT"
 echo "Press Ctrl+C to stop"
 echo ""
 
-http-server --port $PORT --cors
+# Use Deno's built-in file server with CORS support
+deno run --allow-net --allow-read --allow-env https://deno.land/std@0.208.0/http/file_server.ts --port $PORT
