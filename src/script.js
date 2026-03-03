@@ -12,6 +12,7 @@ import PlanEditorUI from "./plan-editor-ui.js";
 import HistoryDisplayUI from "./history-display-ui.js";
 import PracticeSessionManager from "./practice-session-manager.js";
 import DrillHistory from "./drill-history.js";
+import OnboardingPane from "./components/onboarding/onboarding-pane.js";
 import {
   getElementByID,
   getElementBySelector,
@@ -34,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const drillHistoryList = /** @type {HTMLUListElement} */ (getElementByID("drill-history-list"));
   const timelineViewport = getElementByID("timeline-viewport");
   const timelineTrack = getElementByID("timeline-track");
-  const completeOnboardingBtn = getButtonElement("complete-onboarding-btn");
+  const onboardingPane = /** @type {OnboardingPane} */ (document.querySelector("onboarding-pane"));
 
   // --- Audio Context ---
   /** @type {AudioContext|null} */
@@ -61,19 +62,52 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   const drillHistory = new DrillHistory(drillHistoryList);
   const practiceSessionManager = new PracticeSessionManager();
-  const micDetector = new MicrophoneDetector(null, {
-    level: getElementByID("mic-level"),
-    levelBar: getElementByID("mic-level-bar"),
-    peakHold: getElementByID("mic-peak-hold"),
-    thresholdLine: getElementByID("hit-threshold-line"),
-    thresholdLabel: getElementByID("hit-threshold-label"),
-    hitsList: getElementByID("hits-list"),
-    select: getElementByID("mic-select"),
-  });
-  const calibration = new Calibration(/** @type {AudioContext} */ (/** @type {unknown} */ (null)), {
-    button: getElementByID("calibration-btn"),
-    status: getElementByID("calibration-status"),
-    result: getElementByID("calibration-result"),
+  
+  // Wait for onboarding component to be ready
+  let micDetector;
+  let calibration;
+  onboardingPane.componentReady.then(() => {
+    // Initialize microphone detector with component's elements
+    micDetector = new MicrophoneDetector(null, {
+      level: onboardingPane.micLevel,
+      levelBar: onboardingPane.micLevelBar,
+      peakHold: onboardingPane.micPeakHold,
+      thresholdLine: onboardingPane.micThresholdLine,
+      thresholdLabel: onboardingPane.micThresholdLabel,
+      hitsList: onboardingPane.hitsList,
+      select: onboardingPane.micSelect,
+    });
+    
+    // Initialize calibration with component's elements
+    calibration = new Calibration(/** @type {AudioContext} */ (/** @type {unknown} */ (null)), {
+      button: onboardingPane.calibrationBtn,
+      status: onboardingPane.calibrationStatus,
+      result: onboardingPane.calibrationResult,
+    });
+    
+    // Setup calibration callback
+    calibration.onStop(() => {
+      updateOnboardingStatus();
+    });
+    
+    // Setup microphone detector callback
+    micDetector.onHit((/** @type {number} */ hitAudioTime) => {
+      // Accept hits during normal run or during completion grace period
+      if (metronome.isRunning || isCompletingRun) {
+        const detectedBeatPosition = calibration.getCalibratedBeatPosition(
+          hitAudioTime,
+          timelineRunStartAudioTime,
+          metronome.beatDuration
+        );
+
+        timeline.addDetection(detectedBeatPosition);
+        scorer.registerHit(detectedBeatPosition);
+      }
+
+      if (calibration.isCalibrating) {
+        calibration.registerHit(hitAudioTime);
+      }
+    });
   });
   const planEditorUI = new PlanEditorUI(planLibrary, drillPlan, bpmInput, timeSignatureSelect);
 
@@ -149,58 +183,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  micDetector.onHit((/** @type {number} */ hitAudioTime) => {
-    // Accept hits during normal run or during completion grace period
-    if (metronome.isRunning || isCompletingRun) {
-      const detectedBeatPosition = calibration.getCalibratedBeatPosition(
-        hitAudioTime,
-        timelineRunStartAudioTime,
-        metronome.beatDuration
-      );
-
-      timeline.addDetection(detectedBeatPosition);
-      scorer.registerHit(detectedBeatPosition);
-    }
-
-    if (calibration.isCalibrating) {
-      calibration.registerHit(hitAudioTime);
-    }
-  });
-
-  calibration.onStop(() => {
-    // Update onboarding status after calibration completes
-    updateOnboardingStatus();
+  // Handle onboarding completion
+  onboardingPane.addEventListener("complete", () => {
+    paneManager.navigate("plan-edit");
   });
 
   //--- Onboarding Status Update ---
 
   function updateOnboardingStatus() {
-    const micStatusEl = getElementByID("mic-status");
-    const calibStatusEl = getElementByID("calibration-status-indicator");
-    const micStepEl = getElementByID("step-microphone");
-    const calibStepEl = getElementByID("step-calibration");
-
+    if (!micDetector || !calibration) return;
+    
     // Check if microphone threshold has been adjusted (not default 52)
     const hasAdjustedThreshold = micDetector.threshold !== 52;
-    if (hasAdjustedThreshold) {
-      micStatusEl.textContent = "✓ Configured";
-      micStatusEl.classList.add("complete");
-    } else {
-      micStatusEl.textContent = "⚠️ Not configured";
-      micStatusEl.classList.remove("complete");
-    }
-    micStepEl.classList.toggle("complete", hasAdjustedThreshold);
-
+    
     // Check if calibration has been completed (non-zero offset)
     const hasCalibrated = calibration.getOffsetMs() !== 0;
-    if (hasCalibrated) {
-      calibStatusEl.textContent = "✓ Calibrated";
-      calibStatusEl.classList.add("complete");
-    } else {
-      calibStatusEl.textContent = "⚠️ Not calibrated";
-      calibStatusEl.classList.remove("complete");
-    }
-    calibStepEl.classList.toggle("complete", hasCalibrated);
+    
+    // Update component status
+    onboardingPane.updateStatus(hasAdjustedThreshold, hasCalibrated);
   }
 
   // --- Pane Navigation ---
@@ -244,22 +244,22 @@ document.addEventListener("DOMContentLoaded", () => {
           }
           audioContext = new AudioContextClass();
           metronome.audioContext = audioContext;
-          micDetector.audioContext = audioContext;
-          calibration.audioContext = audioContext;
+          if (micDetector) micDetector.audioContext = audioContext;
+          if (calibration) calibration.audioContext = audioContext;
         } catch (e) {
           console.error("Web Audio API not available:", e);
         }
       }
 
       // Start microphone detector to show levels and enumerate devices
-      if (audioContext && !micDetector.isRunning) {
+      if (audioContext && micDetector && !micDetector.isRunning) {
         try {
           await micDetector.start();
         } catch (err) {
           console.error("Failed to start microphone detector:", err);
         }
       }
-    } else if (pane !== "plan-play" && micDetector.isRunning && !calibration.isCalibrating) {
+    } else if (pane !== "plan-play" && micDetector && micDetector.isRunning && calibration && !calibration.isCalibrating) {
       // Stop microphone detector when leaving onboarding (but not when going to play)
       // Keep it running during play
       micDetector.stop();
@@ -295,49 +295,51 @@ document.addEventListener("DOMContentLoaded", () => {
   stopBtn.addEventListener("click", stopDrill);
 
   // Listen for microphone threshold adjustments
-  const micLevelEl = getElementByID("mic-level");
-  micLevelEl.addEventListener("pointerup", () => {
-    // Update onboarding status after threshold adjustment
-    setTimeout(() => updateOnboardingStatus(), 100);
+  onboardingPane.componentReady.then(() => {
+    onboardingPane.micLevel.addEventListener("pointerup", () => {
+      // Update onboarding status after threshold adjustment
+      setTimeout(() => updateOnboardingStatus(), 100);
+    });
   });
 
   // Intercept calibration button to ensure audioContext exists
-  const calibrationBtn = getButtonElement("calibration-btn");
-  calibrationBtn.addEventListener(
-    "click",
-    async (e) => {
-      if (!audioContext && !calibration.isCalibrating) {
-        try {
-          const webkitWindow =
-            /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (window);
-          const AudioContextClass = window.AudioContext || webkitWindow.webkitAudioContext;
-          if (!AudioContextClass) {
-            throw new Error("Web Audio API not available");
-          }
-          audioContext = new AudioContextClass();
-          metronome.audioContext = audioContext;
-          micDetector.audioContext = audioContext;
-          calibration.audioContext = audioContext;
+  onboardingPane.componentReady.then(() => {
+    onboardingPane.calibrationBtn.addEventListener(
+      "click",
+      async (e) => {
+        if (!audioContext && calibration && !calibration.isCalibrating) {
+          try {
+            const webkitWindow =
+              /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (window);
+            const AudioContextClass = window.AudioContext || webkitWindow.webkitAudioContext;
+            if (!AudioContextClass) {
+              throw new Error("Web Audio API not available");
+            }
+            audioContext = new AudioContextClass();
+            metronome.audioContext = audioContext;
+            if (micDetector) micDetector.audioContext = audioContext;
+            if (calibration) calibration.audioContext = audioContext;
 
-          if (!micDetector.isRunning) {
-            await micDetector.start();
+            if (micDetector && !micDetector.isRunning) {
+              await micDetector.start();
+            }
+          } catch {
+            alert("Web Audio API is not supported in this browser");
+            e.stopPropagation();
+            e.preventDefault();
+            return;
           }
-        } catch {
-          alert("Web Audio API is not supported in this browser");
-          e.stopPropagation();
-          e.preventDefault();
-          return;
         }
-      }
-    },
-    true
-  );
+      },
+      true
+    );
+  });
 
   bpmInput.addEventListener("input", () => {
     const bpm = parseInt(bpmInput.value, 10);
     metronome.setBPM(bpm);
     scorer.setBeatDuration(60.0 / bpm);
-    calibration.setBeatDuration(60.0 / bpm);
+    if (calibration) calibration.setBeatDuration(60.0 / bpm);
   });
 
   timeSignatureSelect.addEventListener("change", () => {
@@ -345,13 +347,13 @@ document.addEventListener("DOMContentLoaded", () => {
     metronome.setTimeSignature(beatsPerMeasure);
     scorer.setBeatsPerMeasure(beatsPerMeasure);
     timeline.setBeatsPerMeasure(beatsPerMeasure);
-    calibration.setBeatsPerMeasure(beatsPerMeasure);
+    if (calibration) calibration.setBeatsPerMeasure(beatsPerMeasure);
   });
 
   // --- Main Functions ---
 
   async function startDrill() {
-    if (calibration.isCalibrating) {
+    if (calibration && calibration.isCalibrating) {
       calibration.stop("Calibration stopped: drill start requested.");
     }
 
@@ -366,15 +368,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         audioContext = new AudioContextClass();
         metronome.audioContext = audioContext;
-        micDetector.audioContext = audioContext;
-        calibration.audioContext = audioContext;
+        if (micDetector) micDetector.audioContext = audioContext;
+        if (calibration) calibration.audioContext = audioContext;
       } catch {
         alert("Web Audio API is not supported in this browser");
         return;
       }
     }
 
-    if (!micDetector.isRunning) {
+    if (micDetector && !micDetector.isRunning) {
       await micDetector.start();
     }
 
@@ -386,8 +388,10 @@ document.addEventListener("DOMContentLoaded", () => {
     scorer.setBeatsPerMeasure(beatsPerMeasure);
     scorer.setBeatDuration(60.0 / bpm);
     timeline.setBeatsPerMeasure(beatsPerMeasure);
-    calibration.setBeatsPerMeasure(beatsPerMeasure);
-    calibration.setBeatDuration(60.0 / bpm);
+    if (calibration) {
+      calibration.setBeatsPerMeasure(beatsPerMeasure);
+      calibration.setBeatDuration(60.0 / bpm);
+    }
 
     // Plan is already parsed by planEditorUI when selected
     scorer.reset();
@@ -532,7 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Determine which pane to show
     const hasCompletedOnboarding = StorageManager.get("tempoTrainer.hasCompletedOnboarding");
-    const hasCalibration = calibration.getOffsetMs() !== 0;
+    const hasCalibration = calibration ? calibration.getOffsetMs() !== 0 : false;
 
     let initialPane = "onboarding";
     if (hasCompletedOnboarding) {
@@ -569,7 +573,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Animation frame for timeline scrolling during playback
   function updateTimelineScroll() {
     // Keep timeline active during drill AND during grace period
-    if ((metronome.isRunning || isCompletingRun) && audioContext) {
+    if ((metronome.isRunning || isCompletingRun) && audioContext && calibration) {
       const beatPosition = calibration.getCalibratedBeatPosition(
         audioContext.currentTime,
         timelineRunStartAudioTime,

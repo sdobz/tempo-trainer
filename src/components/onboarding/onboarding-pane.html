@@ -1,0 +1,54 @@
+<template>
+  <div class="pane-content">
+    <h2>Welcome to Tempo Trainer</h2>
+    <p>
+      Play along with a metronome while the app listens to your microphone, measures your
+      timing accuracy in milliseconds, and shows you a visual timeline of every hit
+      alongside instant per-measure scoring.
+    </p>
+
+    <div class="onboarding-steps">
+      <div class="step" id="step-microphone">
+        <h3>
+          <span class="step-title">1. Select Your Microphone</span>
+          <span class="step-status" data-mic-status>⚠️ Not configured</span>
+        </h3>
+        <div class="onboarding-mic-selector-row">
+          <label for="mic-select">Microphone:</label>
+          <select data-mic-select class="onboarding-mic-select"></select>
+        </div>
+        <div data-mic-level class="onboarding-mic-level">
+          <div data-mic-level-bar class="onboarding-mic-level-bar"></div>
+          <div data-mic-peak-hold class="onboarding-mic-peak-hold"></div>
+          <div data-mic-threshold-line class="onboarding-mic-threshold-line"></div>
+          <div data-mic-threshold-label class="onboarding-mic-threshold-label">Threshold: 52</div>
+        </div>
+        <div data-hits-list class="onboarding-hits-list"></div>
+      </div>
+
+      <div class="step" id="step-calibration">
+        <h3>
+          <span class="step-title">2. Calibrate Your System</span>
+          <span class="step-status" data-calibration-status-indicator>⚠️ Not calibrated</span>
+        </h3>
+        <p>
+          Calibration measures system latency to ensure accurate hit detection. Play along
+          with the metronome clicks.
+        </p>
+        <div class="onboarding-calibration-controls">
+          <button data-calibration-btn type="button" class="onboarding-calibration-btn">Start Calibration</button>
+          <div data-calibration-status class="onboarding-calibration-status">Calibration idle.</div>
+          <div data-calibration-result class="onboarding-calibration-result">Offset compensation: 0 ms</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <h3>3. Ready to Train!</h3>
+        <p>Once calibrated, proceed to create a plan and start practicing.</p>
+        <button data-complete-btn class="primary-btn">
+          Go to Plan Editor
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
