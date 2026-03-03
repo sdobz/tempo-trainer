@@ -83,7 +83,7 @@ export default class BaseComponent extends HTMLElement {
    * @param {ComponentState} newState New state
    * @returns {void}
    */
-  onStateChange(oldState, newState) {
+  onStateChange(_oldState, _newState) {
     // Override in subclasses
   }
 
@@ -108,23 +108,28 @@ export default class BaseComponent extends HTMLElement {
    */
   async _initialize() {
     try {
-      // Determine component directory (relative to src/components/)
-      const componentDir = this._getComponentDir();
-
       // Load template
-      const templateUrl = new URL(this.getTemplateUrl(), componentDir).href;
+      const templateUrl = new URL(this.getTemplateUrl(), globalThis.location.origin).href;
       const templateHtml = await fetch(templateUrl).then((r) => r.text());
-      const template = document.createElement("template");
-      template.innerHTML = templateHtml;
+
+      // Create a temporary container to parse the HTML
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = templateHtml;
+
+      // Extract content from the <template> element if present, otherwise use all children
+      const templateElement = tempDiv.querySelector("template");
+      const content = templateElement
+        ? templateElement.content.cloneNode(true)
+        : tempDiv.cloneNode(true);
 
       // Load and insert styles
-      const styleUrl = new URL(this.getStyleUrl(), componentDir).href;
+      const styleUrl = new URL(this.getStyleUrl(), globalThis.location.origin).href;
       const styleCss = await fetch(styleUrl).then((r) => r.text());
       const style = document.createElement("style");
       style.textContent = styleCss;
 
-      // Append to light DOM (or shadowRoot if you prefer encapsulation)
-      this.appendChild(template.content.cloneNode(true));
+      // Append template content and styles to light DOM
+      this.appendChild(content);
       this.prepend(style);
 
       // Call onMount hook
@@ -134,36 +139,6 @@ export default class BaseComponent extends HTMLElement {
       console.error(`Failed to initialize ${this.constructor.name}:`, error);
       throw error;
     }
-  }
-
-  /**
-   * Get the component's directory path (where .html and .css files live).
-   * Infers from the component's tagName and typical directory structure:
-   * <microphone-detector> => src/components/microphone/
-   * <timeline-component> => src/components/timeline/
-   * @private
-   * @returns {URL} Directory URL
-   */
-  _getComponentDir() {
-    // Map tag names to directory names
-    // Tag name convention: kebab-case => src/components/{first-part}/
-    const tagName = this.tagName.toLowerCase();
-    const parts = tagName.split("-");
-
-    // Remove trailing "component" or "detector" to get feature name
-    let featureName = parts[0];
-    if (parts.length > 1 && parts[parts.length - 1] === "component") {
-      featureName = parts.slice(0, -1).join("-");
-    } else if (parts.length > 1) {
-      featureName = parts[0]; // use first part if multiple parts
-    }
-
-    // Use document.currentScript as fallback for import.meta
-    const currentScript = /** @type {HTMLScriptElement|null} */ (document.currentScript);
-    const baseUrl = new URL(currentScript?.src || window.location.href);
-    const basePath = baseUrl.pathname.split("/").slice(0, -3).join("/");
-    const componentDir = `${baseUrl.origin}${basePath}/${featureName}/`;
-    return new URL(componentDir);
   }
 
   /**

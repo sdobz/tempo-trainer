@@ -1,16 +1,6 @@
-/**
- * Tests for MicrophoneDetector component
- * @module microphone-detector.test
- */
-
-// Setup DOM environment with jsdom FIRST
-import "../base/setup-dom.ts";
-
-import { assertEquals, assertNotEquals, assertThrows } from "std/assert/mod.ts";
-import { setupGlobalMocks } from "../base/test-mocks.ts";
-
-// Setup Web Audio API mocks (jsdom provides real DOM)
-setupGlobalMocks();
+/// <reference lib="dom" />
+import "../base/setup-dom.ts"; // Setup DOM environment first
+import { assertEquals, assertNotEquals, assertThrows } from "../base/assert.ts";
 
 // Dynamic import after mocks are set up
 const { default: MicrophoneDetector } = await import("./microphone-detector.js");
@@ -23,11 +13,7 @@ async function createComponent() {
     typeof MicrophoneDetector
   >;
 
-  try {
-    await element.componentReady;
-  } catch {
-    // Initialization failure expected in tests (no real DOM)
-  }
+  await element.componentReady;
 
   return element;
 }

@@ -3,5 +3,6 @@
     "./tools/check": true,
     "./tools/lint": true,
     "./tools/test": true
-  }
+  },
+  "deno.enablePaths": ["./"]
 }

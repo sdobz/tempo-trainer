@@ -58,11 +58,11 @@ export default class MicrophoneDetector extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "./microphone-detector.html";
+    return "/src/components/microphone/microphone-detector.html";
   }
 
   getStyleUrl() {
-    return "./microphone.css";
+    return "/src/components/microphone/microphone.css";
   }
 
   async onMount() {
@@ -228,7 +228,7 @@ export default class MicrophoneDetector extends BaseComponent {
    * @private
    * @param {Event} e Change event
    */
-  _onSelectChange(e) {
+  _onSelectChange(_e) {
     const deviceId = this.selectElement?.value || "";
     dispatchEvent(this, "device-selected", { deviceId });
     this.setState({ ...this.state, isConnected: !!deviceId });
