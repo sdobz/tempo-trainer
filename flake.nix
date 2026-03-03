@@ -16,31 +16,28 @@
           name = "tempo-trainer-dev";
 
           buildInputs = with pkgs; [
-            nodejs_20
+            deno
             typescript
             nodePackages.prettier
             nodePackages.eslint
             nodePackages.http-server
-            esbuild
           ];
 
           shellHook = ''
             echo "🥁 Tempo Trainer Development Environment"
             echo ""
             echo "Tools available:"
-            echo "  node       $(node --version)"
+            echo "  deno       $(deno --version | head -n 1)"
             echo "  tsc        $(tsc --version)"
             echo "  prettier   $(prettier --version)"
             echo "  eslint     $(eslint --version)"
-            echo "  esbuild    $(esbuild --version)"
             echo ""
             echo "Commands:"
-            echo "  nix flake update       - Update flake.lock"
-            echo "  ./scripts/check        - Type check"
-            echo "  ./scripts/format       - Format code"
-            echo "  ./scripts/lint         - Lint code"
-            echo "  ./scripts/serve        - Dev server on localhost:8080"
-            echo "  ./scripts/bundle       - Production bundle"
+            echo "  ./tools/test           - Run component tests (Deno)"
+            echo "  ./tools/check          - Type check (TypeScript)"
+            echo "  ./tools/format         - Format code (Prettier)"
+            echo "  ./tools/lint           - Lint code (ESLint)"
+            echo "  ./tools/serve          - Dev server on localhost:8080"
             echo ""
           '';
         };

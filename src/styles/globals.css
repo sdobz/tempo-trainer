@@ -1,0 +1,341 @@
+/**
+ * Global styles - App-level layout, reset, responsive
+ * Imported before all component styles
+ */
+
+/* === Reset === */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  background-color: var(--color-bg-dark);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* === Typography === */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: var(--font-size-3xl);
+}
+
+h2 {
+  font-size: var(--font-size-2xl);
+}
+
+h3 {
+  font-size: var(--font-size-xl);
+}
+
+h4 {
+  font-size: var(--font-size-lg);
+}
+
+p {
+  margin: 0;
+}
+
+/* === Form Elements === */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+  font-size: inherit;
+  border: none;
+  outline: none;
+}
+
+input,
+select,
+textarea {
+  padding: var(--spacing-sm) var(--spacing-base);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-highlight);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text);
+  transition: border-color var(--duration-fast);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary);
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+/* === App Layout === */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--color-bg-dark);
+}
+
+.app-header {
+  background-color: var(--color-bg-light);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.app-header h1 {
+  color: var(--color-text-inverse);
+  margin: 0;
+}
+
+/* === Pane System === */
+.pane-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--spacing-lg) var(--spacing-base) calc(var(--nav-height) + var(--spacing-lg))
+    var(--spacing-base);
+  overflow-y: auto;
+}
+
+.pane {
+  display: none;
+  width: 100%;
+  max-width: 600px;
+}
+
+.pane.visible {
+  display: block;
+}
+
+.pane-content {
+  background-color: var(--color-bg-light);
+  padding: var(--spacing-xl);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.pane-content h2 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-lg);
+  color: var(--color-text-inverse);
+}
+
+.pane-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--color-bg-light);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: var(--nav-height);
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  z-index: var(--z-fixed);
+}
+
+.pane-link {
+  flex: 1;
+  height: 100%;
+  padding: 0 var(--spacing-base);
+  background-color: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1.5em;
+  transition: all var(--duration-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pane-link:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-light);
+}
+
+.pane-link.active {
+  background-color: rgba(76, 175, 80, 0.1);
+  border-bottom-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* === Common Components === */
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.control-group label {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
+}
+
+.control-group-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-base);
+}
+
+.control-group-inline label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.control-group-inline input,
+.control-group-inline select {
+  width: 120px;
+}
+
+/* === Button Styles === */
+.primary-btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background-color: var(--color-primary);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-inverse);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+}
+
+.primary-btn:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.primary-btn:disabled {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.secondary-btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-highlight);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.secondary-btn:hover {
+  background-color: var(--color-bg-elevated);
+  border-color: var(--color-border);
+}
+
+.danger-btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background-color: var(--color-danger);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-inverse);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+}
+
+.danger-btn:hover {
+  background-color: var(--color-danger-dark);
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+  .pane-container {
+    padding: var(--spacing-base) var(--spacing-sm) calc(var(--nav-height) + var(--spacing-sm))
+      var(--spacing-sm);
+  }
+
+  .pane-content {
+    padding: var(--spacing-lg) var(--spacing-base);
+  }
+
+  .control-group-inline {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .control-group-inline input,
+  .control-group-inline select {
+    width: 100%;
+  }
+}
+
+/* === Utility Classes === */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--color-text-muted);
+}
+
+.empty-state p {
+  margin: var(--spacing-sm) 0;
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-small {
+  font-size: var(--font-size-sm);
+}
+
+.text-mono {
+  font-family: var(--font-family-mono);
+}
+
+.hidden {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

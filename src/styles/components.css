@@ -1,0 +1,16 @@
+/**
+ * Component styles - import point for all component-specific CSS
+ * Each component should have its own .css file scoped with BEM naming
+ */
+
+/* Theme and globals are imported in index.html before this file */
+
+/* === Component Imports === */
+/* These @import statements will be added as components are created */
+
+/* Example structure for future components:
+@import url('../components/microphone/microphone.css');
+@import url('../components/timeline/timeline.css');
+@import url('../components/plan-editor/plan-editor.css');
+@import url('../components/history/history-display.css');
+*/

@@ -1,0 +1,74 @@
+#!/bin/bash
+# Run component tests with Deno
+# Usage:
+#   ./tools/test                    # Run all tests
+#   ./tools/test microphone         # Run tests matching "microphone"
+#   ./tools/test path/to/file.test.js  # Run specific test file
+#   ./tools/test --watch            # Watch mode
+
+set -e
+
+# Re-enter via nix develop if not already in a nix shell
+if [[ -z "$IN_NIX_SHELL" ]]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+  exec nix develop "$PROJECT_ROOT" -c "$0" "$@"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$PROJECT_ROOT"
+
+echo "🧪 Running tests with Deno..."
+echo ""
+
+# Process arguments to build deno test command
+DENO_ARGS=(
+  "test"
+  "--allow-read"
+  "--allow-env"
+  "--allow-run"
+)
+
+# Check for special flags
+WATCH_MODE=false
+FILTER=""
+FILES=()
+
+for arg in "$@"; do
+  if [[ "$arg" == "--watch" ]]; then
+    WATCH_MODE=true
+  elif [[ -f "$arg" ]]; then
+    FILES+=("$arg")
+  elif [[ -f "src/$arg" ]]; then
+    FILES+=("src/$arg")
+  else
+    # Treat as filter pattern
+    if [[ -z "$FILTER" ]]; then
+      FILTER="$arg"
+    else
+      FILTER="$FILTER|$arg"
+    fi
+  fi
+done
+
+# Add watch flag if requested
+if [[ "$WATCH_MODE" == true ]]; then
+  DENO_ARGS+=("--watch")
+fi
+
+# Add filter if provided
+if [[ -n "$FILTER" ]]; then
+  DENO_ARGS+=("--filter" "$FILTER")
+fi
+
+# Add files or default to src/
+if [[ ${#FILES[@]} -gt 0 ]]; then
+  DENO_ARGS+=("${FILES[@]}")
+else
+  DENO_ARGS+=("src/")
+fi
+
+# Run deno test
+exec deno "${DENO_ARGS[@]}"
