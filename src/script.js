@@ -60,10 +60,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const planEditReady = planEditPane.componentReady.then(() => {
-    // Get the drill-plan-visualization component
-    const drillPlanVizComponent = planEditPane.querySelector("drill-plan-visualization");
+    // Get the plan visualizer component
+    const drillPlanVizComponent = planEditPane.querySelector("plan-visualizer-simple");
     if (!drillPlanVizComponent) {
-      throw new Error("drill-plan-visualization component not found");
+      throw new Error("plan-visualizer-simple component not found");
     }
 
     // Use the component directly
@@ -75,12 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
       timeline.setDrillPlan(plan);
     });
 
-    drillPlan.onMeasureClick((/** @type {number} */ measureIndex) => {
-      if (!metronome.isRunning) {
-        const beatsPerMeasure = planPlayPane.getBeatsPerMeasure();
-        timeline.centerAt(measureIndex * beatsPerMeasure);
-      }
-    });
+    // Note: plan-edit visualizer has no navigation
   });
 
   const planPlayReady = planPlayPane.componentReady.then(() => {

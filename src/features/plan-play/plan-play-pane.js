@@ -6,7 +6,8 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
-import "./timeline-visualization.js";
+import "../visualizers/timeline-visualization.js";
+import "../visualizers/plan-visualizer-play.js";
 import "../base/app-notification.js";
 
 /**
@@ -46,6 +47,7 @@ export default class PlanPlayPane extends BaseComponent {
 
     // Component references (set in onMount)
     this.timelineViz = null;
+    this.planVisualizer = null;
 
     // DOM element references (set in onMount)
     this.bpmInput = null;
@@ -85,6 +87,9 @@ export default class PlanPlayPane extends BaseComponent {
     // Get reference to timeline-visualization component
     this.timelineViz = this.querySelector("timeline-visualization");
 
+    // Get reference to plan-visualizer-play component
+    this.planVisualizer = this.querySelector("plan-visualizer-play");
+
     // Bind event listeners
     this._cleanups.push(bindEvent(this.startBtn, "click", () => this._onStart()));
     this._cleanups.push(bindEvent(this.stopBtn, "click", () => this._onStop()));
@@ -109,6 +114,18 @@ export default class PlanPlayPane extends BaseComponent {
   init(drillPlan, scorer) {
     this.drillPlan = drillPlan;
     this.scorer = scorer;
+
+    // If plan visualizer is available, parse and display the plan
+    if (this.planVisualizer && this.drillPlan && typeof this.drillPlan.getPlan === "function") {
+      try {
+        const plan = this.drillPlan.getPlan();
+        if (plan && plan.length > 0 && typeof this.planVisualizer.setDrillPlan === "function") {
+          this.planVisualizer.setDrillPlan(plan);
+        }
+      } catch (e) {
+        // Plan visualizer may not be available in tests
+      }
+    }
   }
 
   // --- Public Methods ---

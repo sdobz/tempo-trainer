@@ -6,7 +6,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
-import "./drill-plan-visualization.js";
+import "../visualizers/plan-visualizer-simple.js";
 
 /**
  * @typedef {Object} PlanEditState
@@ -112,8 +112,8 @@ export default class PlanEditPane extends BaseComponent {
     this.startPlanPlayBtn = querySelector(this, "[data-start-plan-play-btn]");
     this.planQuickActions = querySelector(this, "[data-plan-quick-actions]");
 
-    // Get reference to drill-plan-visualization component
-    this.drillPlanViz = this.querySelector("drill-plan-visualization");
+    // Get reference to plan visualizer component
+    this.drillPlanViz = this.querySelector("plan-visualizer-simple");
 
     // Bind event listeners
     this._cleanups.push(bindEvent(this.planLibrarySelect, "change", () => this._onPlanSelected()));

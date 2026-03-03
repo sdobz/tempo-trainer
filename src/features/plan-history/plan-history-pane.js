@@ -6,6 +6,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
+import "../visualizers/plan-visualizer-history.js";
 
 /**
  * @typedef {Object} PlanHistoryState
@@ -105,6 +106,9 @@ export default class PlanHistoryPane extends BaseComponent {
 
     // Setup event listeners
     this._setupEventListeners();
+
+    // Populate plan visualizers for each session
+    this._populatePlanVisualizers();
   }
 
   // --- Private Methods ---
@@ -313,6 +317,15 @@ export default class PlanHistoryPane extends BaseComponent {
           </div>
         `
         }
+
+        <div class="details-row">
+          <div class="detail-section">
+            <div class="detail-title">Plan Structure</div>
+            <div class="detail-content">
+              <plan-visualizer-history data-session-id="${session.id}" data-plan-visualization-container></plan-visualizer-history>
+            </div>
+          </div>
+        </div>
 
         <div class="session-actions">
           <button class="retry-session-btn" data-session-id="${session.id}">
@@ -553,6 +566,43 @@ export default class PlanHistoryPane extends BaseComponent {
     }
 
     return null;
+  }
+
+  /**
+   * Populate plan visualizers with session data
+   * @private
+   */
+  _populatePlanVisualizers() {
+    if (!this.historyList) return;
+
+    try {
+      // Find all plan visualizer components
+      const visualizers = this.historyList.querySelectorAll("plan-visualizer-history");
+
+      visualizers.forEach((vizEl) => {
+        const sessionId = vizEl.dataset.sessionId;
+        const session = this.sessions.find((s) => s.id === sessionId);
+
+        if (session && session.drillPlan && vizEl.setDrillPlan) {
+          try {
+            // Set up the visualizer with the drill plan
+            vizEl.setDrillPlan(session.drillPlan);
+
+            // Set up click handler to navigate to timeline position
+            if (vizEl.onMeasureClick) {
+              vizEl.onMeasureClick((measureIndex) => {
+                // Emit event so app can scroll timeline to this measure
+                dispatchEvent(this, "measure-selected", { sessionId, measureIndex });
+              });
+            }
+          } catch (e) {
+            console.error("Failed to populate plan visualizer:", e);
+          }
+        }
+      });
+    } catch (e) {
+      // Visualizer component may not be available in tests
+    }
   }
 
   /**
