@@ -8,6 +8,9 @@ import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
 import MicrophoneControl from "../microphone/microphone-control.js";
 import CalibrationControl from "../calibration/calibration-control.js";
+import MicrophoneDetector from "../../microphone-detector.js";
+import CalibrationDetector from "../../calibration-detector.js";
+import StorageManager from "../../storage-manager.js";
 
 /**
  * @typedef {Object} OnboardingState

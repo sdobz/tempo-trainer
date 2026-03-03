@@ -66,7 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Wait for onboarding component to be ready
   let micDetector;
   let calibration;
-  onboardingPane.componentReady.then(() => {
+  
+  const onboardingReady = onboardingPane.componentReady.then(() => {
     // Get microphone detector from microphone-control sub-component
     if (onboardingPane.microphoneControl) {
       micDetector = onboardingPane.microphoneControl.micDetector;
@@ -224,6 +225,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Handle pane-specific setup
     if (pane === "onboarding") {
+      // Wait for onboarding component to be ready before accessing detectors
+      await onboardingReady;
+
       // Update onboarding status indicators
       updateOnboardingStatus();
 
@@ -284,9 +288,13 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Override complete onboarding to set flag
-  completeOnboardingBtn.addEventListener("click", () => {
-    StorageManager.set("tempoTrainer.hasCompletedOnboarding", "true");
-    paneManager.navigate("plan-edit");
+  onboardingPane.componentReady.then(() => {
+    if (onboardingPane.completeBtn) {
+      onboardingPane.completeBtn.addEventListener("click", () => {
+        StorageManager.set("tempoTrainer.hasCompletedOnboarding", "true");
+        paneManager.navigate("plan-edit");
+      });
+    }
   });
 
   // --- Event Listeners ---

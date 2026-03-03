@@ -6,7 +6,7 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
+import { querySelector, bindEvent } from "../base/component-utils.js";
 import MicrophoneDetector from "../../microphone-detector.js";
 import StorageManager from "../../storage-manager.js";
 
@@ -73,7 +73,8 @@ export default class MicrophoneControl extends BaseComponent {
     this.hitsList = querySelector(this, "[data-microphone-hits-list]");
 
     // Create domain instance with injected dependencies
-    // MicrophoneControl itself is the delegate - it implements MicrophoneDetectorDelegate
+    // - StorageManager: stateless utility, safe to reference directly
+    // - this: component acts as the delegate for callbacks
     this.micDetector = new MicrophoneDetector(StorageManager, this);
 
     // Setup UI event listeners
@@ -81,6 +82,15 @@ export default class MicrophoneControl extends BaseComponent {
 
     // Populate device select
     await this._populateDevices();
+  }
+
+  /**
+   * Set the microphone detector instance (dependency injection)
+   * Called by the wiring layer after the detector is created
+   * @param {MicrophoneDetector} detector - The detector instance to use
+   */
+  setDetector(detector) {
+    this.micDetector = detector;
   }
 
   onUnmount() {

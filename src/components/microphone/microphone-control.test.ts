@@ -6,6 +6,33 @@ import { assertEquals } from "../base/assert.ts";
 const { default: MicrophoneControl } = await import("./microphone-control.js");
 
 /**
+ * MockMicrophoneDetector for testing without real audio processing
+ */
+class MockMicrophoneDetector {
+  delegate: any = null;
+  isRunning = false;
+  threshold = 52;
+  selectedDeviceId = "";
+
+  constructor(delegate: any = null) {
+    this.delegate = delegate;
+  }
+
+  setThreshold(value: number): void {}
+  selectDevice(deviceId: string): void {}
+  onHit(callback: Function): void {}
+  async getAvailableDevices(): Promise<any[]> {
+    return [];
+  }
+  async start(): Promise<boolean> {
+    return false;
+  }
+  stop(): void {
+    this.isRunning = false;
+  }
+}
+
+/**
  * Test suite for MicrophoneControl - UI integration tests.
  * Tests DOM manipulation, user interactions, and component lifecycle.
  */
@@ -17,6 +44,9 @@ async function createComponent() {
 
   // Wait for component to be ready
   await element.componentReady;
+
+  const detector = new MockMicrophoneDetector(element);
+  element.setDetector(detector as any);
 
   return element;
 }
@@ -59,7 +89,7 @@ Deno.test("MicrophoneControl: should have state management", async () => {
 });
 
 Deno.test("MicrophoneControl: should register as custom element", async () => {
-  const element = document.createElement("microphone-control");
+  const element = await createComponent();
   assertEquals(element.constructor.name, "MicrophoneControl");
 });
 

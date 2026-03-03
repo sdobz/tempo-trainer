@@ -7,31 +7,33 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
-import Calibration from "../../calibration.js";
+import CalibrationDetector from "../../calibration-detector.js";
+import StorageManager from "../../storage-manager.js";
 
-/**
- * @typedef {Object} CalibrationControlState
- * @property {boolean} isCalibrated - Whether calibration is complete
- */
+/** @typedef {import("../../calibration-detector.js").CalibrationDetectorDelegate} CalibrationDetectorDelegate */
 
 /**
  * CalibrationControl component - system calibration UI and logic
+ *
+ * Integrates the pure domain CalibrationDetector with UI controls and DOM manipulation.
+ * Handles all user interactions and visual feedback.
  *
  * Events emitted:
  * - 'calibration-complete': When calibration is finished
  *
  * @extends BaseComponent
+ * @implements {CalibrationDetectorDelegate}
  */
 export default class CalibrationControl extends BaseComponent {
   constructor() {
     super();
 
-    /** @type {CalibrationControlState} */
+    /** @type {Object} */
     this.state = {
       isCalibrated: false,
     };
 
-    /** @type {Calibration|null} */
+    /** @type {CalibrationDetector|null} */
     this.calibration = null;
 
     /** @type {Array<() => void>} */
@@ -59,17 +61,32 @@ export default class CalibrationControl extends BaseComponent {
     this.statusEl = querySelector(this, "[data-calibration-status]");
     this.resultEl = querySelector(this, "[data-calibration-result]");
 
-    // Create calibration domain logic instance
-    this.calibration = new Calibration(null, {
-      button: this.button,
-      status: this.statusEl,
-      result: this.resultEl,
-    });
+    // Setup button click handler
+    this._cleanups.push(bindEvent(this.button, "click", () => this.calibration?.toggle()));
+
+    // Create domain instance with injected dependencies
+    // - StorageManager: stateless utility, safe to reference directly
+    // - this: component acts as the delegate for callbacks
+    // - optional audioContext can be passed to setDetector() if needed
+    this.calibration = new CalibrationDetector(StorageManager, this);
 
     // Listen for calibration completion
     this.calibration.onStop(() => {
       dispatchEvent(this, "calibration-complete", {});
     });
+  }
+
+  /**
+   * Override the calibration detector instance (for testing or special cases)
+   * @param {CalibrationDetector} detector - The detector instance to use
+   */
+  setDetector(detector) {
+    this.calibration = detector;
+    if (this.calibration) {
+      this.calibration.onStop(() => {
+        dispatchEvent(this, "calibration-complete", {});
+      });
+    }
   }
 
   onUnmount() {
@@ -80,6 +97,37 @@ export default class CalibrationControl extends BaseComponent {
 
     this._cleanups.forEach((cleanup) => cleanup());
     this._cleanups = [];
+  }
+
+  /**
+   * Delegate method: Handle status message changes from detector
+   * @param {string} message - Status message to display
+   */
+  onStatusChanged(message) {
+    if (this.statusEl) {
+      this.statusEl.textContent = message;
+    }
+  }
+
+  /**
+   * Delegate method: Handle offset value changes from detector
+   * @param {number} offsetMs - Offset value in milliseconds
+   */
+  onOffsetChanged(offsetMs) {
+    if (this.resultEl) {
+      const roundedOffset = Math.round(offsetMs);
+      this.resultEl.textContent = `Offset compensation: ${roundedOffset} ms`;
+    }
+  }
+
+  /**
+   * Delegate method: Handle calibration state changes from detector
+   * @param {boolean} isStarted - Whether calibration is running
+   */
+  onCalibrationStateChanged(isStarted) {
+    if (this.button) {
+      this.button.textContent = isStarted ? "Stop Calibration" : "Start Calibration";
+    }
   }
 
   /**

@@ -1,22 +1,27 @@
-import StorageManager from "./storage-manager.js";
+/**
+ * Delegate interface for UI updates from CalibrationDetector.
+ * @typedef {Object} CalibrationDetectorDelegate
+ * @property {(message: string) => void} [onStatusChanged] - Status message changed
+ * @property {(offsetMs: number) => void} [onOffsetChanged] - Offset value changed
+ * @property {(started: boolean) => void} [onCalibrationStateChanged] - Calibration started/stopped
+ */
 
 /**
- * Calibration - Automatic latency calibration
- * Detects audio latency by measuring the offset between expected and actual hit times
+ * CalibrationDetector - Pure domain logic for automatic latency calibration.
+ * Detects audio latency by measuring the offset between expected and actual hit times.
+ * Does not interact with DOM. Uses delegate pattern for behavioral updates.
+ * @typedef {{ time: number, matched: boolean }} ExpectedBeat
  */
-/** @typedef {{ time: number, matched: boolean }} ExpectedBeat */
-class Calibration {
+class CalibrationDetector {
   /**
-   * Initialize calibration system
-   * @param {AudioContext} audioContext - WebAudio API context
-   * @param {Object} elements - DOM elements for UI
-   * @param {HTMLElement} elements.button - Start/stop calibration button
-   * @param {HTMLElement} elements.status - Status message display
-   * @param {HTMLElement} elements.result - Result offset display
+   * @param {Object} storageManager - Storage instance for persisting settings
+   * @param {CalibrationDetectorDelegate} delegate - Delegate for behavioral updates
+   * @param {AudioContext|null} [audioContext] - Optional audio context
    */
-  constructor(audioContext, elements) {
+  constructor(storageManager, delegate, audioContext = null) {
+    this.storageManager = storageManager;
+    this.delegate = delegate;
     this.audioContext = audioContext;
-    this.elements = elements; // { button, status, result }
 
     // Configuration
     this.lookahead = 25.0; // ms
@@ -57,7 +62,6 @@ class Calibration {
     this.onStopCallback = null;
 
     this._loadSettings();
-    this._setupEventListeners();
   }
 
   /**
@@ -85,16 +89,7 @@ class Calibration {
   }
 
   _loadSettings() {
-    this.offsetMs = StorageManager.getNumber(this.storageKey, 0);
-    this._updateResultLabel();
-  }
-
-  _setupEventListeners() {
-    if (this.elements.button) {
-      this.elements.button.addEventListener("click", () => {
-        this.toggle();
-      });
-    }
+    this.offsetMs = this.storageManager.getNumber(this.storageKey, 0);
   }
 
   /**
@@ -115,9 +110,11 @@ class Calibration {
   async start() {
     try {
       if (!this.audioContext) {
-        this._setStatus(
-          "Calibration failed to start: audio context not available. Try starting a drill first."
-        );
+        if (this.delegate?.onStatusChanged) {
+          this.delegate.onStatusChanged(
+            "Calibration failed to start: audio context not available. Try starting a drill first."
+          );
+        }
         return false;
       }
 
@@ -133,19 +130,25 @@ class Calibration {
       this.nextNoteTime = this.audioContext.currentTime + 0.1;
       this.startedAt = Date.now();
 
-      if (this.elements.button) {
-        this.elements.button.textContent = "Stop Calibration";
+      if (this.delegate?.onCalibrationStateChanged) {
+        this.delegate.onCalibrationStateChanged(true);
       }
 
-      this._setStatus(
-        "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable."
-      );
+      if (this.delegate?.onStatusChanged) {
+        this.delegate.onStatusChanged(
+          "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable."
+        );
+      }
 
       this.schedulerIntervalID = setInterval(() => this._scheduler(), this.lookahead);
 
       return true;
     } catch {
-      this._setStatus("Calibration failed to start: microphone or audio unavailable.");
+      if (this.delegate?.onStatusChanged) {
+        this.delegate.onStatusChanged(
+          "Calibration failed to start: microphone or audio unavailable."
+        );
+      }
       return false;
     }
   }
@@ -162,12 +165,17 @@ class Calibration {
 
     this.isCalibrating = false;
 
-    if (this.elements.button) {
-      this.elements.button.textContent = "Start Calibration";
+    if (this.delegate?.onCalibrationStateChanged) {
+      this.delegate.onCalibrationStateChanged(false);
     }
 
-    this._setStatus(message);
-    this._updateResultLabel();
+    if (this.delegate?.onStatusChanged) {
+      this.delegate.onStatusChanged(message);
+    }
+
+    if (this.delegate?.onOffsetChanged) {
+      this.delegate.onOffsetChanged(this.offsetMs);
+    }
 
     if (this.onStopCallback) {
       this.onStopCallback();
@@ -274,10 +282,13 @@ class Calibration {
   }
 
   _maybeFinish() {
+    let message = "";
+
     if (this.goodHits < this.minHits) {
-      this._setStatus(
-        `Calibration: hits ${this.goodHits}/${this.minHits} | learning timing pattern...`
-      );
+      message = `Calibration: hits ${this.goodHits}/${this.minHits} | learning timing pattern...`;
+      if (this.delegate?.onStatusChanged) {
+        this.delegate.onStatusChanged(message);
+      }
       return;
     }
 
@@ -308,13 +319,14 @@ class Calibration {
     }
 
     this.offsetMs = recentMedian;
-    StorageManager.set(this.storageKey, this.offsetMs);
+    this.storageManager.set(this.storageKey, this.offsetMs);
 
     const stabilityPercent = Math.round(this.confidence);
 
-    this._setStatus(
-      `Calibration: hits ${this.goodHits}/${this.minHits}+ | median ${Math.round(recentMedian)} ms | spread ${Math.round(recentMad)} ms | confidence ${stabilityPercent}%`
-    );
+    message = `Calibration: hits ${this.goodHits}/${this.minHits}+ | median ${Math.round(recentMedian)} ms | spread ${Math.round(recentMad)} ms | confidence ${stabilityPercent}%`;
+    if (this.delegate?.onStatusChanged) {
+      this.delegate.onStatusChanged(message);
+    }
 
     const strictDone =
       this.stableWindows >= this.requiredStableWindows && this.confidence >= this.confidenceTarget;
@@ -323,22 +335,6 @@ class Calibration {
 
     if (strictDone || relaxedDone) {
       this.stop("Calibration complete: stable offset acquired.");
-    }
-  }
-
-  /**
-   * @param {string} message - Status message to display
-   */
-  _setStatus(message) {
-    if (this.elements.status) {
-      this.elements.status.textContent = message;
-    }
-  }
-
-  _updateResultLabel() {
-    if (this.elements.result) {
-      const roundedOffset = Math.round(this.offsetMs);
-      this.elements.result.textContent = `Offset compensation: ${roundedOffset} ms`;
     }
   }
 
@@ -382,4 +378,4 @@ class Calibration {
   }
 }
 
-export default Calibration;
+export default CalibrationDetector;

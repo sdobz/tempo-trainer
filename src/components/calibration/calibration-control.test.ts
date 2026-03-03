@@ -6,7 +6,40 @@ import { assertEquals } from "../base/assert.ts";
 const { default: CalibrationControl } = await import("./calibration-control.js");
 
 /**
- * Helper to create a fresh component instance and wait for it to be ready
+ * MockCalibrationDetector for testing without real audio processing
+ */
+class MockCalibrationDetector {
+  isCalibrating = false;
+  offsetMs = 0;
+
+  setBeatsPerMeasure(beatsPerMeasure: number): void {}
+  setBeatDuration(beatDuration: number): void {}
+  getOffsetMs(): number {
+    return this.offsetMs;
+  }
+  getCalibratedBeatPosition(
+    audioTime: number,
+    runStartAudioTime: number,
+    beatDuration: number
+  ): number {
+    return audioTime - runStartAudioTime;
+  }
+  toggle(): void {
+    this.isCalibrating = !this.isCalibrating;
+  }
+  async start(): Promise<boolean> {
+    return false;
+  }
+  stop(message: string): void {}
+  registerHit(hitAudioTime: number): void {}
+  onStop(callback: Function): void {}
+  onStatusChanged(message: string): void {}
+  onOffsetChanged(offsetMs: number): void {}
+  onCalibrationStateChanged(isStarted: boolean): void {}
+}
+
+/**
+ * Helper to create a fresh component instance with injected detector
  */
 async function createComponent() {
   const element = document.createElement("calibration-control") as InstanceType<
@@ -14,6 +47,10 @@ async function createComponent() {
   >;
 
   await element.componentReady;
+
+  // Inject a mock detector (normally done by wiring layer)
+  const detector = new MockCalibrationDetector();
+  element.setDetector(detector as any);
 
   return element;
 }
@@ -78,10 +115,65 @@ Deno.test("CalibrationControl: setState should accept valid state objects", asyn
   assertEquals(component.state.isCalibrated, true);
 });
 
+Deno.test("CalibrationControl: should have calibration property initialized", async () => {
+  const component = await createComponent();
+  assertEquals(component.calibration !== null, true);
+});
+
+Deno.test("CalibrationControl: should implement delegate interface methods", async () => {
+  const component = await createComponent();
+  assertEquals(typeof component.onStatusChanged, "function");
+  assertEquals(typeof component.onOffsetChanged, "function");
+  assertEquals(typeof component.onCalibrationStateChanged, "function");
+});
+
+Deno.test("CalibrationControl: onStatusChanged should update status element", async () => {
+  const component = await createComponent();
+  if (!component.statusEl) return;
+
+  const testMessage = "Test status message";
+  component.onStatusChanged(testMessage);
+
+  assertEquals(component.statusEl.textContent, testMessage);
+});
+
+Deno.test("CalibrationControl: onOffsetChanged should update result element", async () => {
+  const component = await createComponent();
+  if (!component.resultEl) return;
+
+  component.onOffsetChanged(42);
+
+  assertEquals(component.resultEl.textContent.includes("42"), true);
+});
+
+Deno.test("CalibrationControl: onCalibrationStateChanged should update button text", async () => {
+  const component = await createComponent();
+  if (!component.button) return;
+
+  component.onCalibrationStateChanged(true);
+  assertEquals(component.button.textContent, "Stop Calibration");
+
+  component.onCalibrationStateChanged(false);
+  assertEquals(component.button.textContent, "Start Calibration");
+});
+
 Deno.test(
-  "CalibrationControl: should have calibration property as null until initialized",
+  "CalibrationControl: updateStatus should set configured state and update UI",
   async () => {
     const component = await createComponent();
-    assertEquals(component.calibration !== null, true);
+
+    component.updateStatus(true);
+    assertEquals(component.state.isCalibrated, true);
+    if (component.statusIndicator) {
+      assertEquals(component.statusIndicator.textContent, "✓ Calibrated");
+      assertEquals(component.statusIndicator.classList.contains("complete"), true);
+    }
+
+    component.updateStatus(false);
+    assertEquals(component.state.isCalibrated, false);
+    if (component.statusIndicator) {
+      assertEquals(component.statusIndicator.textContent, "⚠️ Not calibrated");
+      assertEquals(component.statusIndicator.classList.contains("complete"), false);
+    }
   }
 );
