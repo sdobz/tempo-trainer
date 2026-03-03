@@ -2,6 +2,7 @@
  * DrillHistory manages drill session history tracking and display.
  * Stores a limited number of recent practice entries for quick reference.
  */
+/** @typedef {{ completed: boolean, score: number, elapsedSeconds: number, timeLabel: string }} HistoryEntry */
 class DrillHistory {
   /**
    * Creates a new DrillHistory instance.
@@ -9,7 +10,7 @@ class DrillHistory {
    */
   constructor(listElement) {
     this.listElement = listElement;
-    /** @type {{ completed: boolean, score: number, elapsedSeconds: number, timeLabel: string }[]} */
+    /** @type {HistoryEntry[]} */
     this.history = [];
     this.maxEntries = 12;
   }
@@ -65,7 +66,7 @@ class DrillHistory {
 
   /**
    * Gets a copy of the current history.
-   * @returns {{ completed: boolean, score: number, elapsedSeconds: number, timeLabel: string }[]} Array of history entry objects
+   * @returns {HistoryEntry[]} Array of history entry objects
    */
   getHistory() {
     return [...this.history];

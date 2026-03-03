@@ -1,8 +1,15 @@
-/** @typedef {any} PlanEditorUI */
-
-/** @typedef {any} PaneManager */
-
-/** @typedef {any} Session */
+/** @typedef {{ on: number, off: number, reps: number }} Segment */
+/** @typedef {{ id: string, name: string, description: string, difficulty: string, segments: Segment[] }} SessionPlan */
+/** @typedef {{ description: string, severity: string, direction: string, avgErrorBeats: number }} DriftMetrics */
+/** @typedef {{ description: string, completelMissed: number, partialMissed: number }} MissedMetrics */
+/** @typedef {{ consistency: string }} RhythmMetrics */
+/** @typedef {{ stdDeviation?: number, consistency: string, range?: number }} ConsistencyMetrics */
+/** @typedef {{ completed: boolean, percentage: number }} CompletionMetrics */
+/** @typedef {{ drift: DriftMetrics, missed: MissedMetrics, rhythm: RhythmMetrics, consistency: ConsistencyMetrics, completion: CompletionMetrics }} SessionMetrics */
+/** @typedef {{ id: string, bpm: number, overallScore: number, completed: boolean, timestamp: string, durationSeconds: number, plan: SessionPlan, metrics: SessionMetrics, measureScores?: number[] }} Session */
+/** @typedef {{ selectPlanByObject: (plan: SessionPlan) => void }} PlanEditorUI */
+/** @typedef {{ navigate: (paneName: string) => void }} PaneManager */
+/** @typedef {{ category: string, priority: string, suggestion: string, action: string }} Recommendation */
 
 /**
  * HistoryDisplayUI manages the display of practice session history with detailed metrics and recommendations.
@@ -126,8 +133,8 @@ class HistoryDisplayUI {
   /**
    * Renders detailed session information with analysis, metrics, and recommendations.
    * @param {Session} session - Session object with all timing and scoring data
-   * @param {any} plan - The practice plan used in the session
-   * @param {any} metrics - Analyzed metrics object (drift, accuracy, rhythm, consistency)
+   * @param {SessionPlan} plan - The practice plan used in the session
+   * @param {SessionMetrics} metrics - Analyzed metrics object (drift, accuracy, rhythm, consistency)
    * @param {number} duration - Session duration in seconds
    * @returns {string} HTML string with detailed session information
    */
@@ -241,10 +248,11 @@ class HistoryDisplayUI {
   /**
    * Generates personalized recommendations based on session performance metrics.
    * @param {Session} session - Session object with overall score and completion status
-   * @param {any} metrics - Analyzed metrics object with drift, accuracy, rhythm data
-   * @returns {Array<any>} Array of recommendation objects with category, priority, suggestion, and action
+   * @param {SessionMetrics} metrics - Analyzed metrics object with drift, accuracy, rhythm data
+   * @returns {Recommendation[]} Array of recommendation objects with category, priority, suggestion, and action
    */
   generateRecommendations(session, metrics) {
+    /** @type {Recommendation[]} */
     const recommendations = [];
 
     // Drift recommendations

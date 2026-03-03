@@ -4,6 +4,7 @@ import StorageManager from "./storage-manager.js";
  * Calibration - Automatic latency calibration
  * Detects audio latency by measuring the offset between expected and actual hit times
  */
+/** @typedef {{ time: number, matched: boolean }} ExpectedBeat */
 class Calibration {
   /**
    * Initialize calibration system
@@ -40,7 +41,7 @@ class Calibration {
     this.schedulerIntervalID = null;
     this.nextNoteTime = 0;
     this.beatInMeasure = 0;
-    /** @type {{ time: number, matched: boolean }[]} */
+    /** @type {ExpectedBeat[]} */
     this.expectedBeats = [];
     /** @type {number[]} */
     this.offsetsMs = [];

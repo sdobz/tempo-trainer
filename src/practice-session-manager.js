@@ -1,7 +1,115 @@
 import StorageManager from "./storage-manager.js";
 
-/** @typedef {any} SessionData */
-/** @typedef {any} SessionRecord */
+/** @typedef {{ on: number, off: number, reps: number }} Segment */
+/** @typedef {{ id: string, name: string, description: string, difficulty: string, segments: Segment[] }} PlanSummary */
+/** @typedef {{ type: string }} DrillMeasure */
+/** @typedef {{ measureIndex: number, hits: number, expected: number, missing: number }} PartialMeasure */
+/** @typedef {{ index: number, score: number, type: string }} ScoredMeasure */
+
+/**
+ * @typedef {{
+ *   avgErrorBeats: number,
+ *   direction: "late" | "early" | "balanced",
+ *   severity: "none" | "low" | "medium" | "high",
+ *   description: string,
+ *   count?: number
+ * }} DriftMetrics
+ */
+
+/**
+ * @typedef {{
+ *   completelMissed: number,
+ *   partialMissed: number,
+ *   missedMeasures: number[],
+ *   partialMeasures: PartialMeasure[],
+ *   description: string
+ * }} MissedMetrics
+ */
+
+/**
+ * @typedef {{
+ *   avgInterval?: number,
+ *   variance: number,
+ *   consistency: "excellent" | "good" | "variable" | "unknown",
+ *   description: string
+ * }} RhythmMetrics
+ */
+
+/** @typedef {{ weakestMeasures: ScoredMeasure[], avgScore: number }} WeakSpotsMetrics */
+
+/**
+ * @typedef {{
+ *   stdDeviation?: number,
+ *   variance?: number,
+ *   consistency: "steady" | "variable" | "inconsistent" | "unknown",
+ *   minScore?: number,
+ *   maxScore?: number,
+ *   range?: number
+ * }} ConsistencyMetrics
+ */
+
+/**
+ * @typedef {{
+ *   completed: boolean,
+ *   percentage: number,
+ *   description: string
+ * }} CompletionMetrics
+ */
+
+/**
+ * @typedef {{
+ *   drift: DriftMetrics,
+ *   missed: MissedMetrics,
+ *   rhythm: RhythmMetrics,
+ *   weakSpots: WeakSpotsMetrics,
+ *   consistency: ConsistencyMetrics,
+ *   completion: CompletionMetrics
+ * }} SessionMetrics
+ */
+
+/**
+ * @typedef {{
+ *   plan: PlanSummary,
+ *   bpm: number,
+ *   timeSignature: string,
+ *   completed: boolean,
+ *   durationSeconds: number,
+ *   measureHits: number[][],
+ *   measureScores: number[],
+ *   drillPlan: DrillMeasure[],
+ *   overallScore: number
+ * }} SessionData
+ */
+
+/**
+ * @typedef {{
+ *   id: string,
+ *   timestamp: string,
+ *   plan: PlanSummary,
+ *   bpm: number,
+ *   timeSignature: string,
+ *   completed: boolean,
+ *   durationSeconds: number,
+ *   measureHits: number[][],
+ *   measureScores: number[],
+ *   drillPlan: DrillMeasure[],
+ *   overallScore: number,
+ *   metrics: SessionMetrics
+ * }} SessionRecord
+ */
+
+/** @typedef {{ planId: string, planName: string, sessions: number }} MostPracticedPlan */
+
+/**
+ * @typedef {{
+ *   totalSessions: number,
+ *   completedSessions: number,
+ *   completionRate: number,
+ *   averageScore: number,
+ *   bestScore: number,
+ *   mostPracticedPlan: MostPracticedPlan | null
+ * }} OverallStats
+ */
 
 /**
  * PracticeSessionManager handles persistent storage and analysis of practice sessions.
@@ -21,14 +129,14 @@ class PracticeSessionManager {
    * Saves a completed practice session with rich drummer metrics.
    * Automatically derives metrics from session data and stores the session.
    * @param {Object} sessionData - Session data including plan, BPM, hits, and scores
-   * @param {Object} sessionData.plan - The practice plan used ({id, name, difficulty, segments})
+   * @param {PlanSummary} sessionData.plan - The practice plan used ({id, name, difficulty, segments})
    * @param {number} sessionData.bpm - Beats per minute used in session
    * @param {string} sessionData.timeSignature - Time signature (e.g., "4/4")
    * @param {boolean} sessionData.completed - Whether session was fully completed
    * @param {number} sessionData.durationSeconds - Total session duration in seconds
-   * @param {Array<Array<number>>} sessionData.measureHits - Hit beat times per measure
-   * @param {Array<number>} sessionData.measureScores - Score for each measure
-   * @param {Array<any>} sessionData.drillPlan - The parsed drill plan structure
+   * @param {number[][]} sessionData.measureHits - Hit beat times per measure
+   * @param {number[]} sessionData.measureScores - Score for each measure
+   * @param {DrillMeasure[]} sessionData.drillPlan - The parsed drill plan structure
    * @param {number} sessionData.overallScore - Overall session score
    * @returns {SessionRecord|null} The saved session with derived metrics, or null if save failed
    */
@@ -72,29 +180,18 @@ class PracticeSessionManager {
    * Derives drummer-specific metrics from session data.
    * Calculates drift (tempo control), missed measures, rhythm consistency, and weak spots.
    * @param {SessionData} sessionData - Raw session data to analyze
-   * @returns {any} Metrics object with drift, missed, rhythm, weakSpots, consistency, completion
+   * @returns {SessionMetrics} Metrics object with drift, missed, rhythm, weakSpots, consistency, completion
    */
   deriveMetrics(sessionData) {
-    /** @type {any} */
-    const metrics = {};
-
-    // 1. DRIFT - Tempo consistency (early vs late hits)
-    metrics.drift = this.calculateDrift(sessionData);
-
-    // 2. MISSED - Measures with few/no hits
-    metrics.missed = this.calculateMissed(sessionData);
-
-    // 3. RHYTHM - Consistency of hit timing
-    metrics.rhythm = this.calculateRhythm(sessionData);
-
-    // 4. WEAK SPOTS - Measures with lowest scores
-    metrics.weakSpots = this.findWeakSpots(sessionData);
-
-    // 5. CONSISTENCY - Score variance
-    metrics.consistency = this.calculateConsistency(sessionData);
-
-    // 6. COMPLETION - How much of the plan was completed
-    metrics.completion = this.calculateCompletion(sessionData);
+    /** @type {SessionMetrics} */
+    const metrics = {
+      drift: this.calculateDrift(sessionData),
+      missed: this.calculateMissed(sessionData),
+      rhythm: this.calculateRhythm(sessionData),
+      weakSpots: this.findWeakSpots(sessionData),
+      consistency: this.calculateConsistency(sessionData),
+      completion: this.calculateCompletion(sessionData),
+    };
 
     return metrics;
   }
@@ -103,16 +200,20 @@ class PracticeSessionManager {
    * Calculates tempo drift - whether hits are consistently early or late.
    * Shows tempo control: positive = hitting late/dragging, negative = hitting early/rushing
    * @param {SessionData} sessionData - Session data with measureHits and drillPlan
-   * @returns {any} Drift metrics with avgErrorBeats, direction, severity, and description
+   * @returns {DriftMetrics} Drift metrics with avgErrorBeats, direction, severity, and description
    */
   calculateDrift(sessionData) {
-    const { measureHits, drillPlan, timeSignature } = sessionData;
+    /** @type {number[][]} */
+    const measureHits = sessionData.measureHits;
+    /** @type {DrillMeasure[]} */
+    const drillPlan = sessionData.drillPlan;
+    const { timeSignature } = sessionData;
     const beatsPerMeasure = parseInt(timeSignature.split("/")[0], 10);
 
     /** @type {number[]} */
     const errors = []; // Timing errors in beats (positive = late, negative = early)
 
-    measureHits.forEach((/** @type {number[]} */ hits, /** @type {number} */ measureIndex) => {
+    measureHits.forEach((hits, measureIndex) => {
       if (drillPlan[measureIndex]?.type === "click-in") return;
       if (hits.length === 0) return;
 
@@ -125,7 +226,7 @@ class PracticeSessionManager {
       }
 
       // Match hits to expected beats
-      hits.forEach((/** @type {number} */ hitBeat) => {
+      hits.forEach((hitBeat) => {
         const closest = expectedBeats.reduce((prev, curr) =>
           Math.abs(curr - hitBeat) < Math.abs(prev - hitBeat) ? curr : prev
         );
@@ -169,18 +270,22 @@ class PracticeSessionManager {
    * Calculates missed measures - which measures had no hits or few hits.
    * Indicates focus/concentration issues or technical breakdowns during practice.
    * @param {SessionData} sessionData - Session data with measureHits and drillPlan
-   * @returns {any} Missed metrics with counts, indices, and description
+   * @returns {MissedMetrics} Missed metrics with counts, indices, and description
    */
   calculateMissed(sessionData) {
-    const { measureHits, drillPlan, timeSignature } = sessionData;
+    /** @type {number[][]} */
+    const measureHits = sessionData.measureHits;
+    /** @type {DrillMeasure[]} */
+    const drillPlan = sessionData.drillPlan;
+    const { timeSignature } = sessionData;
     const beatsPerMeasure = parseInt(timeSignature.split("/")[0], 10);
 
     /** @type {number[]} */
     const missedMeasures = [];
-    /** @type {{ measureIndex: number, hits: number, expected: number, missing: number }[]} */
+    /** @type {PartialMeasure[]} */
     const partialMeasures = [];
 
-    measureHits.forEach((/** @type {number[]} */ hits, /** @type {number} */ measureIndex) => {
+    measureHits.forEach((hits, measureIndex) => {
       if (drillPlan[measureIndex]?.type === "click-in") return;
 
       const expectedHits = beatsPerMeasure;
@@ -209,7 +314,7 @@ class PracticeSessionManager {
 
   /**
    * @param {number[]} missed
-   * @param {{ measureIndex: number, hits: number, expected: number, missing: number }[]} partial
+   * @param {PartialMeasure[]} partial
    */
   getMissedDescription(missed, partial) {
     if (missed.length === 0 && partial.length === 0) {
@@ -225,15 +330,16 @@ class PracticeSessionManager {
    * Calculates rhythm consistency - how even are the intervals between hits.
    * Lower variance indicates better rhythm sense and control.
    * @param {SessionData} sessionData - Session data with measureHits array
-   * @returns {any} Rhythm metrics with variance, consistency level, and description
+   * @returns {RhythmMetrics} Rhythm metrics with variance, consistency level, and description
    */
   calculateRhythm(sessionData) {
-    const { measureHits } = sessionData;
+    /** @type {number[][]} */
+    const measureHits = sessionData.measureHits;
 
     // Calculate inter-hit intervals
     /** @type {number[]} */
     const intervals = [];
-    measureHits.forEach((/** @type {number[]} */ hits) => {
+    measureHits.forEach((hits) => {
       if (hits.length < 2) return;
       for (let i = 0; i < hits.length - 1; i++) {
         intervals.push(hits[i + 1] - hits[i]);
@@ -274,34 +380,32 @@ class PracticeSessionManager {
    * Finds weak spots - measures with the lowest scores in the session.
    * Identifies technical problem areas for focused practice.
    * @param {SessionData} sessionData - Session data with measureScores and drillPlan
-   * @returns {any} Weak spots with weakestMeasures array and average score
+   * @returns {WeakSpotsMetrics} Weak spots with weakestMeasures array and average score
    */
   findWeakSpots(sessionData) {
-    const { measureScores, drillPlan } = sessionData;
+    /** @type {number[]} */
+    const measureScores = sessionData.measureScores;
+    /** @type {DrillMeasure[]} */
+    const drillPlan = sessionData.drillPlan;
 
+    /** @type {ScoredMeasure[]} */
     const scoredMeasures = measureScores
-      .map((/** @type {number|null} */ score, /** @type {number} */ index) => ({
+      .map((score, index) => ({
         index,
-        score: score === null ? -1 : score,
-        type: drillPlan[index]?.type,
+        score,
+        type: drillPlan[index]?.type || "",
       }))
-      .filter(
-        (/** @type {{ index: number, score: number, type: string }} */ m) =>
-          m.type !== "click-in" && m.score >= 0
-      )
-      .sort(
-        (/** @type {{ score: number }} */ a, /** @type {{ score: number }} */ b) =>
-          a.score - b.score
-      );
+      .filter((m) => m.type !== "click-in" && m.score >= 0)
+      .sort((a, b) => a.score - b.score);
+
+    const avgScore =
+      scoredMeasures.length === 0
+        ? 0
+        : Math.round(scoredMeasures.reduce((sum, m) => sum + m.score, 0) / scoredMeasures.length);
 
     return {
       weakestMeasures: scoredMeasures.slice(0, 5),
-      avgScore: Math.round(
-        scoredMeasures.reduce(
-          (/** @type {number} */ sum, /** @type {{ score: number }} */ m) => sum + m.score,
-          0
-        ) / scoredMeasures.length
-      ),
+      avgScore,
     };
   }
 
@@ -309,15 +413,21 @@ class PracticeSessionManager {
    * Calculates consistency - how variable are the measure scores.
    * High standard deviation indicates inconsistent performance across measures.
    * @param {SessionData} sessionData - Session data with measureScores and drillPlan
-   * @returns {any} Consistency metrics with stdDeviation, range, and consistency level
+   * @returns {ConsistencyMetrics} Consistency metrics with stdDeviation, range, and consistency level
    */
   calculateConsistency(sessionData) {
-    const { measureScores, drillPlan } = sessionData;
+    /** @type {number[]} */
+    const measureScores = sessionData.measureScores;
+    /** @type {DrillMeasure[]} */
+    const drillPlan = sessionData.drillPlan;
 
-    const scores = measureScores.filter(
-      (/** @type {number|null} */ score, /** @type {number} */ index) =>
-        score !== null && drillPlan[index]?.type !== "click-in"
-    );
+    /** @type {number[]} */
+    const scores = [];
+    measureScores.forEach((score, index) => {
+      if (drillPlan[index]?.type !== "click-in") {
+        scores.push(score);
+      }
+    });
 
     if (scores.length === 0) return { variance: 0, consistency: "unknown" };
 
@@ -342,7 +452,7 @@ class PracticeSessionManager {
   /**
    * Calculates completion - what percentage of the plan was covered.
    * @param {SessionData} sessionData - Session data with completed flag and durationSeconds
-   * @returns {any} Completion metrics with percentage and completion status
+   * @returns {CompletionMetrics} Completion metrics with percentage and completion status
    */
   calculateCompletion(sessionData) {
     const { drillPlan, completed, durationSeconds } = sessionData;
@@ -366,7 +476,8 @@ class PracticeSessionManager {
   getSessions() {
     try {
       const stored = StorageManager.get(this.storageKey, "[]");
-      return JSON.parse(stored || "[]");
+      const parsed = JSON.parse(stored || "[]");
+      return Array.isArray(parsed) ? /** @type {SessionRecord[]} */ (parsed) : [];
     } catch {
       return [];
     }
@@ -383,7 +494,7 @@ class PracticeSessionManager {
 
   /**
    * Calculates aggregate statistics across all stored practice sessions.
-   * @returns {any|null} Aggregate stats with totals, averages, and best score, or null if no sessions
+   * @returns {OverallStats|null} Aggregate stats with totals, averages, and best score, or null if no sessions
    */
   getOverallStats() {
     const sessions = this.getSessions();
@@ -417,6 +528,9 @@ class PracticeSessionManager {
 
     const [planId, count] = mostUsed;
     const session = sessions.find((s) => s.plan.id === planId);
+    if (!session) {
+      return null;
+    }
 
     return {
       planId,

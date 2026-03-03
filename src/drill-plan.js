@@ -1,6 +1,8 @@
 /**
  * DrillPlan manages drill plan parsing, visualization, and measure tracking.
  */
+/** @typedef {{ type: string }} Measure */
+/** @typedef {{ on: number, off: number, reps: number, startIndex: number }} DrillSegment */
 class DrillPlan {
   /**
    * Creates a new DrillPlan instance.
@@ -8,12 +10,12 @@ class DrillPlan {
    */
   constructor(container) {
     this.container = container;
-    /** @type {{ type: string }[]} */
+    /** @type {Measure[]} */
     this.plan = [];
-    /** @type {{ on: number, off: number, reps: number, startIndex: number }[]} */
+    /** @type {DrillSegment[]} */
     this.segments = [];
     this.currentMeasureIndex = 0;
-    /** @type {((plan: { type: string }[]) => void)|null} */
+    /** @type {((plan: Measure[]) => void)|null} */
     this.onPlanChangeCallback = null;
     /** @type {((measureIndex: number) => void)|null} */
     this.onMeasureClickCallback = null;
@@ -21,7 +23,7 @@ class DrillPlan {
 
   /**
    * Registers a callback to be invoked when the plan changes.
-   * @param {(plan: { type: string }[]) => void} callback - Function to call with new plan array
+   * @param {(plan: Measure[]) => void} callback - Function to call with new plan array
    */
   onPlanChange(callback) {
     this.onPlanChangeCallback = callback;
@@ -39,7 +41,7 @@ class DrillPlan {
    * Parses a plan string into measures and renders visualization.
    * Format: "on,off,reps;on,off,reps;..." (separated by semicolons)
    * @param {string} planString - Plan string to parse
-   * @returns {{ type: string }[]} Array of measure objects with type (click, silent, or click-in)
+   * @returns {Measure[]} Array of measure objects with type (click, silent, or click-in)
    */
   parse(planString) {
     this.plan = [];
@@ -274,7 +276,7 @@ class DrillPlan {
 
   /**
    * Gets the entire parsed plan array.
-   * @returns {{ type: string }[]} Array of measure objects
+   * @returns {Measure[]} Array of measure objects
    */
   getPlan() {
     return this.plan;

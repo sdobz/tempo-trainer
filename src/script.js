@@ -474,14 +474,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Save detailed session data with metrics and recommendations
     const currentPlan = planEditorUI.getCurrentPlan();
+    const sessionPlan = currentPlan
+      ? {
+          id: currentPlan.id || "",
+          name: currentPlan.name,
+          description: currentPlan.description || "",
+          difficulty: currentPlan.difficulty || "",
+          segments: currentPlan.segments,
+        }
+      : {
+          id: "",
+          name: "",
+          description: "",
+          difficulty: "",
+          segments: [],
+        };
     const sessionData = {
-      plan: currentPlan || {
-        id: "",
-        name: "",
-        description: "",
-        difficulty: "",
-        segments: [],
-      },
+      plan: sessionPlan,
       bpm: parseInt(bpmInput.value, 10),
       timeSignature: timeSignatureSelect.value,
       completed,
@@ -492,9 +501,7 @@ document.addEventListener("DOMContentLoaded", () => {
       overallScore: scorer.getOverallScore(),
     };
 
-    const session = /** @type {{ id: string } | null} */ (
-      practiceSessionManager.saveSession(sessionData)
-    );
+    const session = practiceSessionManager.saveSession(sessionData);
 
     // Update history display and navigate to history pane with expanded session
     if (session) {

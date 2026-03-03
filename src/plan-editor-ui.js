@@ -5,23 +5,10 @@ import {
   getButtonElement,
 } from "./dom-utils.js";
 
-/**
- * @typedef {{ on: number, off: number, reps: number }} Segment
- */
+/** @typedef {import("./plan-library.js").Segment} Segment */
+/** @typedef {import("./plan-library.js").Plan} Plan */
 
-/**
- * @typedef {{
- *   id: string,
- *   name: string,
- *   description: string,
- *   difficulty: string,
- *   segments: Segment[],
- *   isBuiltIn?: boolean,
- *   createdAt?: number
- * }} Plan
- */
-
-/** @typedef {any} PlanLibrary */
+/** @typedef {import("./plan-library.js").default} PlanLibrary */
 
 /**
  * @typedef {{ parse: (planString: string) => void }} DrillPlan
@@ -90,7 +77,7 @@ class PlanEditorUI {
         if (plan) {
           this.showPlanInfo(plan);
           // Update URL to include selected plan
-          this.updateUrlWithPlan(plan.id);
+          this.updateUrlWithPlan(plan.id || null);
         }
       } else {
         this.hidePlanInfo();
@@ -156,10 +143,10 @@ class PlanEditorUI {
     }
 
     if (planToShow) {
-      this.planLibrarySelect.value = planToShow.id;
+      this.planLibrarySelect.value = planToShow.id || "";
       this.showPlanInfo(planToShow);
       // Explicitly update URL when programmatically setting plan
-      this.updateUrlWithPlan(planToShow.id);
+      this.updateUrlWithPlan(planToShow.id || null);
     }
   }
 
@@ -207,9 +194,9 @@ class PlanEditorUI {
 
     const plan = this.planLibrary.getPlanById(planObject.id);
     if (plan) {
-      this.planLibrarySelect.value = plan.id;
+      this.planLibrarySelect.value = plan.id || "";
       this.showPlanInfo(plan);
-      this.updateUrlWithPlan(plan.id);
+      this.updateUrlWithPlan(plan.id || null);
     }
   }
 
@@ -229,7 +216,7 @@ class PlanEditorUI {
       builtInGroup.label = "Built-in Plans";
       builtInPlans.forEach((/** @type {Plan} */ plan) => {
         const option = document.createElement("option");
-        option.value = plan.id;
+        option.value = plan.id || "";
         option.textContent = plan.name;
         builtInGroup.appendChild(option);
       });
@@ -241,7 +228,7 @@ class PlanEditorUI {
       customGroup.label = "My Plans";
       customPlans.forEach((/** @type {Plan} */ plan) => {
         const option = document.createElement("option");
-        option.value = plan.id;
+        option.value = plan.id || "";
         option.textContent = plan.name;
         customGroup.appendChild(option);
       });
@@ -485,11 +472,11 @@ class PlanEditorUI {
       this.hidePlanEditor();
 
       // Select the saved plan
-      this.planLibrarySelect.value = plan.id;
-      const savedPlan = this.planLibrary.getPlanById(plan.id);
+      this.planLibrarySelect.value = plan.id || "";
+      const savedPlan = this.planLibrary.getPlanById(plan.id || "");
       if (savedPlan) {
         this.showPlanInfo(savedPlan);
-        this.updateUrlWithPlan(plan.id);
+        this.updateUrlWithPlan(plan.id || null);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -513,7 +500,7 @@ class PlanEditorUI {
     }
 
     try {
-      this.planLibrary.deletePlan(this.editingPlan.id);
+      this.planLibrary.deletePlan(this.editingPlan.id || "");
       this.populatePlanLibrary();
       this.hidePlanEditor();
       this.hidePlanInfo();
@@ -536,13 +523,13 @@ class PlanEditorUI {
     if (!newName || !newName.trim()) return;
 
     try {
-      const cloned = this.planLibrary.clonePlan(this.currentPlan.id, newName.trim());
+      const cloned = this.planLibrary.clonePlan(this.currentPlan.id || "", newName.trim());
       this.populatePlanLibrary();
 
       // Select and show the cloned plan
-      this.planLibrarySelect.value = cloned.id;
+      this.planLibrarySelect.value = cloned.id || "";
       this.showPlanInfo(cloned);
-      this.updateUrlWithPlan(cloned.id);
+      this.updateUrlWithPlan(cloned.id || null);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       alert("Error cloning plan: " + message);

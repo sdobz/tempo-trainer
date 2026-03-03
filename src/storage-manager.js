@@ -47,7 +47,7 @@ class StorageManager {
   /**
    * Set a value in localStorage
    * @param {string} key - The storage key
-   * @param {any} value - The value to store (will be converted to string)
+   * @param {unknown} value - The value to store (will be converted to string)
    * @returns {boolean} True if successful, false if storage error occurred
    */
   static set(key, value) {

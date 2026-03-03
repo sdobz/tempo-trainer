@@ -1,6 +1,7 @@
 /**
  * Scorer manages the scoring system for measuring hit accuracy against expected beats.
  */
+/** @typedef {{ type: string }} Measure */
 class Scorer {
   /**
    * @param {number} beatsPerMeasure
@@ -22,7 +23,7 @@ class Scorer {
     this.measureHits = [];
     /** @type {boolean[]} */
     this.finalizedMeasures = [];
-    /** @type {{ type: string }[]} */
+    /** @type {Measure[]} */
     this.drillPlan = [];
   }
 
@@ -36,7 +37,7 @@ class Scorer {
     this.beatDuration = beatDuration;
   }
 
-  /** @param {{ type: string }[]} plan */
+  /** @param {Measure[]} plan */
   setDrillPlan(plan) {
     this.drillPlan = plan;
     this.reset();
