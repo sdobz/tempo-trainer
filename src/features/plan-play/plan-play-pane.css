@@ -144,10 +144,14 @@
 }
 
 .timeline-group-click-in {
+  background-color: #ffc107;
+}
+
+.timeline-group-click {
   background-color: #4caf50;
 }
 
-.timeline-group-skip {
+.timeline-group-silent {
   background-color: #9e9e9e;
 }
 

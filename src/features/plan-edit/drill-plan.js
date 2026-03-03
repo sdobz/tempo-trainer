@@ -164,7 +164,6 @@ class DrillPlan {
           const block = document.createElement("div");
           block.className = "measure-block click";
           block.dataset.measureIndex = String(measureIndex);
-          block.textContent = "00";
 
           block.addEventListener("click", (event) => {
             const target = /** @type {HTMLElement} */ (event.currentTarget);
@@ -183,8 +182,6 @@ class DrillPlan {
           const block = document.createElement("div");
           block.className = "measure-block silent";
           block.dataset.measureIndex = String(measureIndex);
-          block.textContent = "··";
-          block.style.opacity = "0.4";
 
           block.addEventListener("click", (event) => {
             const target = /** @type {HTMLElement} */ (event.currentTarget);

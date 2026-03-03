@@ -364,28 +364,28 @@ h2 {
 }
 
 .measure-block.click-in {
-  background-color: #4caf50;
-  color: #ffffff;
-  border-color: #45a049;
+  background-color: #ffc107;
+  color: #1a1a1a;
+  border-color: #ffb300;
   font-size: 0.85em;
   min-width: 2.5em;
   height: 2.5em;
 }
 
 .measure-block.click-in:hover {
-  background-color: #45a049;
+  background-color: #ffb300;
 }
 
 .measure-block.click {
-  background-color: #2196f3;
+  background-color: #4caf50;
   color: #ffffff;
-  border-color: #1976d2;
+  border-color: #45a049;
   width: 1.5em;
   height: 1.5em;
 }
 
 .measure-block.click:hover {
-  background-color: #1976d2;
+  background-color: #45a049;
 }
 
 .measure-block.silent {
