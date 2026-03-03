@@ -26,7 +26,7 @@ import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils
 export default class PlanEditPane extends BaseComponent {
   constructor() {
     super();
-    
+
     /** @type {PlanEditState} */
     this.state = {
       isEditing: false,
@@ -201,7 +201,7 @@ export default class PlanEditPane extends BaseComponent {
 
     const plans = this.planLibrary.getAllPlans();
     this.planLibrarySelect.innerHTML = '<option value="">Select a plan...</option>';
-    
+
     plans.forEach((plan) => {
       const option = document.createElement("option");
       option.value = plan.id || "";
@@ -275,9 +275,7 @@ export default class PlanEditPane extends BaseComponent {
       })
       .filter((segment) => segment !== null);
 
-    return normalized
-      .map((segment) => `${segment.on},${segment.off},${segment.reps}`)
-      .join(";");
+    return normalized.map((segment) => `${segment.on},${segment.off},${segment.reps}`).join(";");
   }
 
   /**
@@ -290,7 +288,7 @@ export default class PlanEditPane extends BaseComponent {
 
     this.planInfoName.textContent = plan.name;
     this.planInfoDescription.textContent = plan.description || "";
-    
+
     if (plan.difficulty) {
       this.planInfoDifficulty.setAttribute("data-difficulty", plan.difficulty);
       this.planInfoDifficulty.textContent = plan.difficulty;
@@ -392,11 +390,11 @@ export default class PlanEditPane extends BaseComponent {
    */
   _renderSegmentsList() {
     this.segmentsList.innerHTML = "";
-    
+
     this.editingSegments.forEach((segment, index) => {
       const segmentEl = document.createElement("div");
       segmentEl.className = "segment-item";
-      
+
       segmentEl.innerHTML = `
         <div class="segment-controls">
           <div class="segment-control">

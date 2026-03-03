@@ -23,51 +23,7 @@
         <plan-edit-pane id="pane-plan-edit" class="pane"></plan-edit-pane>
 
         <!-- Plan Play Pane -->
-        <section id="pane-plan-play" class="pane">
-          <div class="pane-content">
-            <div class="play-header">
-              <h2>Training Session</h2>
-              <div class="session-info">
-                <div class="control-group-inline">
-                  <label for="bpm">BPM:</label>
-                  <input type="number" id="bpm" value="120" min="40" max="300" />
-                </div>
-                <div class="control-group-inline">
-                  <label for="time-signature">Time Signature:</label>
-                  <select id="time-signature">
-                    <option value="4/4" selected>4/4</option>
-                    <option value="3/4">3/4</option>
-                    <option value="2/4">2/4</option>
-                    <option value="6/8">6/8</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div class="beat-display">
-              <div class="beat-indicator"></div>
-              <div id="status">Ready.</div>
-            </div>
-
-            <div class="play-controls">
-              <button id="start-btn" class="primary-btn">Start</button>
-              <button id="stop-btn" class="secondary-btn" disabled>Stop</button>
-            </div>
-
-            <div id="timeline-viewport" class="timeline-viewport">
-              <div id="timeline-track"></div>
-              <div id="timeline-now-line"></div>
-            </div>
-
-            <div id="overall-score" class="overall-score">Overall Score: 00</div>
-
-            <div class="pane-actions">
-              <button id="finish-play-btn" class="secondary-btn" data-pane="plan-history">
-                View Results
-              </button>
-            </div>
-          </div>
-        </section>
+        <plan-play-pane id="pane-plan-play" class="pane"></plan-play-pane>
 
         <!-- Plan History Pane -->
         <section id="pane-plan-history" class="pane">

@@ -1,0 +1,123 @@
+/* Plan Play Pane Styles */
+
+.play-header {
+  margin-bottom: 1.5em;
+}
+
+.play-header h2 {
+  margin-bottom: 0.5em;
+}
+
+.session-info {
+  display: flex;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+
+.control-group-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.control-group-inline label {
+  font-weight: 500;
+}
+
+.control-group-inline input[type="number"],
+.control-group-inline select {
+  padding: 0.3em 0.5em;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.95em;
+}
+
+.beat-display {
+  text-align: center;
+  margin: 2em 0;
+}
+
+.beat-indicator {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 1em;
+  border: 4px solid #ddd;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3em;
+  font-weight: bold;
+  color: #999;
+  transition: all 0.05s ease;
+}
+
+.beat-indicator.active {
+  background: #4caf50;
+  border-color: #4caf50;
+  color: white;
+  transform: scale(1.1);
+}
+
+.beat-indicator.downbeat {
+  background: #ff9800;
+  border-color: #ff9800;
+  color: white;
+  transform: scale(1.15);
+}
+
+.status {
+  font-size: 1.1em;
+  color: #666;
+  min-height: 1.5em;
+}
+
+.play-controls {
+  display: flex;
+  justify-content: center;
+  gap: 1em;
+  margin: 2em 0;
+}
+
+.timeline-viewport {
+  width: 100%;
+  height: 150px;
+  margin: 2em 0;
+  position: relative;
+  overflow: hidden;
+  background: #252525;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+}
+
+[data-timeline-track] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  transform: translateX(0);
+}
+
+[data-timeline-now-line] {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  background-color: #f5f5f5;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.overall-score {
+  font-size: 2em;
+  font-weight: bold;
+  text-align: center;
+  margin: 1em 0;
+  padding: 0.5em;
+  background: #f0f8ff;
+  border-radius: 8px;
+  color: #333;
+}

@@ -1,0 +1,41 @@
+<div class="pane-content">
+  <div class="play-header">
+    <h2>Training Session</h2>
+    <div class="session-info">
+      <div class="control-group-inline">
+        <label for="play-bpm">BPM:</label>
+        <input type="number" id="play-bpm" data-bpm-input value="120" min="40" max="300" />
+      </div>
+      <div class="control-group-inline">
+        <label for="play-time-signature">Time Signature:</label>
+        <select id="play-time-signature" data-time-signature-select>
+          <option value="4/4" selected>4/4</option>
+          <option value="3/4">3/4</option>
+          <option value="2/4">2/4</option>
+          <option value="6/8">6/8</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="beat-display">
+    <div class="beat-indicator" data-beat-indicator></div>
+    <div class="status" data-status>Ready.</div>
+  </div>
+
+  <div class="play-controls">
+    <button class="primary-btn" data-start-btn>Start</button>
+    <button class="secondary-btn" data-stop-btn disabled>Stop</button>
+  </div>
+
+  <div class="timeline-viewport" data-timeline-viewport>
+    <div data-timeline-track></div>
+    <div data-timeline-now-line></div>
+  </div>
+
+  <div class="overall-score" data-overall-score>Overall Score: 00</div>
+
+  <div class="pane-actions">
+    <button class="secondary-btn" data-view-results-btn>View Results</button>
+  </div>
+</div>
