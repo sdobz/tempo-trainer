@@ -1,0 +1,40 @@
+.app-notification {
+  border-radius: 6px;
+  border: 1px solid transparent;
+  padding: 0.8em 1em;
+  margin: 0 0 1em;
+}
+
+.app-notification__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75em;
+}
+
+.app-notification__message {
+  font-size: 0.95em;
+  line-height: 1.4;
+}
+
+.app-notification__action {
+  white-space: nowrap;
+}
+
+.app-notification.warning {
+  background: #fff8e1;
+  border-color: #ffd54f;
+  color: #5d4037;
+}
+
+.app-notification.info {
+  background: #e3f2fd;
+  border-color: #90caf9;
+  color: #0d47a1;
+}
+
+.app-notification.success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #1b5e20;
+}

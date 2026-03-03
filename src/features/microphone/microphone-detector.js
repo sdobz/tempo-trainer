@@ -6,6 +6,7 @@
  * @property {(isOver: boolean) => void} [onOverThreshold] - Threshold state changed
  * @property {() => void} [onHit] - Hit detected
  * @property {(threshold: number) => void} [onThresholdChanged] - Threshold adjusted
+ * @property {(devices: Array<{deviceId: string, label: string}>, selectedDeviceId: string) => void} [onDevicesChanged] - Available device list changed
  */
 
 /**
@@ -120,6 +121,10 @@ class MicrophoneDetector {
             this.storageManager.set(this.storageKeys.device, this.selectedDeviceId);
           }
         }
+      }
+
+      if (this.delegate?.onDevicesChanged) {
+        this.delegate.onDevicesChanged(devices, this.selectedDeviceId);
       }
 
       if (!this.rafId) {

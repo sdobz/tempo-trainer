@@ -1,6 +1,9 @@
 /**
  * PaneManager manages hash-based pane navigation and callbacks.
  */
+
+import { getElementByID, getAllElements } from "./dom-utils.js";
+
 class PaneManager {
   /**
    * Creates a new PaneManager instance.
@@ -99,6 +102,29 @@ class PaneManager {
       if (this.currentPane) {
         callback(this.currentPane);
       }
+    });
+  }
+
+  /**
+   * Updates DOM visibility for the specified pane.
+   * Hides all panes and shows the current one, updates nav button states.
+   * @param {string} pane - The pane name to display
+   */
+  updateVisibility(pane) {
+    // Hide all panes
+    getAllElements(".pane").forEach((el) => {
+      const paneEl = /** @type {HTMLElement} */ (el);
+      paneEl.style.display = "none";
+    });
+
+    // Show current pane
+    const currentPaneEl = getElementByID(`pane-${pane}`);
+    currentPaneEl.style.display = "block";
+
+    // Update nav button states
+    getAllElements(".pane-link").forEach((btn) => {
+      const buttonEl = /** @type {HTMLElement} */ (btn);
+      buttonEl.classList.toggle("active", buttonEl.dataset.pane === pane);
     });
   }
 

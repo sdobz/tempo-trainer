@@ -551,6 +551,22 @@ class PracticeSessionManager {
   }
 
   /**
+   * Deletes a single practice session by ID.
+   * @param {string} sessionId - The ID of the session to remove
+   * @returns {boolean} True if a session was removed, false otherwise
+   */
+  deleteSession(sessionId) {
+    const sessions = this.getSessions();
+    const filtered = sessions.filter((s) => s.id !== sessionId);
+
+    if (filtered.length === sessions.length) {
+      return false;
+    }
+
+    return StorageManager.set(this.storageKey, JSON.stringify(filtered));
+  }
+
+  /**
    * Clears all stored practice sessions from storage.
    * Use with caution - this action cannot be undone.
    */

@@ -40,6 +40,7 @@ class CalibrationDetector {
     this.madRelaxedThresholdMs = 36;
     this.driftRelaxedThresholdMs = 18;
     this.storageKey = "tempoTrainer.calibrationOffsetMs";
+    this.legacyStorageKeys = ["tempoTrainer.calibrationOffset", "tempoTrainer.offsetMs"];
 
     // State
     this.isCalibrating = false;
@@ -55,6 +56,7 @@ class CalibrationDetector {
     this.confidence = 0;
     this.startedAt = 0;
     this.offsetMs = 0;
+    this.hasSavedCalibration = false;
     this.beatsPerMeasure = 4;
     this.beatDuration = 0.5;
 
@@ -89,7 +91,36 @@ class CalibrationDetector {
   }
 
   _loadSettings() {
-    this.offsetMs = this.storageManager.getNumber(this.storageKey, 0);
+    const rawPrimary = this.storageManager.get(this.storageKey, null);
+    let rawValue = rawPrimary;
+    let loadedFromLegacyKey = null;
+
+    if (rawValue === null) {
+      for (const key of this.legacyStorageKeys) {
+        const candidate = this.storageManager.get(key, null);
+        if (candidate !== null) {
+          rawValue = candidate;
+          loadedFromLegacyKey = key;
+          break;
+        }
+      }
+    }
+
+    if (rawValue !== null) {
+      const parsed = parseFloat(rawValue);
+      if (!Number.isNaN(parsed)) {
+        this.offsetMs = parsed;
+        this.hasSavedCalibration = true;
+
+        if (loadedFromLegacyKey) {
+          this.storageManager.set(this.storageKey, this.offsetMs);
+        }
+        return;
+      }
+    }
+
+    this.offsetMs = 0;
+    this.hasSavedCalibration = false;
   }
 
   /**
@@ -227,6 +258,14 @@ class CalibrationDetector {
   }
 
   /**
+   * Whether calibration data exists in storage (offset may legitimately be 0 ms).
+   * @returns {boolean}
+   */
+  hasCalibrationData() {
+    return this.hasSavedCalibration;
+  }
+
+  /**
    * Get calibrated beat position accounting for latency
    * @param {number} audioTime - Current audio context time
    * @param {number} runStartAudioTime - Audio time when run started
@@ -320,6 +359,7 @@ class CalibrationDetector {
 
     this.offsetMs = recentMedian;
     this.storageManager.set(this.storageKey, this.offsetMs);
+    this.hasSavedCalibration = true;
 
     const stabilityPercent = Math.round(this.confidence);
 

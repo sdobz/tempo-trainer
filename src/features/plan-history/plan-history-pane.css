@@ -181,7 +181,8 @@
 }
 
 .retry-session-btn,
-.select-plan-btn {
+.select-plan-btn,
+.delete-session-btn {
   padding: 0.6em 1.2em;
   border: none;
   border-radius: 6px;
@@ -209,4 +210,13 @@
 
 .select-plan-btn:hover {
   background-color: #666;
+}
+
+.delete-session-btn {
+  background-color: #7f1d1d;
+  color: white;
+}
+
+.delete-session-btn:hover {
+  background-color: #991b1b;
 }

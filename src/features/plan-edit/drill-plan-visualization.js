@@ -43,7 +43,7 @@ export default class DrillPlanVisualization extends BaseComponent {
     return "/src/features/plan-edit/drill-plan-visualization.css";
   }
 
-  async onMount() {
+  onMount() {
     // Get the container element that we'll render the plan into
     this.container = querySelector(this, "[data-plan-visualization-container]");
   }

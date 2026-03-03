@@ -159,6 +159,18 @@ export default class TimelineVisualization extends BaseComponent {
   }
 
   /**
+   * Clears all detection dots from the timeline.
+   */
+  clearDetections() {
+    if (!this.track) return;
+
+    const detectionsLayer = this.track.querySelector(".timeline-detections");
+    if (!detectionsLayer) return;
+
+    detectionsLayer.innerHTML = "";
+  }
+
+  /**
    * Centers the timeline view on a specific beat position.
    * Handles deferred scrolling if viewport dimensions not yet available.
    * @param {number} beatPosition - Beat position to center on

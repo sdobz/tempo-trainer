@@ -77,6 +77,9 @@ export default class MicrophoneControl extends BaseComponent {
     // - this: component acts as the delegate for callbacks
     this.micDetector = new MicrophoneDetector(StorageManager, this);
 
+    // Hydrate persisted detector values into UI on first render
+    this._hydrateFromDetector();
+
     // Setup UI event listeners
     this._setupUIEventListeners();
 
@@ -91,6 +94,38 @@ export default class MicrophoneControl extends BaseComponent {
    */
   setDetector(detector) {
     this.micDetector = detector;
+
+    // Rehydrate UI when detector is injected/replaced
+    this._hydrateFromDetector();
+    if (this.select) {
+      void this._populateDevices();
+    }
+  }
+
+  /**
+   * Apply current detector values to UI.
+   * Ensures persisted localStorage-backed state is reflected on initial render.
+   * @private
+   */
+  _hydrateFromDetector() {
+    if (!this.micDetector) return;
+
+    if (this.thresholdLine && this.thresholdLabel) {
+      this.onThresholdChanged(this.micDetector.threshold);
+    }
+
+    // Keep visual meters in a known initial state on load
+    if (this.levelBar) {
+      this.onLevelChanged(0);
+    }
+    if (this.peakHold) {
+      this.onPeakChanged(0);
+    }
+
+    // Reflect persisted threshold adjustment in status badge
+    if (this.statusIndicator) {
+      this.updateStatus(this.micDetector.threshold !== 52);
+    }
   }
 
   onUnmount() {
@@ -166,6 +201,16 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   /**
+   * Delegate method: Handle device list updates from detector.
+   * Refreshes the microphone select with latest labels (typically available after permission).
+   * @param {Array<{deviceId: string, label: string}>} devices
+   * @param {string} selectedDeviceId
+   */
+  onDevicesChanged(devices, selectedDeviceId) {
+    this._renderDeviceOptions(devices, selectedDeviceId);
+  }
+
+  /**
    * Setup UI event listeners for user interactions
    * @private
    */
@@ -185,6 +230,17 @@ export default class MicrophoneControl extends BaseComponent {
    */
   async _populateDevices() {
     const devices = await this.micDetector.getAvailableDevices();
+    const selected = this.micDetector.selectedDeviceId;
+    this._renderDeviceOptions(devices, selected);
+  }
+
+  /**
+   * Render microphone device options in the select control.
+   * @param {Array<{deviceId: string, label: string}>} devices
+   * @param {string} selectedDeviceId
+   * @private
+   */
+  _renderDeviceOptions(devices, selectedDeviceId) {
     this.select.innerHTML = "";
 
     if (devices.length === 0) {
@@ -204,9 +260,7 @@ export default class MicrophoneControl extends BaseComponent {
       this.select.appendChild(option);
     });
 
-    // Pre-select previously selected device or first device
-    const selected = this.micDetector.selectedDeviceId;
-    this.select.value = selected || devices[0]?.deviceId || "";
+    this.select.value = selectedDeviceId || devices[0]?.deviceId || "";
   }
 
   /**

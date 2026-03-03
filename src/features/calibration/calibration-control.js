@@ -70,6 +70,14 @@ export default class CalibrationControl extends BaseComponent {
     // - optional audioContext can be passed to setDetector() if needed
     this.calibration = new CalibrationDetector(StorageManager, this);
 
+    // Hydrate UI from persisted calibration state
+    this.onOffsetChanged(this.calibration.getOffsetMs());
+    const hasCalibrationData = this._hasCalibrationData(this.calibration);
+    this.updateStatus(hasCalibrationData);
+    if (hasCalibrationData) {
+      this.onStatusChanged("Calibration loaded from saved settings.");
+    }
+
     // Listen for calibration completion
     this.calibration.onStop(() => {
       dispatchEvent(this, "calibration-complete", {});
@@ -83,10 +91,28 @@ export default class CalibrationControl extends BaseComponent {
   setDetector(detector) {
     this.calibration = detector;
     if (this.calibration) {
+      this.onOffsetChanged(this.calibration.getOffsetMs());
+      this.updateStatus(this._hasCalibrationData(this.calibration));
       this.calibration.onStop(() => {
         dispatchEvent(this, "calibration-complete", {});
       });
     }
+  }
+
+  /**
+   * Determine whether detector has calibration data.
+   * Supports older detector mocks that only expose getOffsetMs().
+   * @param {CalibrationDetector|any} detector
+   * @returns {boolean}
+   * @private
+   */
+  _hasCalibrationData(detector) {
+    if (detector && typeof detector.hasCalibrationData === "function") {
+      return detector.hasCalibrationData();
+    }
+    return Boolean(
+      detector && typeof detector.getOffsetMs === "function" && detector.getOffsetMs() !== 0
+    );
   }
 
   onUnmount() {

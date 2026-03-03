@@ -4,12 +4,14 @@ import Metronome from "./features/plan-play/metronome.js";
 import Scorer from "./features/plan-play/scorer.js";
 import PlanLibrary from "./features/plan-edit/plan-library.js";
 import PaneManager from "./features/base/pane-manager.js";
+import AudioContextManager from "./features/base/audio-context-manager.js";
+import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
 import "./features/plan-edit/plan-edit-pane.js";
 import "./features/plan-play/plan-play-pane.js";
 import "./features/plan-history/plan-history-pane.js";
 import PracticeSessionManager from "./features/plan-history/practice-session-manager.js";
 import "./features/onboarding/onboarding-pane.js";
-import { getElementByID, getAllElements } from "./features/base/dom-utils.js";
+import { getAllElements } from "./features/base/dom-utils.js";
 
 /** @typedef {import("./features/plan-edit/plan-edit-pane.js").default} PlanEditPane */
 /** @typedef {import("./features/plan-play/plan-play-pane.js").default} PlanPlayPane */
@@ -25,27 +27,12 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   const planPlayPane = /** @type {PlanPlayPane} */ (document.querySelector("plan-play-pane"));
 
-  // --- Audio Context ---
-  /** @type {AudioContext|null} */
-  let audioContext = null;
-
-  // --- Application State ---
-  let currentMeasureInTotal = 0;
-  /** @type {number|null} */
-  let runStartedAt = null;
-  let runFinalized = false;
-  let isCompletingRun = false;
-  /** @type {number|undefined} */
-  let completionTimeoutId;
-  let timelineRunStartAudioTime = 0;
-
-  // --- Feature Instances (partial - some created after component ready) ---
+  // --- Feature Instances ---
   const planLibrary = new PlanLibrary();
   const metronome = new Metronome(/** @type {AudioContext} */ (/** @type {unknown} */ (null)));
   const scorer = new Scorer(4, 0.5); // Will be configured when session starts
   const practiceSessionManager = new PracticeSessionManager();
-
-  // --- Pane Manager (after DOM elements ready) ---
+  const audioContextManager = new AudioContextManager();
   const paneManager = new PaneManager();
 
   // Wait for components to be ready
@@ -53,6 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let calibration;
   let drillPlan; // Will be initialized after plan-edit-pane is ready
   let timeline; // Will be initialized after plan-play-pane is ready
+  let drillSessionManager; // Will be initialized after all components ready
 
   const onboardingReady = onboardingPane.componentReady.then(() => {
     // Get microphone detector from microphone-control sub-component
@@ -67,27 +55,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Setup calibration callback
       calibration.onStop(() => {
         updateOnboardingStatus();
-      });
-    }
-
-    // Setup microphone detector callback
-    if (micDetector) {
-      micDetector.onHit((/** @type {number} */ hitAudioTime) => {
-        // Accept hits during normal run or during completion grace period
-        if (metronome.isRunning || isCompletingRun) {
-          const detectedBeatPosition = calibration.getCalibratedBeatPosition(
-            hitAudioTime,
-            timelineRunStartAudioTime,
-            metronome.beatDuration
-          );
-
-          timeline.addDetection(detectedBeatPosition);
-          scorer.registerHit(detectedBeatPosition);
-        }
-
-        if (calibration.isCalibrating) {
-          calibration.registerHit(hitAudioTime);
-        }
       });
     }
   });
@@ -114,54 +81,6 @@ document.addEventListener("DOMContentLoaded", () => {
         timeline.centerAt(measureIndex * beatsPerMeasure);
       }
     });
-
-    // Setup metronome callbacks (requires drillPlan)
-    metronome.onBeat(
-      (
-        /** @type {number} */ beatInMeasure,
-        /** @type {number} */ time,
-        /** @type {number} */ timeUntilBeat
-      ) => {
-        const measureType = drillPlan.getMeasureType(currentMeasureInTotal);
-
-        if (measureType === "silent") {
-          return false;
-        }
-
-        const clickInFreq = 660.0;
-        const downbeatFreq = 880.0;
-        const beatFreq = 440.0;
-        const freq =
-          measureType === "click-in" ? clickInFreq : beatInMeasure === 0 ? downbeatFreq : beatFreq;
-
-        metronome.scheduleClick(time, freq);
-
-        const beatNumber = (beatInMeasure % metronome.beatsPerMeasure) + 1;
-        const shouldShowBeat = measureType !== "silent";
-
-        setTimeout(() => {
-          if (!metronome.isRunning) return;
-          planPlayPane.updateBeatIndicator(beatNumber, beatNumber === 1, shouldShowBeat);
-        }, timeUntilBeat * 1000);
-
-        return true;
-      }
-    );
-
-    metronome.onMeasureComplete(() => {
-      if (isCompletingRun) return;
-
-      currentMeasureInTotal++;
-      drillPlan.setHighlight(currentMeasureInTotal);
-
-      const finalizedWithLagMeasureIndex = currentMeasureInTotal - 2;
-      scorer.finalizeMeasure(finalizedWithLagMeasureIndex);
-      updateScoreDisplay();
-
-      if (currentMeasureInTotal >= drillPlan.getLength()) {
-        handleDrillComplete();
-      }
-    });
   });
 
   const planPlayReady = planPlayPane.componentReady.then(() => {
@@ -178,21 +97,35 @@ document.addEventListener("DOMContentLoaded", () => {
     planPlayPane.init(drillPlan, scorer);
 
     // Handle session start
-    planPlayPane.addEventListener("session-start", (/** @type {CustomEvent} */ event) => {
+    planPlayPane.addEventListener("session-start", async (/** @type {CustomEvent} */ event) => {
       const { bpm, beatsPerMeasure } = event.detail;
-      startDrill(bpm, beatsPerMeasure);
+
+      // Ensure AudioContext exists
+      try {
+        const audioContext = await audioContextManager.ensureContext();
+        audioContextManager.setContextForComponents(metronome, micDetector, calibration);
+
+        // Start the drill session
+        await drillSessionManager.startSession(bpm, beatsPerMeasure, audioContext);
+        planPlayPane.setPlaying(true);
+      } catch (error) {
+        console.error("Failed to start session:", error);
+        alert("Web Audio API is not supported in this browser");
+      }
     });
 
     // Handle session stop
     planPlayPane.addEventListener("session-stop", () => {
-      stopDrill();
+      drillSessionManager.stopSession();
+      planPlayPane.setPlaying(false);
+      planPlayPane.clearBeatIndicator();
     });
 
     // Handle navigation
     planPlayPane.addEventListener("navigate", (/** @type {CustomEvent} */ event) => {
-      const { pane } = event.detail;
+      const { pane, params } = event.detail;
       if (pane) {
-        paneManager.navigate(pane);
+        paneManager.navigate(pane, params || {});
       }
     });
   });
@@ -213,6 +146,18 @@ document.addEventListener("DOMContentLoaded", () => {
         paneManager.navigate(pane);
       }
     });
+
+    // Handle deleting a session from history
+    planHistoryPane.addEventListener("delete-session", (/** @type {CustomEvent} */ event) => {
+      const { sessionId } = event.detail;
+      if (!sessionId) return;
+
+      const deleted = practiceSessionManager.deleteSession(sessionId);
+      if (!deleted) return;
+
+      const allSessions = practiceSessionManager.getSessions();
+      planHistoryPane.displaySessions(allSessions);
+    });
   });
 
   // Handle onboarding completion
@@ -231,16 +176,20 @@ document.addEventListener("DOMContentLoaded", () => {
   //--- Onboarding Status Update ---
 
   function updateOnboardingStatus() {
-    if (!micDetector || !calibration) return;
+    if (!calibration) return;
 
     // Check if microphone threshold has been adjusted (not default 52)
-    const hasAdjustedThreshold = micDetector.threshold !== 52;
+    const hasAdjustedThreshold = micDetector ? micDetector.threshold !== 52 : false;
 
-    // Check if calibration has been completed (non-zero offset)
-    const hasCalibrated = calibration.getOffsetMs() !== 0;
+    // Check if calibration data exists in storage (offset can be legitimately 0 ms)
+    const hasCalibrated =
+      typeof calibration.hasCalibrationData === "function"
+        ? calibration.hasCalibrationData()
+        : calibration.getOffsetMs() !== 0;
 
     // Update component status
     onboardingPane.updateStatus(hasAdjustedThreshold, hasCalibrated);
+    planPlayPane.setCalibrationWarningVisible(!hasCalibrated);
   }
 
   // --- Pane Navigation ---
@@ -249,21 +198,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /** @param {string} pane */
   const updatePaneVisibility = async (pane) => {
-    // Hide all panes
-    getAllElements(".pane").forEach((el) => {
-      const paneEl = /** @type {HTMLElement} */ (el);
-      paneEl.style.display = "none";
-    });
-
-    // Show current pane
-    const currentPaneEl = getElementByID(`pane-${pane}`);
-    currentPaneEl.style.display = "block";
-
-    // Update nav button states
-    getAllElements(".pane-link").forEach((btn) => {
-      const buttonEl = /** @type {HTMLElement} */ (btn);
-      buttonEl.classList.toggle("active", buttonEl.dataset.pane === pane);
-    });
+    // Use PaneManager to handle DOM visibility
+    paneManager.updateVisibility(pane);
 
     // Only start mic after app is fully initialized
     if (!hasInitialized) return;
@@ -277,29 +213,32 @@ document.addEventListener("DOMContentLoaded", () => {
       updateOnboardingStatus();
 
       // Ensure AudioContext exists for microphone access
-      if (!audioContext) {
-        try {
-          const webkitWindow =
-            /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (globalThis);
-          const AudioContextClass = globalThis.AudioContext || webkitWindow.webkitAudioContext;
-          if (!AudioContextClass) {
-            throw new Error("Web Audio API not available");
-          }
-          audioContext = new AudioContextClass();
-          metronome.audioContext = audioContext;
-          if (micDetector) micDetector.audioContext = audioContext;
-          if (calibration) calibration.audioContext = audioContext;
-        } catch (e) {
-          console.error("Web Audio API not available:", e);
-        }
+      try {
+        await audioContextManager.ensureContext();
+        audioContextManager.setContextForComponents(metronome, micDetector, calibration);
+      } catch (e) {
+        console.error("Web Audio API not available:", e);
       }
 
       // Start microphone detector to show levels and enumerate devices
-      if (audioContext && micDetector && !micDetector.isRunning) {
+      if (micDetector && !micDetector.isRunning) {
         try {
           await micDetector.start();
         } catch (err) {
           console.error("Failed to start microphone detector:", err);
+        }
+      }
+
+      const params = paneManager.getCurrentParams();
+      if (params.target === "calibration") {
+        const calibrationStep = onboardingPane.querySelector("#step-calibration");
+        if (calibrationStep && typeof calibrationStep.scrollIntoView === "function") {
+          calibrationStep.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+
+        const calibrationButton = onboardingPane.querySelector("[data-calibration-btn]");
+        if (calibrationButton && typeof calibrationButton.focus === "function") {
+          calibrationButton.focus();
         }
       }
     } else if (
@@ -317,12 +256,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   paneManager.onPaneChange(updatePaneVisibility);
 
-  // Don't show pane yet - wait for init() to set hasInitialized
-  // Just hide all panes initially
-  getAllElements(".pane").forEach((el) => {
-    const paneEl = /** @type {HTMLElement} */ (el);
-    paneEl.style.display = "none";
-  });
+  // Trigger callback for initial pane if already set
+  const initialCurrentPane = paneManager.getCurrentPane();
+  if (initialCurrentPane) {
+    updatePaneVisibility(initialCurrentPane);
+  }
 
   // Setup navigation button click handlers
   getAllElements("[data-pane]").forEach((btn) => {
@@ -360,18 +298,10 @@ document.addEventListener("DOMContentLoaded", () => {
       onboardingPane.calibrationControl.button.addEventListener(
         "click",
         async (e) => {
-          if (!audioContext && calibration && !calibration.isCalibrating) {
+          if (calibration && !calibration.isCalibrating) {
             try {
-              const webkitWindow =
-                /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (window);
-              const AudioContextClass = globalThis.AudioContext || webkitWindow.webkitAudioContext;
-              if (!AudioContextClass) {
-                throw new Error("Web Audio API not available");
-              }
-              audioContext = new AudioContextClass();
-              metronome.audioContext = audioContext;
-              if (micDetector) micDetector.audioContext = audioContext;
-              if (calibration) calibration.audioContext = audioContext;
+              await audioContextManager.ensureContext();
+              audioContextManager.setContextForComponents(metronome, micDetector, calibration);
 
               if (micDetector && !micDetector.isRunning) {
                 await micDetector.start();
@@ -407,177 +337,78 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // --- Main Functions ---
-
-  /**
-   * @param {number} bpm
-   * @param {number} beatsPerMeasure
-   */
-  async function startDrill(bpm, beatsPerMeasure) {
-    if (calibration && calibration.isCalibrating) {
-      calibration.stop("Calibration stopped: drill start requested.");
-    }
-
-    if (!audioContext) {
-      try {
-        const webkitWindow = /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (
-          globalThis
-        );
-        const AudioContextClass = globalThis.AudioContext || webkitWindow.webkitAudioContext;
-        if (!AudioContextClass) {
-          throw new Error("Web Audio API not available");
-        }
-        audioContext = new AudioContextClass();
-        metronome.audioContext = audioContext;
-        if (micDetector) micDetector.audioContext = audioContext;
-        if (calibration) calibration.audioContext = audioContext;
-      } catch {
-        alert("Web Audio API is not supported in this browser");
-        return;
-      }
-    }
-
-    if (micDetector && !micDetector.isRunning) {
-      await micDetector.start();
-    }
-
-    metronome.setBPM(bpm);
-    metronome.setTimeSignature(beatsPerMeasure);
-    scorer.setBeatsPerMeasure(beatsPerMeasure);
-    scorer.setBeatDuration(60.0 / bpm);
-    timeline.setBeatsPerMeasure(beatsPerMeasure);
-    if (calibration) {
-      calibration.setBeatsPerMeasure(beatsPerMeasure);
-      calibration.setBeatDuration(60.0 / bpm);
-    }
-
-    // Plan is already parsed by planEditPane when selected
-    scorer.reset();
-    drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
-
-    currentMeasureInTotal = 0;
-    runStartedAt = Date.now();
-    runFinalized = false;
-    isCompletingRun = false;
-    timelineRunStartAudioTime = audioContext.currentTime;
-
-    drillPlan.setHighlight(0);
-    timeline.centerAt(0);
-
-    metronome.start();
-
-    planPlayPane.setPlaying(true);
-    planPlayPane.setStatus("Running...");
-  }
-
-  function stopDrill() {
-    if (completionTimeoutId) {
-      globalThis.clearTimeout(completionTimeoutId);
-      completionTimeoutId = undefined;
-    }
-
-    isCompletingRun = false;
-    finalizeRun(false);
-
-    metronome.stop();
-
-    planPlayPane.setPlaying(false);
-    planPlayPane.setStatus("Stopped.");
-    planPlayPane.clearBeatIndicator();
-    drillPlan.setHighlight(-1);
-  }
-
-  function handleDrillComplete() {
-    isCompletingRun = true;
-    metronome.stop();
-
-    // Give extra time for final hits - need full late window plus some margin
-    const finalHitGraceMs = Math.max(
-      300,
-      Math.round((scorer.lateHitAssignmentWindowBeats + 0.5) * metronome.beatDuration * 1000)
-    );
-
-    planPlayPane.setStatus("Drill complete. Capturing final hits...");
-
-    completionTimeoutId = globalThis.setTimeout(() => {
-      scorer.finalizeMeasure(drillPlan.getLength() - 2);
-      scorer.finalizeMeasure(drillPlan.getLength() - 1);
-      updateScoreDisplay();
-      finalizeRun(true);
-
-      isCompletingRun = false;
-      completionTimeoutId = undefined;
-      planPlayPane.setPlaying(false);
-      planPlayPane.clearBeatIndicator();
-      drillPlan.setHighlight(-1);
-      planPlayPane.setStatus("Drill complete!");
-    }, finalHitGraceMs);
-  }
-
-  /** @param {boolean} completed */
-  function finalizeRun(completed) {
-    if (runFinalized || drillPlan.getLength() === 0) return;
-
-    for (let index = 0; index < drillPlan.getLength(); index++) {
-      scorer.finalizeMeasure(index);
-    }
-    updateScoreDisplay();
-
-    const elapsedSeconds = runStartedAt
-      ? Math.max(0, Math.round((Date.now() - runStartedAt) / 1000))
-      : 0;
-
-    // Save detailed session data with metrics and recommendations
-    const currentPlan = planEditPane.getCurrentPlan();
-    const sessionPlan = currentPlan
-      ? {
-          id: currentPlan.id || "",
-          name: currentPlan.name,
-          description: currentPlan.description || "",
-          difficulty: currentPlan.difficulty || "",
-          segments: currentPlan.segments,
-        }
-      : {
-          id: "",
-          name: "",
-          description: "",
-          difficulty: "",
-          segments: [],
-        };
-    const sessionData = {
-      plan: sessionPlan,
-      bpm: planPlayPane.getBPM(),
-      timeSignature: planPlayPane.timeSignatureSelect.value,
-      completed,
-      durationSeconds: elapsedSeconds,
-      measureHits: scorer.measureHits,
-      measureScores: scorer.getAllScores().map((score) => score ?? 0),
-      drillPlan: drillPlan.plan,
-      overallScore: scorer.getOverallScore(),
-    };
-
-    const session = practiceSessionManager.saveSession(sessionData);
-
-    // Update history display and navigate to history pane with expanded session
-    if (session) {
-      const allSessions = practiceSessionManager.getSessions();
-      planHistoryPane.displaySessions(allSessions, session.id);
-      paneManager.navigate("plan-history");
-    }
-
-    runFinalized = true;
-  }
-
-  function updateScoreDisplay() {
-    drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
-    planPlayPane.updateScore(scorer.getOverallScore());
-  }
-
   // --- Initialization ---
 
   async function init() {
     // Wait for all components to be ready
     await Promise.all([onboardingReady, planEditReady, planPlayReady, planHistoryReady]);
+
+    // Create DrillSessionManager now that all components are ready
+    drillSessionManager = new DrillSessionManager(
+      metronome,
+      scorer,
+      timeline,
+      drillPlan,
+      calibration,
+      micDetector
+    );
+
+    // Wire DrillSessionManager callbacks to UI
+    drillSessionManager.onBeatUpdate((beatNum, _measureIndex, shouldShow) => {
+      planPlayPane.updateBeatIndicator(beatNum, beatNum === 1, shouldShow);
+    });
+
+    drillSessionManager.onScoreUpdate((overallScore) => {
+      planPlayPane.updateScore(overallScore);
+    });
+
+    drillSessionManager.onStatusUpdate((status) => {
+      planPlayPane.setStatus(status);
+    });
+
+    drillSessionManager.onSessionComplete((sessionData) => {
+      // Augment session data with plan info from plan editor
+      const currentPlan = planEditPane.getCurrentPlan();
+      const sessionPlan = currentPlan
+        ? {
+            id: currentPlan.id || "",
+            name: currentPlan.name,
+            description: currentPlan.description || "",
+            difficulty: currentPlan.difficulty || "",
+            segments: currentPlan.segments,
+          }
+        : {
+            id: "",
+            name: "",
+            description: "",
+            difficulty: "",
+            segments: [],
+          };
+
+      const fullSessionData = {
+        ...sessionData,
+        plan: sessionPlan,
+        bpm: planPlayPane.getBPM(),
+        timeSignature: planPlayPane.timeSignatureSelect.value,
+      };
+
+      const session = practiceSessionManager.saveSession(fullSessionData);
+
+      if (sessionData.completed) {
+        planPlayPane.reset();
+        scorer.reset();
+        drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
+        drillPlan.setHighlight(-1);
+        timeline.centerAt(0);
+      }
+
+      // Update history display and navigate to history pane with expanded session
+      if (session) {
+        const allSessions = practiceSessionManager.getSessions();
+        planHistoryPane.displaySessions(allSessions, session.id);
+        paneManager.navigate("plan-history");
+      }
+    });
 
     // Initialize plan editor pane
     if (planEditPane) {
@@ -586,15 +417,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Determine which pane to show
     const hasCompletedOnboarding = StorageManager.get("tempoTrainer.hasCompletedOnboarding");
-    const hasCalibration = calibration ? calibration.getOffsetMs() !== 0 : false;
+    const hasCalibration = calibration
+      ? typeof calibration.hasCalibrationData === "function"
+        ? calibration.hasCalibrationData()
+        : calibration.getOffsetMs() !== 0
+      : false;
 
     let initialPane = "onboarding";
     if (hasCompletedOnboarding) {
       initialPane = hasCalibration ? "plan-play" : "plan-edit";
     }
 
+    // Initialize display
     timeline.centerAt(0);
-    updateScoreDisplay();
+    drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
+    planPlayPane.updateScore(scorer.getOverallScore());
+    planPlayPane.setCalibrationWarningVisible(!hasCalibration);
 
     // Display existing sessions from history
     const sessions = practiceSessionManager.getSessions();
@@ -624,14 +462,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Animation frame for timeline scrolling during playback
   function updateTimelineScroll() {
-    // Keep timeline active during drill AND during grace period
-    if ((metronome.isRunning || isCompletingRun) && audioContext && calibration) {
-      const beatPosition = calibration.getCalibratedBeatPosition(
-        audioContext.currentTime,
-        timelineRunStartAudioTime,
-        metronome.beatDuration
-      );
-      timeline.centerAt(beatPosition);
+    const audioContext = audioContextManager.getContext();
+    if (drillSessionManager && audioContext) {
+      drillSessionManager.updateTimelineScroll(audioContext);
     }
     requestAnimationFrame(updateTimelineScroll);
   }

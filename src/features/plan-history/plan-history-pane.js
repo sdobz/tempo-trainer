@@ -31,6 +31,7 @@ import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils
  * Events emitted:
  * - 'retry-plan': When user clicks retry button (data: { plan: SessionPlan })
  * - 'navigate': When user wants to navigate (data: { pane: string })
+ * - 'delete-session': When user clicks delete button (data: { sessionId: string })
  *
  * @extends BaseComponent
  */
@@ -150,6 +151,20 @@ export default class PlanHistoryPane extends BaseComponent {
         bindEvent(btn, "click", (e) => {
           e.stopPropagation();
           dispatchEvent(this, "navigate", { pane: "plan-edit" });
+        })
+      );
+    });
+
+    // Delete session button clicks
+    this.historyList.querySelectorAll(".delete-session-btn").forEach((btn) => {
+      const btnEl = /** @type {HTMLElement} */ (btn);
+      this._cleanups.push(
+        bindEvent(btnEl, "click", (e) => {
+          e.stopPropagation();
+          const sessionId = btnEl.dataset.sessionId;
+          if (sessionId) {
+            dispatchEvent(this, "delete-session", { sessionId });
+          }
         })
       );
     });
@@ -305,6 +320,9 @@ export default class PlanHistoryPane extends BaseComponent {
           </button>
           <button class="select-plan-btn" data-session-id="${session.id}">
             📋 Select Different Plan
+          </button>
+          <button class="delete-session-btn" data-session-id="${session.id}">
+            🗑️ Delete Session
           </button>
         </div>
       </div>

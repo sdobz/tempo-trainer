@@ -7,6 +7,7 @@
 import BaseComponent from "../base/base-component.js";
 import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
 import "./timeline-visualization.js";
+import "../base/app-notification.js";
 
 /**
  * @typedef {Object} PlanPlayState
@@ -58,6 +59,7 @@ export default class PlanPlayPane extends BaseComponent {
     this.timelineNowLine = null;
     this.overallScoreDisplay = null;
     this.viewResultsBtn = null;
+    this.calibrationWarning = null;
   }
 
   getTemplateUrl() {
@@ -68,7 +70,7 @@ export default class PlanPlayPane extends BaseComponent {
     return "/src/features/plan-play/plan-play-pane.css";
   }
 
-  async onMount() {
+  onMount() {
     // Query all DOM elements
     this.bpmInput = querySelector(this, "[data-bpm-input]");
     this.timeSignatureSelect = querySelector(this, "[data-time-signature-select]");
@@ -78,6 +80,7 @@ export default class PlanPlayPane extends BaseComponent {
     this.stopBtn = querySelector(this, "[data-stop-btn]");
     this.overallScoreDisplay = querySelector(this, "[data-overall-score]");
     this.viewResultsBtn = querySelector(this, "[data-view-results-btn]");
+    this.calibrationWarning = querySelector(this, "[data-calibration-warning]");
 
     // Get reference to timeline-visualization component
     this.timelineViz = this.querySelector("timeline-visualization");
@@ -86,6 +89,11 @@ export default class PlanPlayPane extends BaseComponent {
     this._cleanups.push(bindEvent(this.startBtn, "click", () => this._onStart()));
     this._cleanups.push(bindEvent(this.stopBtn, "click", () => this._onStop()));
     this._cleanups.push(bindEvent(this.viewResultsBtn, "click", () => this._onViewResults()));
+    this._cleanups.push(
+      bindEvent(this.calibrationWarning, "notification-action", () =>
+        this._onCalibrationWarningAction()
+      )
+    );
   }
 
   onUnmount() {
@@ -210,6 +218,35 @@ export default class PlanPlayPane extends BaseComponent {
     this.updateScore(0);
     this.setPlaying(false);
     this.setState({ currentMeasure: 0 });
+
+    if (this.timelineViz) {
+      if (typeof this.timelineViz.clearDetections === "function") {
+        this.timelineViz.clearDetections();
+      }
+      if (typeof this.timelineViz.centerAt === "function") {
+        this.timelineViz.centerAt(0);
+      }
+    }
+  }
+
+  /**
+   * Show/hide warning when calibration data is missing.
+   * @param {boolean} shouldShow
+   */
+  setCalibrationWarningVisible(shouldShow) {
+    if (!this.calibrationWarning) return;
+
+    if (shouldShow) {
+      this.calibrationWarning.show({
+        type: "warning",
+        message: "Microphone offset is not calibrated. Timing feedback may be inaccurate.",
+        actionLabel: "Calibrate Now",
+        actionDetail: { pane: "onboarding", params: { target: "calibration" } },
+      });
+      return;
+    }
+
+    this.calibrationWarning.hide();
   }
 
   // --- Private Methods ---
@@ -236,6 +273,13 @@ export default class PlanPlayPane extends BaseComponent {
    */
   _onViewResults() {
     dispatchEvent(this, "navigate", { pane: "plan-history" });
+  }
+
+  /**
+   * Handle calibration warning CTA action.
+   */
+  _onCalibrationWarningAction() {
+    dispatchEvent(this, "navigate", { pane: "onboarding", params: { target: "calibration" } });
   }
 }
 

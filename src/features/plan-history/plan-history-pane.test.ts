@@ -148,6 +148,25 @@ Deno.test("PlanHistoryPane: emits navigate event for select different plan", asy
   assertEquals(detail.pane, "plan-edit");
 });
 
+Deno.test("PlanHistoryPane: emits delete-session event with session id", async () => {
+  const component = await createComponent();
+  const sessions = [createSession()];
+  component.displaySessions(sessions as any);
+
+  let fired = false;
+  let detail: any = null;
+  component.addEventListener("delete-session", ((event: CustomEvent) => {
+    fired = true;
+    detail = event.detail;
+  }) as EventListener);
+
+  const deleteBtn = component.querySelector(".delete-session-btn") as HTMLButtonElement;
+  deleteBtn.click();
+
+  assertEquals(fired, true);
+  assertEquals(detail.sessionId, "session-1");
+});
+
 Deno.test("PlanHistoryPane: renders metrics and recommendations sections", async () => {
   const component = await createComponent();
   const sessions = [
