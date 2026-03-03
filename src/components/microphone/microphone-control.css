@@ -1,19 +1,6 @@
-/* Onboarding Pane Component Styles */
+/* Microphone Control Component Styles */
 
-.onboarding-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 2em;
-}
-
-.step {
-  padding: 1.5em;
-  background-color: #2a2a2a;
-  border-radius: 6px;
-  border-left: 3px solid #4caf50;
-}
-
-.step h3 {
+.microphone-control h3 {
   margin-top: 0;
   color: #4caf50;
   display: flex;
@@ -22,11 +9,11 @@
   gap: 1em;
 }
 
-.step-title {
+.microphone-title {
   flex: 1;
 }
 
-.step-status {
+.microphone-status-indicator {
   font-size: 0.75em;
   font-weight: normal;
   padding: 0.4em 0.8em;
@@ -37,18 +24,13 @@
   white-space: nowrap;
 }
 
-.step-status.complete {
+.microphone-status-indicator.complete {
   background-color: rgba(76, 175, 80, 0.2);
   color: #4caf50;
   border-color: rgba(76, 175, 80, 0.3);
 }
 
-.step.complete {
-  border-left-color: #4caf50;
-  opacity: 0.8;
-}
-
-.onboarding-mic-selector-row {
+.microphone-selector-row {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.6em;
@@ -56,13 +38,13 @@
   margin-bottom: 0.8em;
 }
 
-.onboarding-mic-selector-row label {
+.microphone-selector-row label {
   font-size: 0.85em;
   color: #d8d8d8;
   white-space: nowrap;
 }
 
-.onboarding-mic-select {
+.microphone-select {
   padding: 0.4em;
   background-color: #333;
   border: 1px solid #555;
@@ -71,7 +53,7 @@
   font-size: 0.9em;
 }
 
-.onboarding-mic-level {
+.microphone-level {
   position: relative;
   width: 100%;
   height: 56px;
@@ -83,7 +65,7 @@
   cursor: ew-resize;
 }
 
-.onboarding-mic-level-bar {
+.microphone-level-bar {
   position: absolute;
   left: 0;
   top: 0;
@@ -94,7 +76,7 @@
   pointer-events: none;
 }
 
-.onboarding-mic-peak-hold {
+.microphone-peak-hold {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -106,7 +88,7 @@
   pointer-events: none;
 }
 
-.onboarding-mic-threshold-line {
+.microphone-threshold-line {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -118,7 +100,7 @@
   pointer-events: none;
 }
 
-.onboarding-mic-threshold-label {
+.microphone-threshold-label {
   position: absolute;
   right: 8px;
   top: 6px;
@@ -134,11 +116,11 @@
   user-select: none;
 }
 
-.onboarding-mic-level.over-threshold .onboarding-mic-level-bar {
+.microphone-level.over-threshold .microphone-level-bar {
   background-color: #ff6b6b;
 }
 
-.onboarding-hits-list {
+.microphone-hits-list {
   margin-top: 0.5em;
   font-size: 0.8em;
 }

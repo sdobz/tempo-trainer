@@ -1,6 +1,5 @@
 // --- ESM Module Imports ---
 import StorageManager from "./storage-manager.js";
-import Calibration from "./calibration.js";
 import Metronome from "./metronome.js";
 import Scorer from "./scorer.js";
 import MicrophoneDetector from "./microphone-detector.js";
@@ -13,6 +12,7 @@ import HistoryDisplayUI from "./history-display-ui.js";
 import PracticeSessionManager from "./practice-session-manager.js";
 import DrillHistory from "./drill-history.js";
 import OnboardingPane from "./components/onboarding/onboarding-pane.js";
+import CalibrationControl from "./components/calibration/calibration-control.js";
 import {
   getElementByID,
   getElementBySelector,
@@ -62,52 +62,46 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   const drillHistory = new DrillHistory(drillHistoryList);
   const practiceSessionManager = new PracticeSessionManager();
-  
+
   // Wait for onboarding component to be ready
   let micDetector;
   let calibration;
   onboardingPane.componentReady.then(() => {
-    // Initialize microphone detector with component's elements
-    micDetector = new MicrophoneDetector(null, {
-      level: onboardingPane.micLevel,
-      levelBar: onboardingPane.micLevelBar,
-      peakHold: onboardingPane.micPeakHold,
-      thresholdLine: onboardingPane.micThresholdLine,
-      thresholdLabel: onboardingPane.micThresholdLabel,
-      hitsList: onboardingPane.hitsList,
-      select: onboardingPane.micSelect,
-    });
-    
-    // Initialize calibration with component's elements
-    calibration = new Calibration(/** @type {AudioContext} */ (/** @type {unknown} */ (null)), {
-      button: onboardingPane.calibrationBtn,
-      status: onboardingPane.calibrationStatus,
-      result: onboardingPane.calibrationResult,
-    });
-    
-    // Setup calibration callback
-    calibration.onStop(() => {
-      updateOnboardingStatus();
-    });
-    
+    // Get microphone detector from microphone-control sub-component
+    if (onboardingPane.microphoneControl) {
+      micDetector = onboardingPane.microphoneControl.micDetector;
+    }
+
+    // Get calibration instance from calibration-control sub-component
+    if (onboardingPane.calibrationControl) {
+      calibration = onboardingPane.calibrationControl.calibration;
+
+      // Setup calibration callback
+      calibration.onStop(() => {
+        updateOnboardingStatus();
+      });
+    }
+
     // Setup microphone detector callback
-    micDetector.onHit((/** @type {number} */ hitAudioTime) => {
-      // Accept hits during normal run or during completion grace period
-      if (metronome.isRunning || isCompletingRun) {
-        const detectedBeatPosition = calibration.getCalibratedBeatPosition(
-          hitAudioTime,
-          timelineRunStartAudioTime,
-          metronome.beatDuration
-        );
+    if (micDetector) {
+      micDetector.onHit((/** @type {number} */ hitAudioTime) => {
+        // Accept hits during normal run or during completion grace period
+        if (metronome.isRunning || isCompletingRun) {
+          const detectedBeatPosition = calibration.getCalibratedBeatPosition(
+            hitAudioTime,
+            timelineRunStartAudioTime,
+            metronome.beatDuration
+          );
 
-        timeline.addDetection(detectedBeatPosition);
-        scorer.registerHit(detectedBeatPosition);
-      }
+          timeline.addDetection(detectedBeatPosition);
+          scorer.registerHit(detectedBeatPosition);
+        }
 
-      if (calibration.isCalibrating) {
-        calibration.registerHit(hitAudioTime);
-      }
-    });
+        if (calibration.isCalibrating) {
+          calibration.registerHit(hitAudioTime);
+        }
+      });
+    }
   });
   const planEditorUI = new PlanEditorUI(planLibrary, drillPlan, bpmInput, timeSignatureSelect);
 
@@ -192,13 +186,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateOnboardingStatus() {
     if (!micDetector || !calibration) return;
-    
+
     // Check if microphone threshold has been adjusted (not default 52)
     const hasAdjustedThreshold = micDetector.threshold !== 52;
-    
+
     // Check if calibration has been completed (non-zero offset)
     const hasCalibrated = calibration.getOffsetMs() !== 0;
-    
+
     // Update component status
     onboardingPane.updateStatus(hasAdjustedThreshold, hasCalibrated);
   }
@@ -259,7 +253,13 @@ document.addEventListener("DOMContentLoaded", () => {
           console.error("Failed to start microphone detector:", err);
         }
       }
-    } else if (pane !== "plan-play" && micDetector && micDetector.isRunning && calibration && !calibration.isCalibrating) {
+    } else if (
+      pane !== "plan-play" &&
+      micDetector &&
+      micDetector.isRunning &&
+      calibration &&
+      !calibration.isCalibrating
+    ) {
       // Stop microphone detector when leaving onboarding (but not when going to play)
       // Keep it running during play
       micDetector.stop();
@@ -296,43 +296,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Listen for microphone threshold adjustments
   onboardingPane.componentReady.then(() => {
-    onboardingPane.micLevel.addEventListener("pointerup", () => {
-      // Update onboarding status after threshold adjustment
-      setTimeout(() => updateOnboardingStatus(), 100);
-    });
+    if (onboardingPane.microphoneControl && onboardingPane.microphoneControl.level) {
+      onboardingPane.microphoneControl.level.addEventListener("pointerup", () => {
+        // Update onboarding status after threshold adjustment
+        setTimeout(() => updateOnboardingStatus(), 100);
+      });
+    }
   });
 
   // Intercept calibration button to ensure audioContext exists
   onboardingPane.componentReady.then(() => {
-    onboardingPane.calibrationBtn.addEventListener(
-      "click",
-      async (e) => {
-        if (!audioContext && calibration && !calibration.isCalibrating) {
-          try {
-            const webkitWindow =
-              /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (window);
-            const AudioContextClass = window.AudioContext || webkitWindow.webkitAudioContext;
-            if (!AudioContextClass) {
-              throw new Error("Web Audio API not available");
-            }
-            audioContext = new AudioContextClass();
-            metronome.audioContext = audioContext;
-            if (micDetector) micDetector.audioContext = audioContext;
-            if (calibration) calibration.audioContext = audioContext;
+    if (onboardingPane.calibrationControl && onboardingPane.calibrationControl.button) {
+      onboardingPane.calibrationControl.button.addEventListener(
+        "click",
+        async (e) => {
+          if (!audioContext && calibration && !calibration.isCalibrating) {
+            try {
+              const webkitWindow =
+                /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (window);
+              const AudioContextClass = window.AudioContext || webkitWindow.webkitAudioContext;
+              if (!AudioContextClass) {
+                throw new Error("Web Audio API not available");
+              }
+              audioContext = new AudioContextClass();
+              metronome.audioContext = audioContext;
+              if (micDetector) micDetector.audioContext = audioContext;
+              if (calibration) calibration.audioContext = audioContext;
 
-            if (micDetector && !micDetector.isRunning) {
-              await micDetector.start();
+              if (micDetector && !micDetector.isRunning) {
+                await micDetector.start();
+              }
+            } catch {
+              alert("Web Audio API is not supported in this browser");
+              e.stopPropagation();
+              e.preventDefault();
+              return;
             }
-          } catch {
-            alert("Web Audio API is not supported in this browser");
-            e.stopPropagation();
-            e.preventDefault();
-            return;
           }
-        }
-      },
-      true
-    );
+        },
+        true
+      );
+    }
   });
 
   bpmInput.addEventListener("input", () => {

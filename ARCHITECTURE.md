@@ -65,7 +65,86 @@ State pattern:
 
 ---
 
+## Delegate Pattern for Domain-UI Integration
+
+A domain module that requires callbacks implements the **delegate pattern**: the domain object accepts a delegate object whose methods it calls to notify of state changes.
+
+The UI component directly implements the delegate interface, eliminating indirection:
+
+```javascript
+// Domain module (pure logic, no DOM)
+class MicrophoneDetector {
+  constructor(audioContext, delegate) {
+    this.delegate = delegate;
+  }
+  
+  _analyzeAudio() {
+    // ... audio analysis logic ...
+    this.delegate.onLevelChanged(level);
+    this.delegate.onHit();
+  }
+}
+
+// UI component implements the interface directly
+class MicrophoneControl extends BaseComponent {
+  onMount() {
+    // Component passes itself as the delegate
+    this.detector = new MicrophoneDetector(null, this);
+  }
+  
+  // These public methods form the delegate interface
+  onLevelChanged(level) {
+    this.levelBar.style.width = `${level}%`;
+  }
+  
+  onHit() {
+    // visual feedback
+  }
+}
+```
+
+Benefits:
+
+- **Pure domain logic**: The detector has zero DOM dependencies and is fully testable in isolation
+- **Single responsibility**: UI component owns all presentation, domain object owns all analysis
+- **Minimal overhead**: No wrapper objects or factory methods; the component is the delegate
+- **Clear contract**: Component methods form an explicit interface that the domain object expects
+
+The delegate pattern enables loose coupling: the domain module doesn't depend on the UI component, and the component can be replaced with a different delegate (for example, a test mock or an alternative UI).
+
+---
+
+## Inversion of Control: Dependency Injection
+
+Domain modules accept their dependencies as constructor parameters rather than importing them directly. This **inversion of control** enables testability, reusability, and decoupling from concrete implementations.
+
+Dependencies that should be injected:
+
+- Data persistence (storage, databases)
+- External services and APIs
+- Behavior callbacks (delegates)
+- Runtime contexts (audio, rendering, etc.)
+
+Benefits:
+
+- **Explicit dependencies**: Constructor signature documents what a module needs
+- **Testability**: Tests substitute mock implementations without modifying the module
+- **Reusability**: Same module works with different backends and UI implementations
+- **No globals**: Modules receive what they need from the wiring layer, not from imports
+- **Composition**: The orchestration layer assembles a working system by wiring dependencies
+
+Rules:
+
+- Domain modules depend on abstract contracts, not concrete implementations
+- Domain modules do not import utilities or services directly
+- UI components depend on domain modules and inject themselves as delegates
+- The orchestration layer (wiring) creates all instances and connects them
+- Tests provide mock implementations to verify behavior in isolation
+
+---
+
 ## Boundaries and Coupling Rules
+
 
 1. Components handle presentation and interaction only
 2. Domain modules handle computation, timing logic, and business rules

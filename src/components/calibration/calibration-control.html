@@ -1,0 +1,19 @@
+<template>
+  <div class="calibration-control">
+    <h3>
+      <span class="calibration-title">2. Calibrate Your System</span>
+      <span class="calibration-status-indicator" data-calibration-status-indicator
+        >⚠️ Not calibrated</span
+      >
+    </h3>
+    <p>
+      Calibration measures system latency to ensure accurate hit detection. Play along with the
+      metronome clicks.
+    </p>
+    <div class="calibration-controls">
+      <button data-calibration-btn type="button" class="calibration-btn">Start Calibration</button>
+      <div data-calibration-status class="calibration-status">Calibration idle.</div>
+      <div data-calibration-result class="calibration-result">Offset compensation: 0 ms</div>
+    </div>
+  </div>
+</template>
