@@ -1,320 +1,154 @@
 ## Intent
 
-Organizing code such that agents can efficiently implement and update features without reading massive files or managing build complexity.
+Organize the codebase so features can evolve quickly without coupling UI details to core logic.
 
-**Core goals:**
-1. LLM-parseable: Each component file ≤ 250 lines, templates separate from logic
-2. Modular: Update one feature without touching unrelated code
-3. Testable: Components instantiate independently, no globals
-4. No dependencies: Only native browser APIs
-5. No build step: Type checking and linting are cheap checks
-
----
-
-## Architecture Overview
-
-**Three layers** (from abstract to concrete):
-
-### Layer 1: Semantic Concepts
-High-level intent: "Using a microphone to detect and score the timing of drum beats in order to teach drumming skills"
-
-Semantic concepts break down as:
-- **microphone** → audio input, detection, classification
-- **detect** → onset analysis, peak picking
-- **score** → accuracy measurement, metric derivation
-- **timing** → latency, phase relationships
-- **drum** → instrument classification
-- **beat** → metronome reference, measure subdivision
-- **teach** → feedback, recommendations
-- **skills** → tracked competencies (drift, consistency, rhythm)
-
-### Layer 2: Feature Organization
-Features are **Web Components** organized in a directory tree:
-
-```
-src/
-  components/              # UI components (Web Components)
-    base/                  # BaseComponent abstract class + utilities
-    microphone/            # Microphone selection + level display
-    plan-editor/           # Plan creation, editing, cloning
-    timeline/              # Beat-by-beat visualization
-    history/               # Session review, metrics, recommendations
-    drill-plan/            # Plan playback visualization
-  features/                # Business logic, non-UI (plain classes)
-    scorer.js              # Accuracy calculation
-    metronome.js           # Tempo reference
-    calibration.js         # Latency measurement
-    microphone-detector.js # Onset detection algorithm
-    plan-library.js        # Plan persistence
-    practice-session-manager.js  # Session data + derived metrics
-  styles/
-    theme.css              # CSS custom properties (colors, timing, spacing)
-    globals.css            # App-level layout, reset, responsive
-    components.css         # Import point for all component styles
-  script.js                # Wiring layer: instantiate + connect components & features
-```
-
-### Layer 3: Component Implementation
-Each component is a **Web Component** (native `HTMLElement` subclass):
-
-```javascript
-class MicrophoneDetector extends BaseComponent {
-  // Template URL (separate .html file)
-  getTemplateUrl() { return './microphone-detector.html'; }
-  
-  // Styles URL (separate .css file, scoped with BEM)
-  getStyleUrl() { return './microphone.css'; }
-  
-  // Lifecycle hooks from BaseComponent
-  async onMount() { /* DOM is ready, bind events */ }
-  onUnmount() { /* cleanup */ }
-  onStateChange(oldState, newState) { /* update DOM based on state */ }
-  
-  // Public API for wiring (events + methods)
-  setThreshold(value) { this.setState({ threshold: value }); }
-  
-  // Events dispatched to parent
-  dispatchEvent(new CustomEvent('threshold-change', { detail: value }));
-}
-```
+Core goals:
+1. Parseable modules: small files, clear contracts, minimal hidden behavior
+2. Composable features: add or change one capability without broad edits
+3. Deterministic tests: behavior is testable with explicit inputs and outputs
+4. Browser-native runtime: app code uses native platform APIs directly
+5. Lightweight workflow: lint, check, and tests are fast enough for frequent runs
 
 ---
 
-## Design Rules
+## Architectural Layers
 
-### 1. Semantic Scope
-Each component represents **one semantic concept**. If it handles two, refactor into two components.
+### Layer 1: Product Semantics
+The product teaches timing through an input → analysis → feedback loop.
 
-**Examples:**
-- ✅ `<microphone-detector>` → microphone selection + level visualization
-- ❌ `<microphone-timeline-plan>` → too many concerns, split into three
+- Input: user actions and audio/device signals
+- Analysis: timing, scoring, and calibration logic
+- Feedback: visual status, progress, and recommendations
 
-### 2. Component Boundaries
-- **Components handle**: UI rendering, user interaction, DOM lifecycle
-- **Features handle**: business logic, state machines, computation, persistence
-- **Components call features**, not vice versa
+This semantic pipeline is stable even as specific features change.
 
-**Pattern:**
-```javascript
-// GOOD: Feature is side-effect-free
-class Scorer {
-  recordHit(timestamp) { this.hits.push(timestamp); }
-  getScore() { return Math.round(100 * accuracy); }  // pure computation
-}
+### Layer 2: Capability Modules
+Code is grouped by responsibility, not screen location:
 
-// Component consumes feature
-<scorer-display>  instanceof BaseComponent
-  displayScore(scorer.getScore());  // reactive update
-```
+- UI components: rendering, interaction, lifecycle
+- Domain/features: pure or mostly-pure logic for timing/scoring/session behavior
+- Orchestration: the wiring layer that composes modules and routes events
+- Shared styles and utilities: reusable primitives only
 
-### 3. State Management
-Components have **local state** + **state change callbacks**:
+### Layer 3: Runtime Contracts
+Modules communicate through explicit contracts:
 
-```javascript
-// Local state (plain object)
-this.state = { threshold: 52, isConnected: false };
-
-// State updates trigger side effects
-setState(newState) {
-  const oldState = this.state;
-  this.state = newState;
-  this.onStateChange(oldState, newState);  // app updates DOM
-}
-
-// Parent listens for changes
-microphone.addEventListener('threshold-change', (e) => {
-  sessionManager.updateThreshold(e.detail);
-});
-```
-
-### 4. No Ad-Hoc DOM Access
-Components don't reach outside their boundary:
-
-```javascript
-// ❌ BAD: Component queries global DOM
-const globalButton = document.getElementById('start-btn');
-
-// ✅ GOOD: Parent passes element reference or data down
-class DrillSessionComponent extends BaseComponent {
-  setStartButton(btn) { this.startBtn = btn; }
-}
-```
-
-### 5. Styling Isolation
-Styles are scoped per component using **BEM naming** + **CSS custom properties**:
-
-```css
-/* src/components/microphone/microphone.css */
-:root {
-  --color-primary: #4caf50;
-  --color-bg: #1e1e1e;
-}
-
-.microphone { background-color: var(--color-bg); }
-.microphone__level { border: 1px solid var(--border-color); }
-.microphone__level-bar { background-color: var(--color-primary); }
-.microphone--over-threshold { border-color: #ff6b6b; }
-```
-
-No inline `<style>` tags in components. No `innerHTML` with CSS.
-
-### 6. Testing
-Each component has a `.test.js` file colocated:
-
-```javascript
-// src/components/microphone/microphone-detector.test.js
-describe('MicrophoneDetector', () => {
-  it('should set threshold on setState', () => {
-    const comp = new MicrophoneDetector();
-    comp.setState({ threshold: 75 });
-    assert.equal(comp.state.threshold, 75);
-  });
-});
-```
-
-Run via: `./tools/test`
+- Method calls for command-style interactions
+- Custom events for decoupled notifications
+- State transition hooks for UI re-render behavior
 
 ---
 
-## Wiring Layer ([script.js](src/script.js))
+## Component Pattern
 
-Minimal orchestration code. Maps semantic components to wiring:
+UI components follow a consistent base-class contract:
 
-```javascript
-// 1. Instantiate components
-const microphone = document.createElement('microphone-detector');
-const timeline = document.createElement('timeline-component');
+- Extend a shared base component
+- Declare template and style asset URLs explicitly
+- Keep render/update logic inside component boundaries
+- Expose small public methods as integration points
+- Emit domain-relevant custom events instead of reaching into other components
 
-// 2. Instantiate features
-const scorer = new Scorer();
-const metronome = new Metronome();
+Canonical lifecycle:
 
-// 3. Connect them (data flow)
-microphone.addEventListener('hit', (e) => {
-  scorer.recordHit(e.detail.timestamp);
-});
+1. Construct with default local state
+2. Load template + styles
+3. Mount and bind DOM events
+4. React to state transitions in a single update path
+5. Cleanup listeners/resources on unmount
 
-scorer.onStateChange((oldMetrics, newMetrics) => {
-  timeline.updateScore(newMetrics.overall);
-});
+State pattern:
 
-// 4. Mount to DOM
-document.body.appendChild(microphone);
-document.body.appendChild(timeline);
-```
-
-Target size: **< 200 lines**.
+- Local component state is plain data
+- `setState` merges updates, then triggers `onStateChange(oldState, newState)`
+- UI side effects occur in lifecycle hooks, not scattered across methods
 
 ---
 
-## Directory Structure Details
+## Boundaries and Coupling Rules
 
-### `src/components/base/`
-- **base-component.js**: Abstract `HTMLElement` subclass with lifecycle hooks
-- **component-utils.js**: Utilities for loading templates, event binding, emitting custom events
+1. Components handle presentation and interaction only
+2. Domain modules handle computation, timing logic, and business rules
+3. Orchestration connects modules; modules do not hard-wire each other
+4. Data crosses boundaries through typed shapes, events, and small method APIs
+5. Components do not query or mutate unrelated global DOM regions
 
-### `src/components/{feature}/`
-Each feature gets its own directory with three files:
+Coupling heuristic:
 
-```
-src/components/microphone/
-  ├── microphone-detector.js     # Web Component class + customElements.define()
-  ├── microphone-detector.html   # Template with light DOM structure
-  ├── microphone.css             # Scoped styles (BEM naming)
-  └── microphone-detector.test.js  # Unit tests
-```
-
-**File size targets:**
-- `.js`: 100–200 lines (template logic + lifecycle)
-- `.html`: 20–50 lines (just markup, no logic)
-- `.css`: 80–150 lines (BEM-scoped for one component)
-- `.test.js`: 30–100 lines
-
-### `src/features/`
-Plain JavaScript classes, no Web Component overhead:
-
-```
-src/features/
-  ├── scorer.js
-  ├── metronome.js
-  ├── microphone-detector.js     # Audio processing (different from UI component)
-  ├── plan-library.js
-  └── practice-session-manager.js
-```
-
-### `src/styles/`
-- **theme.css**: CSS custom properties (`--color-primary`, `--spacing-base`, etc.)
-- **globals.css**: App-level layout, reset, responsive breakpoints
-- **components.css**: Single import point that `@import` all component `.css` files
-
-```css
-/* src/styles/components.css */
-@import url('../components/microphone/microphone.css');
-@import url('../components/timeline/timeline.css');
-/* etc. */
-```
+- Prefer event-driven composition when one module informs another
+- Prefer direct method calls when one module commands another
+- Avoid two-way dependencies between peer modules
 
 ---
 
-## Complexity Management
+## Styling Pattern
 
-**Principle:** Minimize connections between components.
-
-Each component declares its **public interface**:
-
-```javascript
-class MyComponent extends BaseComponent {
-  // Public API (documented with JSDoc)
-  /**
-   * Called when user performs action
-   * @callback onChange
-   * @param {Object} data
-   */
-  onThresholdChange(callback) { /* */ }
-  
-  setThreshold(value) { /* */ }
-}
-```
-
-**Connections flow through wiring layer** (script.js), not through imports:
-
-```javascript
-// ❌ BAD: Direct import creates tight coupling
-import MicrophoneDetector from './microphone/microphone-detector.js';
-import TimelineComponent from './timeline/timeline.js';
-microphone.updateTimeline = (data) => timeline.update(data);
-
-// ✅ GOOD: Loose coupling via events
-microphone.addEventListener('threshold-change', (e) => {
-  timeline.dispatchEvent(new CustomEvent('update-threshold', { detail: e.detail }));
-});
-```
+- Styles are component-scoped with consistent naming (for example, BEM-like conventions)
+- Theme values come from shared tokens/custom properties
+- Structural styles remain local to each component
+- Avoid injecting style text from component logic
 
 ---
 
-## Validation
+## Testing Pattern
 
-**Lint & Type Checking** (run frequently, they're cheap):
-```bash
-./tools/lint   # ESLint checks code style
-./tools/check  # TypeScript checks JSDoc types
-./tools/test   # Run component unit tests
-```
+Tests validate behavior contracts, not incidental implementation details.
 
-**File Size Validation**:
-```bash
-wc -l src/components/**/*.js src/script.js
-# Each file should be ≤ 250 lines
-```
+For component tests:
 
-**Test Coverage**:
-Each component should have a `.test.js` with:
-- State transitions
-- Event emission
-- Lifecycle hooks
-- Error cases
+- Use a single environment bootstrap that provides DOM and browser API mocks
+- Provide test-specific input data directly in each test case
+- Assert state transitions, emitted events, and observable DOM outcomes
+- Keep tests resilient to markup refactors that do not change behavior
+
+For domain module tests:
+
+- Prefer deterministic input/output assertions
+- Isolate time/device dependencies behind explicit seams
 
 ---
 
-## Next: See AGENT.md
-For implementation details and phased breakdown, see [AGENT.md](AGENT.md).
+## Orchestration Pattern
+
+The wiring layer is the integration boundary between modules.
+
+- Initializes long-lived services and UI surfaces
+- Subscribes to events and routes data across module boundaries
+- Avoids embedding core business rules
+- Keeps control flow explicit and inspectable
+
+When orchestration grows, split by capability (for example, input setup, session control, feedback updates) while preserving one-way data flow.
+
+---
+
+## Complexity Controls
+
+Use these guardrails to keep architecture stable:
+
+- Prefer small modules with one dominant reason to change
+- Keep public APIs narrow and documented
+- Minimize hidden global state
+- Centralize cross-cutting setup (test/bootstrap, shared utilities)
+- Refactor when a module handles multiple semantic concerns
+
+---
+
+## Validation Workflow
+
+Run quality gates frequently:
+
+- Lint for style and consistency
+- Static checks for type and contract drift
+- Tests for behavior and integration confidence
+
+Architecture health signals:
+
+- New features are added by composing existing contracts
+- Most changes stay local to one capability area
+- Tests remain readable and deterministic as features evolve
+
+---
+
+## Reference
+
+Implementation sequencing and agent workflow details live in [AGENT.md](AGENT.md).
