@@ -3,13 +3,13 @@
  * @module microphone-detector.test
  */
 
-// Bootstrap DOM environment FIRST, before anything else
-import "../base/test-bootstrap.js";
+// Setup DOM environment with jsdom FIRST
+import "../base/setup-dom.ts";
 
 import { assertEquals, assertNotEquals, assertThrows } from "std/assert/mod.ts";
 import { setupGlobalMocks } from "../base/test-mocks.ts";
 
-// Setup browser API mocks after bootstrap
+// Setup Web Audio API mocks (jsdom provides real DOM)
 setupGlobalMocks();
 
 // Dynamic import after mocks are set up

@@ -1,7 +1,7 @@
 /**
- * Test mocks for browser APIs not available in Deno
+ * Test mocks for browser APIs not available in jsdom
  * Minimal set: Web Audio and Media APIs only
- * DOM and fetch are handled by Deno's native implementations
+ * DOM is handled by jsdom, fetch by Deno natively
  */
 
 // deno-lint-ignore-file no-explicit-any require-await
