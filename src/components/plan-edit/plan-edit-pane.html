@@ -1,0 +1,117 @@
+<div class="pane-content">
+  <h2>Drill Plan Library</h2>
+
+  <!-- Plan Library Selector -->
+  <div class="plan-library-section">
+    <div class="control-group">
+      <label for="plan-library-select">Choose a Plan:</label>
+      <div style="display: flex; gap: 0.5em;">
+        <select id="plan-library-select" class="plan-library-select" data-plan-library-select>
+          <option value="">Select a plan...</option>
+        </select>
+        <button id="new-plan-btn" class="secondary-btn" data-new-plan-btn title="Create new plan">
+          ➕ New Plan
+        </button>
+      </div>
+    </div>
+
+    <!-- Plan Info Display -->
+    <div id="plan-info-display" class="plan-info-display" data-plan-info-display style="display: none">
+      <div class="plan-info-header">
+        <div>
+          <h3 id="plan-info-name" data-plan-info-name></h3>
+          <p id="plan-info-description" class="plan-description" data-plan-info-description></p>
+        </div>
+        <span id="plan-info-difficulty" class="difficulty-badge" data-plan-info-difficulty></span>
+      </div>
+      <div class="plan-stats">
+        <div class="stat">
+          <span class="stat-label">Segments:</span>
+          <span id="plan-stat-segments" class="stat-value" data-plan-stat-segments>-</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Total Measures:</span>
+          <span id="plan-stat-measures" class="stat-value" data-plan-stat-measures>-</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Duration:</span>
+          <span id="plan-stat-duration" class="stat-value" data-plan-stat-duration>-</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plan Editor -->
+  <div id="plan-editor-section" class="plan-editor-section" data-plan-editor-section style="display: none">
+    <h3>Plan Editor</h3>
+
+    <!-- Plan Metadata -->
+    <div class="plan-metadata-editor">
+      <div class="control-group">
+        <label for="plan-name-input">Plan Name:</label>
+        <input type="text" id="plan-name-input" data-plan-name-input placeholder="My Custom Plan" />
+      </div>
+      <div class="control-group">
+        <label for="plan-description-input">Description (optional):</label>
+        <textarea
+          id="plan-description-input"
+          data-plan-description-input
+          rows="2"
+          placeholder="Describe your plan..."
+        ></textarea>
+      </div>
+      <div class="control-group">
+        <label for="plan-difficulty-input">Difficulty:</label>
+        <select id="plan-difficulty-input" data-plan-difficulty-input>
+          <option value="">Not specified</option>
+          <option value="Beginner">Beginner</option>
+          <option value="Intermediate">Intermediate</option>
+          <option value="Advanced">Advanced</option>
+          <option value="Expert">Expert</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Segments Editor -->
+    <div class="segments-editor">
+      <div class="segments-header">
+        <h4>Segments</h4>
+        <button id="add-segment-btn" class="secondary-btn" data-add-segment-btn>➕ Add Segment</button>
+      </div>
+      <div id="segments-list" class="segments-list" data-segments-list>
+        <!-- Segments will be added here dynamically -->
+      </div>
+    </div>
+
+    <!-- Editor Actions -->
+    <div class="plan-editor-actions">
+      <button id="save-plan-btn" class="primary-btn" data-save-plan-btn>💾 Save Plan</button>
+      <button id="cancel-edit-btn" class="secondary-btn" data-cancel-edit-btn>Cancel</button>
+      <button id="delete-plan-btn" class="danger-btn" data-delete-plan-btn style="display: none">
+        🗑️ Delete Plan
+      </button>
+    </div>
+  </div>
+
+  <!-- Quick Action Buttons -->
+  <div class="pane-actions" data-plan-quick-actions>
+    <button id="clone-plan-btn" class="secondary-btn" data-clone-plan-btn style="display: none">
+      📋 Clone Plan
+    </button>
+    <button id="edit-plan-btn" class="secondary-btn" data-edit-plan-btn style="display: none">
+      ✏️ Edit Plan
+    </button>
+    <button
+      id="start-plan-play-btn"
+      class="primary-btn"
+      data-start-plan-play-btn
+      style="display: none"
+    >
+      ▶️ Start Training
+    </button>
+  </div>
+
+  <div id="plan-visualization-container" class="plan-visualization-container" data-plan-visualization-container>
+    <h3>Plan Visualization</h3>
+  </div>
+</div>

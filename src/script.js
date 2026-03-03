@@ -7,7 +7,7 @@ import PlanLibrary from "./plan-library.js";
 import DrillPlan from "./drill-plan.js";
 import Timeline from "./timeline.js";
 import PaneManager from "./pane-manager.js";
-import PlanEditorUI from "./plan-editor-ui.js";
+import PlanEditPane from "./components/plan-edit/plan-edit-pane.js";
 import HistoryDisplayUI from "./history-display-ui.js";
 import PracticeSessionManager from "./practice-session-manager.js";
 import DrillHistory from "./drill-history.js";
@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const timelineViewport = getElementByID("timeline-viewport");
   const timelineTrack = getElementByID("timeline-track");
   const onboardingPane = /** @type {OnboardingPane} */ (document.querySelector("onboarding-pane"));
+  const planEditPane = /** @type {PlanEditPane} */ (document.querySelector("plan-edit-pane"));
 
   // --- Audio Context ---
   /** @type {AudioContext|null} */
@@ -66,7 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Wait for onboarding component to be ready
   let micDetector;
   let calibration;
-  
+
   const onboardingReady = onboardingPane.componentReady.then(() => {
     // Get microphone detector from microphone-control sub-component
     if (onboardingPane.microphoneControl) {
@@ -104,14 +105,13 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   });
-  const planEditorUI = new PlanEditorUI(planLibrary, drillPlan, bpmInput, timeSignatureSelect);
 
   // --- Pane Manager (after DOM elements ready) ---
   const paneManager = new PaneManager();
 
   // --- History Display UI (after DOM elements ready) ---
   const drillHistoryListEl = drillHistoryList;
-  const historyDisplayUI = new HistoryDisplayUI(drillHistoryListEl, planEditorUI, paneManager);
+  const historyDisplayUI = new HistoryDisplayUI(drillHistoryListEl, planEditPane, paneManager);
 
   // --- Setup Feature Callbacks ---
 
@@ -405,7 +405,7 @@ document.addEventListener("DOMContentLoaded", () => {
       calibration.setBeatDuration(60.0 / bpm);
     }
 
-    // Plan is already parsed by planEditorUI when selected
+    // Plan is already parsed by planEditPane when selected
     scorer.reset();
     drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
 
@@ -489,7 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drillHistory.addEntry(completed, scorer.getOverallScore(), elapsedSeconds);
 
     // Save detailed session data with metrics and recommendations
-    const currentPlan = planEditorUI.getCurrentPlan();
+    const currentPlan = planEditPane.getCurrentPlan();
     const sessionPlan = currentPlan
       ? {
           id: currentPlan.id || "",
@@ -543,8 +543,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function init() {
     stopBtn.disabled = true;
 
-    // Initialize plan editor UI
-    planEditorUI.init();
+    // Initialize plan editor pane
+    if (planEditPane) {
+      planEditPane.init(planLibrary, drillPlan, bpmInput, timeSignatureSelect);
+    }
 
     // Determine which pane to show
     const hasCompletedOnboarding = StorageManager.get("tempoTrainer.hasCompletedOnboarding");
