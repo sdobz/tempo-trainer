@@ -4,7 +4,9 @@ import { assertEquals, assertNotEquals } from "../base/assert.ts";
 import { MicrophoneDetectorDelegate } from "./microphone-control.js";
 
 // Import the pure domain detector
-const { default: MicrophoneDetector } = await import("./microphone-detector.js");
+const { default: MicrophoneDetector } = await import(
+  "./microphone-detector.js"
+);
 
 /**
  * Test suite for MicrophoneDetector behavior (pure domain logic, no UI).

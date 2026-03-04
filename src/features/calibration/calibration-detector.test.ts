@@ -3,7 +3,9 @@ import "../base/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals } from "../base/assert.ts";
 
 // Import the pure domain detector
-const { default: CalibrationDetector } = await import("./calibration-detector.js");
+const { default: CalibrationDetector } = await import(
+  "./calibration-detector.js"
+);
 
 /**
  * Test suite for CalibrationDetector behavior (pure domain logic, no UI).
@@ -85,7 +87,10 @@ class MockDelegate {
 }
 
 function createDetector(delegate: any = null) {
-  return new CalibrationDetector(new MockStorageManager(), delegate ?? new MockDelegate());
+  return new CalibrationDetector(
+    new MockStorageManager(),
+    delegate ?? new MockDelegate(),
+  );
 }
 
 Deno.test("CalibrationDetector: should initialize with default settings", () => {
@@ -141,7 +146,11 @@ Deno.test("CalibrationDetector: getCalibratedBeatPosition should adjust for offs
   const runStartTime = 1.0;
   const beatDuration = 0.5;
 
-  const position = detector.getCalibratedBeatPosition(audioTime, runStartTime, beatDuration);
+  const position = detector.getCalibratedBeatPosition(
+    audioTime,
+    runStartTime,
+    beatDuration,
+  );
   assertEquals(typeof position, "number");
   assertEquals(position >= 0, true);
 });

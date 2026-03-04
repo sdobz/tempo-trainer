@@ -124,8 +124,8 @@ button {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: var(--spacing-lg) var(--spacing-base) calc(var(--nav-height) + var(--spacing-lg))
-    var(--spacing-base);
+  padding: var(--spacing-lg) var(--spacing-base)
+    calc(var(--nav-height) + var(--spacing-lg)) var(--spacing-base);
   overflow-y: auto;
 }
 
@@ -282,8 +282,8 @@ button {
 /* === Responsive === */
 @media (max-width: 768px) {
   .pane-container {
-    padding: var(--spacing-base) var(--spacing-sm) calc(var(--nav-height) + var(--spacing-sm))
-      var(--spacing-sm);
+    padding: var(--spacing-base) var(--spacing-sm)
+      calc(var(--nav-height) + var(--spacing-sm)) var(--spacing-sm);
   }
 
   .pane-content {

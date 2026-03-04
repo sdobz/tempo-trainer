@@ -12,6 +12,11 @@ async function createComponent() {
   return element;
 }
 
+async function waitVisualizers(component: HTMLElement) {
+  const vizs = Array.from(component.querySelectorAll("plan-visualizer"));
+  await Promise.all(vizs.map((v: any) => v.componentReady));
+}
+
 function createSession(overrides: Record<string, unknown> = {}) {
   return {
     id: "session-1",
@@ -77,6 +82,7 @@ Deno.test("PlanHistoryPane: renders sessions and expands first by default", asyn
   const sessions = [createSession(), createSession({ id: "session-2" })];
 
   component.displaySessions(sessions as any);
+  await waitVisualizers(component);
 
   const items = component.querySelectorAll(".history-session");
   assertEquals(items.length, 2);
@@ -89,6 +95,7 @@ Deno.test("PlanHistoryPane: expands provided session id", async () => {
   const sessions = [createSession(), createSession({ id: "session-2" })];
 
   component.displaySessions(sessions as any, "session-2");
+  await waitVisualizers(component);
 
   const second = component.querySelector('.history-session[data-session-id="session-2"]');
   assertTrue(Boolean(second));
@@ -101,6 +108,7 @@ Deno.test("PlanHistoryPane: toggles expanded session on header click", async () 
   const sessions = [createSession()];
 
   component.displaySessions(sessions as any);
+  await waitVisualizers(component);
 
   const header = component.querySelector(".history-session-header") as HTMLElement;
   header.click();
@@ -114,6 +122,7 @@ Deno.test("PlanHistoryPane: emits retry-plan event with session plan", async () 
   const component = await createComponent();
   const sessions = [createSession()];
   component.displaySessions(sessions as any);
+  await waitVisualizers(component);
 
   let fired = false;
   let detail: any = null;
@@ -133,6 +142,7 @@ Deno.test("PlanHistoryPane: emits navigate event for select different plan", asy
   const component = await createComponent();
   const sessions = [createSession()];
   component.displaySessions(sessions as any);
+  await waitVisualizers(component);
 
   let fired = false;
   let detail: any = null;
@@ -152,6 +162,7 @@ Deno.test("PlanHistoryPane: emits delete-session event with session id", async (
   const component = await createComponent();
   const sessions = [createSession()];
   component.displaySessions(sessions as any);
+  await waitVisualizers(component);
 
   let fired = false;
   let detail: any = null;
@@ -200,6 +211,7 @@ Deno.test("PlanHistoryPane: renders metrics and recommendations sections", async
   ];
 
   component.displaySessions(sessions as any);
+  await waitVisualizers(component);
 
   const detailsText =
     (component.querySelector(".session-details") as HTMLElement).textContent || "";

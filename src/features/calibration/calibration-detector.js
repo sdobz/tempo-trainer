@@ -40,7 +40,10 @@ class CalibrationDetector {
     this.madRelaxedThresholdMs = 36;
     this.driftRelaxedThresholdMs = 18;
     this.storageKey = "tempoTrainer.calibrationOffsetMs";
-    this.legacyStorageKeys = ["tempoTrainer.calibrationOffset", "tempoTrainer.offsetMs"];
+    this.legacyStorageKeys = [
+      "tempoTrainer.calibrationOffset",
+      "tempoTrainer.offsetMs",
+    ];
 
     // State
     this.isCalibrating = false;
@@ -143,7 +146,7 @@ class CalibrationDetector {
       if (!this.audioContext) {
         if (this.delegate?.onStatusChanged) {
           this.delegate.onStatusChanged(
-            "Calibration failed to start: audio context not available. Try starting a drill first."
+            "Calibration failed to start: audio context not available. Try starting a drill first.",
           );
         }
         return false;
@@ -167,17 +170,20 @@ class CalibrationDetector {
 
       if (this.delegate?.onStatusChanged) {
         this.delegate.onStatusChanged(
-          "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable."
+          "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable.",
         );
       }
 
-      this.schedulerIntervalID = setInterval(() => this._scheduler(), this.lookahead);
+      this.schedulerIntervalID = setInterval(
+        () => this._scheduler(),
+        this.lookahead,
+      );
 
       return true;
     } catch {
       if (this.delegate?.onStatusChanged) {
         this.delegate.onStatusChanged(
-          "Calibration failed to start: microphone or audio unavailable."
+          "Calibration failed to start: microphone or audio unavailable.",
         );
       }
       return false;
@@ -279,21 +285,23 @@ class CalibrationDetector {
   }
 
   _scheduler() {
-    while (this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime) {
+    while (
+      this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime
+    ) {
       this._scheduleClick(this.nextNoteTime);
       this.nextNoteTime += this.beatDuration;
     }
 
     const staleBefore = this.audioContext.currentTime - 1.5;
     this.expectedBeats = this.expectedBeats.filter(
-      (entry) => entry.time >= staleBefore || !entry.matched
+      (entry) => entry.time >= staleBefore || !entry.matched,
     );
 
     if (Date.now() - this.startedAt > this.maxDurationMs) {
       this.stop(
         this.goodHits >= this.minHits
           ? "Calibration ended on time limit with best estimate."
-          : "Calibration timed out before enough consistent hits."
+          : "Calibration timed out before enough consistent hits.",
       );
     }
   }
@@ -324,7 +332,8 @@ class CalibrationDetector {
     let message = "";
 
     if (this.goodHits < this.minHits) {
-      message = `Calibration: hits ${this.goodHits}/${this.minHits} | learning timing pattern...`;
+      message =
+        `Calibration: hits ${this.goodHits}/${this.minHits} | learning timing pattern...`;
       if (this.delegate?.onStatusChanged) {
         this.delegate.onStatusChanged(message);
       }
@@ -338,13 +347,19 @@ class CalibrationDetector {
 
     const recentMedian = this._median(recentOffsets);
     const recentMad = this._computeMad(recentOffsets, recentMedian);
-    const previousOffsets = this.offsetsMs.slice(-this.windowSize * 2, -this.windowSize);
-    const previousMean = previousOffsets.length > 0 ? this._mean(previousOffsets) : recentMedian;
+    const previousOffsets = this.offsetsMs.slice(
+      -this.windowSize * 2,
+      -this.windowSize,
+    );
+    const previousMean = previousOffsets.length > 0
+      ? this._mean(previousOffsets)
+      : recentMedian;
     const driftMs = Math.abs(recentMedian - previousMean);
 
-    const strictStable = recentMad <= this.madThresholdMs && driftMs <= this.driftThresholdMs;
-    const relaxedStable =
-      recentMad <= this.madRelaxedThresholdMs && driftMs <= this.driftRelaxedThresholdMs;
+    const strictStable = recentMad <= this.madThresholdMs &&
+      driftMs <= this.driftThresholdMs;
+    const relaxedStable = recentMad <= this.madRelaxedThresholdMs &&
+      driftMs <= this.driftRelaxedThresholdMs;
 
     if (strictStable) {
       this.stableWindows++;
@@ -363,15 +378,19 @@ class CalibrationDetector {
 
     const stabilityPercent = Math.round(this.confidence);
 
-    message = `Calibration: hits ${this.goodHits}/${this.minHits}+ | median ${Math.round(recentMedian)} ms | spread ${Math.round(recentMad)} ms | confidence ${stabilityPercent}%`;
+    message = `Calibration: hits ${this.goodHits}/${this.minHits}+ | median ${
+      Math.round(recentMedian)
+    } ms | spread ${
+      Math.round(recentMad)
+    } ms | confidence ${stabilityPercent}%`;
     if (this.delegate?.onStatusChanged) {
       this.delegate.onStatusChanged(message);
     }
 
-    const strictDone =
-      this.stableWindows >= this.requiredStableWindows && this.confidence >= this.confidenceTarget;
-    const relaxedDone =
-      this.goodHits >= this.minHitsRelaxed && this.confidence >= this.confidenceRelaxedTarget;
+    const strictDone = this.stableWindows >= this.requiredStableWindows &&
+      this.confidence >= this.confidenceTarget;
+    const relaxedDone = this.goodHits >= this.minHitsRelaxed &&
+      this.confidence >= this.confidenceRelaxedTarget;
 
     if (strictDone || relaxedDone) {
       this.stop("Calibration complete: stable offset acquired.");
@@ -399,7 +418,10 @@ class CalibrationDetector {
   _mean(values) {
     if (values.length === 0) return 0;
     return (
-      values.reduce((/** @type {number} */ sum, /** @type {number} */ value) => sum + value, 0) /
+      values.reduce(
+        (/** @type {number} */ sum, /** @type {number} */ value) => sum + value,
+        0,
+      ) /
       values.length
     );
   }

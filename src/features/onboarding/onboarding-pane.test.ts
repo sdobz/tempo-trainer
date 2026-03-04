@@ -9,7 +9,9 @@ const { default: OnboardingPane } = await import("./onboarding-pane.js");
  * Helper to create a fresh component instance and wait for it to be ready
  */
 async function createComponent() {
-  const element = document.createElement("onboarding-pane") as InstanceType<typeof OnboardingPane>;
+  const element = document.createElement("onboarding-pane") as InstanceType<
+    typeof OnboardingPane
+  >;
 
   await element.componentReady;
 

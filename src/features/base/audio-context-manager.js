@@ -25,10 +25,12 @@ class AudioContextManager {
 
     // Create new AudioContext with vendor prefix support
     try {
-      const webkitWindow = /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (
-        globalThis
-      );
-      const AudioContextClass = globalThis.AudioContext || webkitWindow.webkitAudioContext;
+      const webkitWindow =
+        /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (
+          globalThis
+        );
+      const AudioContextClass = globalThis.AudioContext ||
+        webkitWindow.webkitAudioContext;
 
       if (!AudioContextClass) {
         throw new Error("Web Audio API not available");

@@ -6,7 +6,11 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
+import {
+  bindEvent,
+  dispatchEvent,
+  querySelector,
+} from "../base/component-utils.js";
 import CalibrationDetector from "./calibration-detector.js";
 import StorageManager from "../base/storage-manager.js";
 
@@ -56,13 +60,18 @@ export default class CalibrationControl extends BaseComponent {
 
   async onMount() {
     // Query element references
-    this.statusIndicator = querySelector(this, "[data-calibration-status-indicator]");
+    this.statusIndicator = querySelector(
+      this,
+      "[data-calibration-status-indicator]",
+    );
     this.button = querySelector(this, "[data-calibration-btn]");
     this.statusEl = querySelector(this, "[data-calibration-status]");
     this.resultEl = querySelector(this, "[data-calibration-result]");
 
     // Setup button click handler
-    this._cleanups.push(bindEvent(this.button, "click", () => this.calibration?.toggle()));
+    this._cleanups.push(
+      bindEvent(this.button, "click", () => this.calibration?.toggle()),
+    );
 
     // Create domain instance with injected dependencies
     // - StorageManager: stateless utility, safe to reference directly
@@ -111,7 +120,8 @@ export default class CalibrationControl extends BaseComponent {
       return detector.hasCalibrationData();
     }
     return Boolean(
-      detector && typeof detector.getOffsetMs === "function" && detector.getOffsetMs() !== 0
+      detector && typeof detector.getOffsetMs === "function" &&
+        detector.getOffsetMs() !== 0,
     );
   }
 
@@ -152,7 +162,9 @@ export default class CalibrationControl extends BaseComponent {
    */
   onCalibrationStateChanged(isStarted) {
     if (this.button) {
-      this.button.textContent = isStarted ? "Stop Calibration" : "Start Calibration";
+      this.button.textContent = isStarted
+        ? "Stop Calibration"
+        : "Start Calibration";
     }
   }
 

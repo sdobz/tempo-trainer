@@ -61,21 +61,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const planEditReady = planEditPane.componentReady.then(() => {
     // Get the plan visualizer component
-    const drillPlanVizComponent = planEditPane.querySelector("plan-visualizer-simple");
+    const drillPlanVizComponent = planEditPane.querySelector("plan-visualizer");
     if (!drillPlanVizComponent) {
-      throw new Error("plan-visualizer-simple component not found");
+      throw new Error("plan-visualizer component not found");
     }
 
     // Use the component directly
     drillPlan = drillPlanVizComponent;
 
     // Setup feature callbacks for drill plan
-    drillPlan.onPlanChange((/** @type {any[]} */ plan) => {
-      scorer.setDrillPlan(plan);
-      timeline.setDrillPlan(plan);
+    drillPlan.onPlanChange((planData) => {
+      let measures = [];
+      if (Array.isArray(planData)) {
+        measures = planData;
+      } else if (planData && planData.plan) {
+        measures = planData.plan;
+      }
+
+      scorer.setDrillPlan(measures);
+      timeline.setDrillPlan(measures);
+
+      // Update plan-play pane visualizer when plan changes in edit pane
+      if (planPlayPane && planPlayPane.planVisualizer) {
+        planPlayPane.planVisualizer.setDrillPlan(planData);
+      }
     });
 
-    // Note: plan-edit visualizer has no navigation
+    // Note: plan-edit visualizer has no navigation setup to prevent click effects
   });
 
   const planPlayReady = planPlayPane.componentReady.then(() => {
@@ -199,6 +211,22 @@ document.addEventListener("DOMContentLoaded", () => {
     // Only start mic after app is fully initialized
     if (!hasInitialized) return;
 
+    // Ensure play pane timeline and visualizer are populated when switching to play tab
+    if (pane === "plan-play") {
+      const currentPlanData = typeof drillPlan.getPlan === "function" ? drillPlan.getPlan() : null;
+      if (currentPlanData) {
+        const currentMeasures = Array.isArray(currentPlanData)
+          ? currentPlanData
+          : currentPlanData.plan || [];
+        scorer.setDrillPlan(currentMeasures);
+        timeline.setDrillPlan(currentMeasures);
+        if (planPlayPane && planPlayPane.planVisualizer) {
+          planPlayPane.planVisualizer.setDrillPlan(currentPlanData);
+        }
+      }
+      timeline.centerAt(0);
+    }
+
     // Handle pane-specific setup
     if (pane === "onboarding") {
       // Wait for onboarding component to be ready before accessing detectors
@@ -228,7 +256,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (params.target === "calibration") {
         const calibrationStep = onboardingPane.querySelector("#step-calibration");
         if (calibrationStep && typeof calibrationStep.scrollIntoView === "function") {
-          calibrationStep.scrollIntoView({ behavior: "smooth", block: "center" });
+          calibrationStep.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
         }
 
         const calibrationButton = onboardingPane.querySelector("[data-calibration-btn]");
@@ -353,8 +384,12 @@ document.addEventListener("DOMContentLoaded", () => {
       planPlayPane.updateBeatIndicator(beatNum, beatNum === 1, shouldShow);
     });
 
-    drillSessionManager.onScoreUpdate((overallScore) => {
-      planPlayPane.updateScore(overallScore);
+    drillSessionManager.onHighlightUpdate((currentMeasureIndex) => {
+      planPlayPane.planVisualizer.setHighlight(currentMeasureIndex);
+    });
+
+    drillSessionManager.onScoreUpdate((overallScore, measureScores) => {
+      planPlayPane.updateScore(overallScore, measureScores);
     });
 
     drillSessionManager.onStatusUpdate((status) => {
@@ -392,7 +427,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (sessionData.completed) {
         planPlayPane.reset();
         scorer.reset();
-        drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
+        // Don't show scores on edit pane visualizer - only on play pane during play
+        drillPlan.setScores([]);
         drillPlan.setHighlight(-1);
         timeline.centerAt(0);
       }
@@ -424,9 +460,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Initialize display
+    const currentPlanData = typeof drillPlan.getPlan === "function" ? drillPlan.getPlan() : null;
+    if (currentPlanData) {
+      const currentMeasures = Array.isArray(currentPlanData)
+        ? currentPlanData
+        : currentPlanData.plan || [];
+      scorer.setDrillPlan(currentMeasures);
+      timeline.setDrillPlan(currentMeasures);
+      if (planPlayPane.planVisualizer) {
+        planPlayPane.planVisualizer.setDrillPlan(currentPlanData);
+      }
+    }
+
     timeline.centerAt(0);
-    drillPlan.updateAllScores(scorer.getAllScores().map((score) => score ?? 0));
-    planPlayPane.updateScore(scorer.getOverallScore());
+    // Don't show scores on edit pane visualizer - only initialize play pane with zeros
+    drillPlan.setScores([]);
+    planPlayPane.updateScore(
+      scorer.getOverallScore(),
+      scorer.getAllScores().map((score) => score ?? 0)
+    );
     planPlayPane.setCalibrationWarningVisible(!hasCalibration);
 
     // Display existing sessions from history

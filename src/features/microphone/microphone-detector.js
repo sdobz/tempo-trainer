@@ -66,7 +66,8 @@ class MicrophoneDetector {
     this.threshold = this.storageManager.getInt(this.storageKeys.threshold, 52);
     this.threshold = Math.max(0, Math.min(128, this.threshold));
 
-    this.selectedDeviceId = this.storageManager.get(this.storageKeys.device, "") || "";
+    this.selectedDeviceId =
+      this.storageManager.get(this.storageKeys.device, "") || "";
   }
 
   /**
@@ -118,7 +119,10 @@ class MicrophoneDetector {
           const settings = activeTrack.getSettings();
           if (settings.deviceId) {
             this.selectedDeviceId = settings.deviceId;
-            this.storageManager.set(this.storageKeys.device, this.selectedDeviceId);
+            this.storageManager.set(
+              this.storageKeys.device,
+              this.selectedDeviceId,
+            );
           }
         }
       }
@@ -239,7 +243,7 @@ class MicrophoneDetector {
     } else if (now > this.peakHoldUntil) {
       this.peakHoldValue = Math.max(
         maxVal,
-        this.peakHoldValue - this.peakFallPerSecond * deltaSeconds
+        this.peakHoldValue - this.peakFallPerSecond * deltaSeconds,
       );
     }
 

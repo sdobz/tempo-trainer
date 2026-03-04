@@ -80,9 +80,12 @@ export default class TimelineVisualization extends BaseComponent {
 
     // Defer build if viewport doesn't have dimensions (is hidden)
     if (viewportWidth === 0) {
+      if (this._deferBuildCount > 5) return; // Prevent infinite loop in testing
+      this._deferBuildCount = (this._deferBuildCount || 0) + 1;
       requestAnimationFrame(() => this.build());
       return;
     }
+    this._deferBuildCount = 0;
 
     const totalBeats = this.drillPlan.length * this.beatsPerMeasure + this.tailBeats;
     const contentWidth = totalBeats * this.pxPerBeat;
@@ -185,10 +188,13 @@ export default class TimelineVisualization extends BaseComponent {
 
     // Ensure viewport has dimensions before attempting to scroll
     if (viewportWidth === 0 || trackWidth === 0) {
+      if (this._deferCenterCount > 5) return; // Prevent infinite loop in testing
+      this._deferCenterCount = (this._deferCenterCount || 0) + 1;
       // Defer until viewport is visible
       requestAnimationFrame(() => this.centerAt(beatPosition));
       return;
     }
+    this._deferCenterCount = 0;
 
     const targetX = this._beatToX(beatPosition);
 

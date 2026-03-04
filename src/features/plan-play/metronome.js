@@ -72,7 +72,10 @@ class Metronome {
     this.nextNoteTime = this.audioContext.currentTime + 0.1;
     this.currentBeatInMeasure = 0;
 
-    this.schedulerIntervalID = setInterval(() => this._scheduler(), this.lookahead);
+    this.schedulerIntervalID = setInterval(
+      () => this._scheduler(),
+      this.lookahead,
+    );
 
     return true;
   }
@@ -137,7 +140,9 @@ class Metronome {
   _scheduler() {
     if (!this.audioContext) return;
 
-    while (this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime) {
+    while (
+      this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime
+    ) {
       this._scheduleNote(this.nextNoteTime);
       this._updateBeat();
     }
@@ -156,7 +161,7 @@ class Metronome {
       const shouldPlay = this.onBeatCallback(
         this.currentBeatInMeasure,
         time,
-        this.nextNoteTime - this.audioContext.currentTime
+        this.nextNoteTime - this.audioContext.currentTime,
       );
 
       if (shouldPlay === false) {

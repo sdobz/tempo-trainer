@@ -1,5 +1,5 @@
 import BaseComponent from "./base-component.js";
-import { querySelector, bindEvent, dispatchEvent } from "./component-utils.js";
+import { bindEvent, dispatchEvent, querySelector } from "./component-utils.js";
 
 export default class AppNotification extends BaseComponent {
   constructor() {
@@ -8,7 +8,12 @@ export default class AppNotification extends BaseComponent {
     this._cleanups = [];
     this._actionDetail = null;
     this._isVisible = false;
-    this._pendingConfig = { type: "info", message: "", actionLabel: "", actionDetail: null };
+    this._pendingConfig = {
+      type: "info",
+      message: "",
+      actionLabel: "",
+      actionDetail: null,
+    };
 
     this.root = null;
     this.messageEl = null;
@@ -28,7 +33,9 @@ export default class AppNotification extends BaseComponent {
     this.messageEl = querySelector(this, "[data-notification-message]");
     this.actionBtn = querySelector(this, "[data-notification-action-btn]");
 
-    this._cleanups.push(bindEvent(this.actionBtn, "click", () => this._onAction()));
+    this._cleanups.push(
+      bindEvent(this.actionBtn, "click", () => this._onAction()),
+    );
 
     if (this._isVisible) {
       this._applyShow(this._pendingConfig);
@@ -42,7 +49,9 @@ export default class AppNotification extends BaseComponent {
     this._cleanups = [];
   }
 
-  show({ type = "info", message = "", actionLabel = "", actionDetail = null } = {}) {
+  show(
+    { type = "info", message = "", actionLabel = "", actionDetail = null } = {},
+  ) {
     this._isVisible = true;
     this._pendingConfig = { type, message, actionLabel, actionDetail };
     if (!this.root) return;
@@ -51,7 +60,12 @@ export default class AppNotification extends BaseComponent {
 
   hide() {
     this._isVisible = false;
-    this._pendingConfig = { type: "info", message: "", actionLabel: "", actionDetail: null };
+    this._pendingConfig = {
+      type: "info",
+      message: "",
+      actionLabel: "",
+      actionDetail: null,
+    };
     if (!this.root) return;
     this._applyHide();
   }

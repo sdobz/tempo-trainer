@@ -6,7 +6,7 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { querySelector, bindEvent } from "../base/component-utils.js";
+import { bindEvent, querySelector } from "../base/component-utils.js";
 import MicrophoneDetector from "./microphone-detector.js";
 import StorageManager from "../base/storage-manager.js";
 
@@ -63,13 +63,22 @@ export default class MicrophoneControl extends BaseComponent {
 
   async onMount() {
     // Query element references
-    this.statusIndicator = querySelector(this, "[data-microphone-status-indicator]");
+    this.statusIndicator = querySelector(
+      this,
+      "[data-microphone-status-indicator]",
+    );
     this.select = querySelector(this, "[data-microphone-select]");
     this.level = querySelector(this, "[data-microphone-level]");
     this.levelBar = querySelector(this, "[data-microphone-level-bar]");
     this.peakHold = querySelector(this, "[data-microphone-peak-hold]");
-    this.thresholdLine = querySelector(this, "[data-microphone-threshold-line]");
-    this.thresholdLabel = querySelector(this, "[data-microphone-threshold-label]");
+    this.thresholdLine = querySelector(
+      this,
+      "[data-microphone-threshold-line]",
+    );
+    this.thresholdLabel = querySelector(
+      this,
+      "[data-microphone-threshold-label]",
+    );
     this.hitsList = querySelector(this, "[data-microphone-hits-list]");
 
     // Create domain instance with injected dependencies
@@ -217,10 +226,18 @@ export default class MicrophoneControl extends BaseComponent {
   _setupUIEventListeners() {
     // Threshold adjustment via pointer
     this._cleanups.push(
-      bindEvent(this.level, "pointerdown", (e) => this._onThresholdPointerDown(e)),
-      bindEvent(this.level, "pointermove", (e) => this._onThresholdPointerMove(e)),
+      bindEvent(
+        this.level,
+        "pointerdown",
+        (e) => this._onThresholdPointerDown(e),
+      ),
+      bindEvent(
+        this.level,
+        "pointermove",
+        (e) => this._onThresholdPointerMove(e),
+      ),
       bindEvent(window, "pointerup", () => this._onThresholdPointerUp()),
-      bindEvent(this.select, "change", () => this._onDeviceSelected())
+      bindEvent(this.select, "change", () => this._onDeviceSelected()),
     );
   }
 

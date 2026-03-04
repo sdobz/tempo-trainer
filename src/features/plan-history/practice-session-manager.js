@@ -75,7 +75,6 @@ import StorageManager from "../base/storage-manager.js";
  *   completed: boolean,
  *   durationSeconds: number,
  *   measureHits: number[][],
- *   measureScores: number[],
  *   drillPlan: DrillMeasure[],
  *   overallScore: number
  * }} SessionData
@@ -91,7 +90,6 @@ import StorageManager from "../base/storage-manager.js";
  *   completed: boolean,
  *   durationSeconds: number,
  *   measureHits: number[][],
- *   measureScores: number[],
  *   drillPlan: DrillMeasure[],
  *   overallScore: number,
  *   metrics: SessionMetrics
@@ -135,10 +133,9 @@ class PracticeSessionManager {
    * @param {boolean} sessionData.completed - Whether session was fully completed
    * @param {number} sessionData.durationSeconds - Total session duration in seconds
    * @param {number[][]} sessionData.measureHits - Hit beat times per measure
-   * @param {number[]} sessionData.measureScores - Score for each measure
    * @param {DrillMeasure[]} sessionData.drillPlan - The parsed drill plan structure
    * @param {number} sessionData.overallScore - Overall session score
-   * @returns {SessionRecord|null} The saved session with derived metrics, or null if save failed
+   * @returns {SessionRecord|null} The saved session with derived metrics (scores computed on-demand from measureHits), or null if save failed
    */
   saveSession(sessionData) {
     const session = {
@@ -152,7 +149,6 @@ class PracticeSessionManager {
 
       // Raw hit data
       measureHits: sessionData.measureHits, // Array of hit times per measure
-      measureScores: sessionData.measureScores, // Score for each measure
       drillPlan: sessionData.drillPlan, // The actual plan structure
       overallScore: sessionData.overallScore,
 
@@ -262,7 +258,9 @@ class PracticeSessionManager {
 
     if (absError < 0.05) return "Excellent tempo control";
     if (absError < 0.15) return `Consistently slightly ${direction}`;
-    if (absError < 0.3) return `Noticeably ${direction} - focus on steadying tempo`;
+    if (absError < 0.3) {
+      return `Noticeably ${direction} - focus on steadying tempo`;
+    }
     return `Significantly ${direction} - major tempo control issue`;
   }
 
@@ -372,28 +370,117 @@ class PracticeSessionManager {
   getRhythmDescription(coeffVar) {
     if (coeffVar < 0.1) return "Excellent rhythm consistency";
     if (coeffVar < 0.2) return "Good rhythm, minor timing variations";
-    if (coeffVar < 0.35) return "Moderate timing variance - work on consistency";
+    if (coeffVar < 0.35) {
+      return "Moderate timing variance - work on consistency";
+    }
     return "Poor rhythm consistency - focus on even spacing";
+  }
+
+  /**
+   * Computes measure scores from hit data.
+   * Used when scores need to be derived from raw hit data.
+   * @param {SessionData} sessionData - Session data with measureHits, drillPlan, and bpm
+   * @returns {number[]} Array of computed measure scores
+   * @private
+   */
+  _computeScoresFromHits(sessionData) {
+    const { measureHits, drillPlan, bpm } = sessionData;
+
+    if (!measureHits || !drillPlan) return [];
+
+    // Get measures array
+    let measures = [];
+    if (Array.isArray(drillPlan)) {
+      measures = drillPlan;
+    } else if (drillPlan.plan && Array.isArray(drillPlan.plan)) {
+      measures = drillPlan.plan;
+    }
+
+    if (measures.length === 0) return [];
+
+    // Scoring parameters (same as Scorer)
+    const bestFeasibleErrorMs = 18;
+    const maxScorableErrorMs = 220;
+    const beatDurationMs = 60000 / (bpm || 120); // Convert beat duration to ms
+    const beatsPerMeasure = 4;
+
+    const scores = [];
+
+    for (let measureIndex = 0; measureIndex < measures.length; measureIndex++) {
+      const measure = measures[measureIndex];
+      if (measure.type === "click-in") {
+        scores.push(null);
+        continue;
+      }
+
+      const hits = measureHits[measureIndex] || [];
+      if (hits.length === 0) {
+        scores.push(0);
+        continue;
+      }
+
+      let scoreSum = 0;
+      const measureStartBeat = measureIndex * beatsPerMeasure;
+
+      for (let beatOffset = 0; beatOffset < beatsPerMeasure; beatOffset++) {
+        const expectedBeat = measureStartBeat + beatOffset;
+        const expectedBeatMs = expectedBeat * beatDurationMs;
+
+        let closestHitMs = null;
+        let minDistance = Infinity;
+
+        for (const hitBeat of hits) {
+          const hitMs = hitBeat * beatDurationMs;
+          const distance = Math.abs(hitMs - expectedBeatMs);
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestHitMs = hitMs;
+          }
+        }
+
+        if (closestHitMs !== null) {
+          const errorMs = Math.abs(closestHitMs - expectedBeatMs);
+          if (errorMs <= bestFeasibleErrorMs) {
+            scoreSum += 100;
+          } else if (errorMs <= maxScorableErrorMs) {
+            scoreSum += Math.round(100 * (1 - errorMs / maxScorableErrorMs));
+          }
+        }
+      }
+
+      const measureScore = Math.max(0, Math.min(99, Math.round(scoreSum / beatsPerMeasure)));
+      scores.push(measureScore);
+    }
+
+    return scores;
   }
 
   /**
    * Finds weak spots - measures with the lowest scores in the session.
    * Identifies technical problem areas for focused practice.
-   * @param {SessionData} sessionData - Session data with measureScores and drillPlan
+   * @param {SessionData} sessionData - Session data with measureHits and drillPlan
    * @returns {WeakSpotsMetrics} Weak spots with weakestMeasures array and average score
    */
   findWeakSpots(sessionData) {
     /** @type {number[]} */
-    const measureScores = sessionData.measureScores;
+    const measureScores = this._computeScoresFromHits(sessionData);
     /** @type {DrillMeasure[]} */
     const drillPlan = sessionData.drillPlan;
+
+    // Get measures array
+    let measures = [];
+    if (Array.isArray(drillPlan)) {
+      measures = drillPlan;
+    } else if (drillPlan.plan && Array.isArray(drillPlan.plan)) {
+      measures = drillPlan.plan;
+    }
 
     /** @type {ScoredMeasure[]} */
     const scoredMeasures = measureScores
       .map((score, index) => ({
         index,
         score,
-        type: drillPlan[index]?.type || "",
+        type: measures[index]?.type || "",
       }))
       .filter((m) => m.type !== "click-in" && m.score >= 0)
       .sort((a, b) => a.score - b.score);
@@ -412,19 +499,27 @@ class PracticeSessionManager {
   /**
    * Calculates consistency - how variable are the measure scores.
    * High standard deviation indicates inconsistent performance across measures.
-   * @param {SessionData} sessionData - Session data with measureScores and drillPlan
+   * @param {SessionData} sessionData - Session data with measureHits and drillPlan
    * @returns {ConsistencyMetrics} Consistency metrics with stdDeviation, range, and consistency level
    */
   calculateConsistency(sessionData) {
     /** @type {number[]} */
-    const measureScores = sessionData.measureScores;
+    const measureScores = this._computeScoresFromHits(sessionData);
     /** @type {DrillMeasure[]} */
     const drillPlan = sessionData.drillPlan;
+
+    // Get measures array
+    let measures = [];
+    if (Array.isArray(drillPlan)) {
+      measures = drillPlan;
+    } else if (drillPlan.plan && Array.isArray(drillPlan.plan)) {
+      measures = drillPlan.plan;
+    }
 
     /** @type {number[]} */
     const scores = [];
     measureScores.forEach((score, index) => {
-      if (drillPlan[index]?.type !== "click-in") {
+      if (measures[index]?.type !== "click-in" && typeof score === "number") {
         scores.push(score);
       }
     });

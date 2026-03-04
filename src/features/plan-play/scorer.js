@@ -44,11 +44,15 @@ class Scorer {
   }
 
   reset() {
-    this.measureScores = Array.from({ length: this.drillPlan.length }, (_unused, index) =>
-      this.drillPlan[index]?.type === "click-in" ? null : 0
+    this.measureScores = Array.from(
+      { length: this.drillPlan.length },
+      (_unused, index) => this.drillPlan[index]?.type === "click-in" ? null : 0,
     );
     this.measureHits = Array.from({ length: this.drillPlan.length }, () => []);
-    this.finalizedMeasures = Array.from({ length: this.drillPlan.length }, () => false);
+    this.finalizedMeasures = Array.from(
+      { length: this.drillPlan.length },
+      () => false,
+    );
   }
 
   /** @param {number} beatPosition */
@@ -74,7 +78,9 @@ class Scorer {
       return;
     }
 
-    const hits = [...(this.measureHits[measureIndex] || [])].sort((a, b) => a - b);
+    const hits = [...(this.measureHits[measureIndex] || [])].sort((a, b) =>
+      a - b
+    );
 
     if (hits.length === 0) {
       this.measureScores[measureIndex] = 0;
@@ -116,7 +122,7 @@ class Scorer {
 
     this.measureScores[measureIndex] = Math.max(
       0,
-      Math.min(99, Math.round(scoreSum / this.beatsPerMeasure))
+      Math.min(99, Math.round(scoreSum / this.beatsPerMeasure)),
     );
     this.finalizedMeasures[measureIndex] = true;
   }
@@ -166,7 +172,11 @@ class Scorer {
       if (this.drillPlan[measureIndex]?.type === "click-in") return;
 
       const measureStartBeat = measureIndex * this.beatsPerMeasure;
-      for (let beatOffset = 0; beatOffset < this.beatsPerMeasure; beatOffset++) {
+      for (
+        let beatOffset = 0;
+        beatOffset < this.beatsPerMeasure;
+        beatOffset++
+      ) {
         const expectedBeat = measureStartBeat + beatOffset;
         const distance = Math.abs(beatPosition - expectedBeat);
         if (distance < bestBeatDistance) {

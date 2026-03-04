@@ -5,8 +5,9 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
-import "../visualizers/plan-visualizer-history.js";
+import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
+import "../visualizers/plan-visualizer.js";
+import "../visualizers/timeline-visualization.js";
 
 /**
  * @typedef {Object} PlanHistoryState
@@ -22,7 +23,7 @@ import "../visualizers/plan-visualizer-history.js";
  * @typedef {{ stdDeviation?: number, consistency: string, range?: number }} ConsistencyMetrics
  * @typedef {{ completed: boolean, percentage: number }} CompletionMetrics
  * @typedef {{ drift: DriftMetrics, missed: MissedMetrics, rhythm: RhythmMetrics, consistency: ConsistencyMetrics, completion: CompletionMetrics }} SessionMetrics
- * @typedef {{ id: string, bpm: number, overallScore: number, completed: boolean, timestamp: string, durationSeconds: number, plan: SessionPlan, metrics: SessionMetrics, measureScores?: number[] }} Session
+ * @typedef {{ id: string, bpm: number, overallScore: number, completed: boolean, timestamp: string, durationSeconds: number, plan: SessionPlan, metrics: SessionMetrics, measureScores?: number[], measureHits?: number[][], timeSignature?: string, drillPlan?: any }} Session
  * @typedef {{ category: string, priority: string, suggestion: string, action: string }} Recommendation
  */
 
@@ -107,8 +108,11 @@ export default class PlanHistoryPane extends BaseComponent {
     // Setup event listeners
     this._setupEventListeners();
 
-    // Populate plan visualizers for each session
-    this._populatePlanVisualizers();
+    // Populate plan visualizer only for the initially expanded session
+    const activeSessionId = expandSessionId || (sessions.length > 0 ? sessions[0].id : null);
+    if (activeSessionId) {
+      this._populatePlanVisualizer(activeSessionId);
+    }
   }
 
   // --- Private Methods ---
@@ -204,7 +208,10 @@ export default class PlanHistoryPane extends BaseComponent {
       <div class="history-session-header" data-session-id="${session.id}">
         <div class="session-header-left">
           <div class="session-chevron">▼</div>
-          <div class="session-score" title="Overall score">${String(overallScore).padStart(2, "0")}</div>
+          <div class="session-score" title="Overall score">${String(overallScore).padStart(
+            2,
+            "0"
+          )}</div>
           <div class="session-plan">${plan.name}</div>
         </div>
         <div class="session-header-right">
@@ -231,6 +238,13 @@ export default class PlanHistoryPane extends BaseComponent {
     const minutes = Math.floor(duration / 60);
     const seconds = duration % 60;
     const recommendations = this._generateRecommendations(session, metrics);
+
+    // Compute scores from hits for display
+    const measureScores = this._computeScoresFromHits(
+      session.measureHits,
+      session.drillPlan,
+      session.bpm
+    );
 
     return `
       <div class="session-details">
@@ -269,13 +283,13 @@ export default class PlanHistoryPane extends BaseComponent {
         </div>
 
         ${
-          session.measureScores && session.measureScores.length > 0
+          measureScores && measureScores.length > 0
             ? `
           <div class="details-row">
             <div class="detail-section">
               <div class="detail-title">📊 Performance Trends</div>
               <div class="detail-content">
-                ${this._renderPerformanceTrends(session.measureScores)}
+                ${this._renderPerformanceTrends(measureScores)}
               </div>
             </div>
           </div>
@@ -322,7 +336,10 @@ export default class PlanHistoryPane extends BaseComponent {
           <div class="detail-section">
             <div class="detail-title">Plan Structure</div>
             <div class="detail-content">
-              <plan-visualizer-history data-session-id="${session.id}" data-plan-visualization-container></plan-visualizer-history>
+              <div class="history-timeline-wrapper" data-timeline-wrapper="${session.id}" style="display: none; margin-bottom: 1em;">
+                <timeline-visualization data-session-timeline="${session.id}"></timeline-visualization>
+              </div>
+              <plan-visualizer data-session-id="${session.id}" data-plan-visualization-container></plan-visualizer>
             </div>
           </div>
         </div>
@@ -357,7 +374,9 @@ export default class PlanHistoryPane extends BaseComponent {
       recommendations.push({
         category: "Tempo",
         priority: "high",
-        suggestion: `Tempo control needed: You're consistently ${metrics.drift.direction} by ~${Math.abs(metrics.drift.avgErrorBeats * 500)}ms. Focus on steady internal clock.`,
+        suggestion: `Tempo control needed: You're consistently ${metrics.drift.direction} by ~${Math.abs(
+          metrics.drift.avgErrorBeats * 500
+        )}ms. Focus on steady internal clock.`,
         action: "Slow down and count in your head. Try the calibration exercise again.",
       });
     } else if (metrics.drift.severity === "medium") {
@@ -451,7 +470,11 @@ export default class PlanHistoryPane extends BaseComponent {
         <p style="margin: 0; color: #aaa; font-size: 0.9em;">
           ${trend.secondary}
         </p>
-        ${trend.insight ? `<p style="margin: 0; color: #999; font-size: 0.85em; font-style: italic;">💡 ${trend.insight}</p>` : ""}
+        ${
+          trend.insight
+            ? `<p style="margin: 0; color: #999; font-size: 0.85em; font-style: italic;">💡 ${trend.insight}</p>`
+            : ""
+        }
       </div>
     `;
   }
@@ -505,7 +528,9 @@ export default class PlanHistoryPane extends BaseComponent {
         secondary = `Started strong at ${avgFirst}, declined to ${avgSecond} (${improvementPercent}%). Endurance challenge.`;
       } else {
         primary = "↔️ Variable Performance";
-        secondary = `Score range: ${Math.min(...scores)}-${Math.max(...scores)}. Average: ${avgOverall}`;
+        secondary = `Score range: ${Math.min(...scores)}-${Math.max(
+          ...scores
+        )}. Average: ${avgOverall}`;
       }
     }
 
@@ -569,39 +594,203 @@ export default class PlanHistoryPane extends BaseComponent {
   }
 
   /**
-   * Populate plan visualizers with session data
+   * Compute measure scores from hit data
+   * @param {number[][]} measureHits - Hits per measure
+   * @param {Object} drillPlan - The drill plan structure
+   * @param {number} bpm - Beats per minute
+   * @returns {number[]}
    * @private
    */
-  _populatePlanVisualizers() {
+  _computeScoresFromHits(measureHits, drillPlan, bpm) {
+    if (!measureHits || !drillPlan) return [];
+
+    // Get measures array
+    let measures = [];
+    if (Array.isArray(drillPlan)) {
+      measures = drillPlan;
+    } else if (drillPlan.plan && Array.isArray(drillPlan.plan)) {
+      measures = drillPlan.plan;
+    }
+
+    if (measures.length === 0) return [];
+
+    // Scoring parameters (same as Scorer)
+    const bestFeasibleErrorMs = 18;
+    const maxScorableErrorMs = 220;
+    const beatDurationMs = 60000 / (bpm || 120); // Convert beat duration to ms
+    const beatsPerMeasure = 4; // Standard assumption
+
+    const scores = [];
+
+    for (let measureIndex = 0; measureIndex < measures.length; measureIndex++) {
+      const measure = measures[measureIndex];
+      if (measure.type === "click-in") {
+        scores.push(null);
+        continue;
+      }
+
+      const hits = measureHits[measureIndex] || [];
+      if (hits.length === 0) {
+        scores.push(0);
+        continue;
+      }
+
+      // Calculate score based on errors from expected beats
+      let scoreSum = 0;
+      const measureStartBeat = measureIndex * beatsPerMeasure;
+
+      for (let beatOffset = 0; beatOffset < beatsPerMeasure; beatOffset++) {
+        const expectedBeat = measureStartBeat + beatOffset;
+        const expectedBeatMs = expectedBeat * beatDurationMs;
+
+        // Find closest hit to this expected beat
+        let closestHitMs = null;
+        let minDistance = Infinity;
+
+        for (const hitBeat of hits) {
+          const hitMs = hitBeat * beatDurationMs;
+          const distance = Math.abs(hitMs - expectedBeatMs);
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestHitMs = hitMs;
+          }
+        }
+
+        // Score this beat
+        if (closestHitMs !== null) {
+          const errorMs = Math.abs(closestHitMs - expectedBeatMs);
+          if (errorMs <= bestFeasibleErrorMs) {
+            scoreSum += 100;
+          } else if (errorMs <= maxScorableErrorMs) {
+            scoreSum += Math.round(100 * (1 - errorMs / maxScorableErrorMs));
+          }
+        }
+      }
+
+      const measureScore = Math.max(0, Math.min(99, Math.round(scoreSum / beatsPerMeasure)));
+      scores.push(measureScore);
+    }
+
+    return scores;
+  }
+
+  /**
+   * Populate plan visualizer with session data for a specific session
+   * @private
+   */
+  _populatePlanVisualizer(sessionId) {
     if (!this.historyList) return;
 
     try {
-      // Find all plan visualizer components
-      const visualizers = this.historyList.querySelectorAll("plan-visualizer-history");
+      const vizEl = this.historyList.querySelector(
+        `plan-visualizer[data-session-id="${sessionId}"]`
+      );
+      if (!vizEl) return;
 
-      visualizers.forEach((vizEl) => {
-        const sessionId = vizEl.dataset.sessionId;
-        const session = this.sessions.find((s) => s.id === sessionId);
+      // Don't re-populate if already done
+      if (vizEl.dataset.populated) return;
 
-        if (session && session.drillPlan && vizEl.setDrillPlan) {
+      const session = this.sessions.find((s) => s.id === sessionId);
+
+      if (session && session.drillPlan && vizEl.setDrillPlan) {
+        // Wait for the component to be ready before setting up the plan
+        const waitForComponent = async () => {
           try {
+            if (vizEl.componentReady) {
+              await vizEl.componentReady;
+            }
+            
             // Set up the visualizer with the drill plan
             vizEl.setDrillPlan(session.drillPlan);
 
-            // Set up click handler to navigate to timeline position
-            if (vizEl.onMeasureClick) {
-              vizEl.onMeasureClick((measureIndex) => {
-                // Emit event so app can scroll timeline to this measure
-                dispatchEvent(this, "measure-selected", { sessionId, measureIndex });
-              });
+            // Set up delegate to handle local display of timeline
+            vizEl.setDelegate({
+              onMeasureClick: (measureIndex) => {
+                this._showTimelineForSession(sessionId, measureIndex);
+              },
+            });
+
+            // Compute and display scores from hits
+            const computedScores = this._computeScoresFromHits(
+              session.measureHits,
+              session.drillPlan,
+              session.bpm
+            );
+            if (computedScores && computedScores.length > 0 && vizEl.setScores) {
+              vizEl.setScores(computedScores);
             }
+
+            vizEl.dataset.populated = "true";
           } catch (e) {
             console.error("Failed to populate plan visualizer:", e);
           }
-        }
-      });
+        };
+        
+        waitForComponent();
+      }
     } catch (e) {
       // Visualizer component may not be available in tests
+    }
+  }
+
+  /**
+   * Show timeline visualization for a specific session and measure
+   * @param {string} sessionId
+   * @param {number} measureIndex
+   * @private
+   */
+  _showTimelineForSession(sessionId, measureIndex) {
+    if (!this.historyList) return;
+
+    const wrapper = this.historyList.querySelector(`[data-timeline-wrapper="${sessionId}"]`);
+    const timelineComponent = this.historyList.querySelector(
+      `timeline-visualization[data-session-timeline="${sessionId}"]`
+    );
+
+    if (!wrapper || !timelineComponent) return;
+
+    const session = this.sessions.find((s) => s.id === sessionId);
+    if (!session || !session.drillPlan) return;
+
+    // Show the container
+    wrapper.style.display = "block";
+
+    try {
+      // Get the correct array structure for timeline (it expects measures array)
+      let measures = [];
+      if (Array.isArray(session.drillPlan)) {
+        measures = session.drillPlan;
+      } else if (session.drillPlan.plan) {
+        measures = session.drillPlan.plan;
+      } else if (session.drillPlan.measures) {
+        measures = session.drillPlan.measures;
+      }
+
+      // Configure timeline with session's plan
+      timelineComponent.setDrillPlan(measures);
+
+      if (typeof timelineComponent.clearDetections === "function") {
+        timelineComponent.clearDetections();
+      }
+
+      const flatHits = Array.isArray(session.measureHits)
+        ? session.measureHits.flat().filter((hit) => Number.isFinite(hit))
+        : [];
+      if (typeof timelineComponent.addDetection === "function") {
+        flatHits.forEach((hit) => {
+          timelineComponent.addDetection(hit);
+        });
+      }
+
+      // Center it on the requested measure after a tiny delay for rendering
+      setTimeout(() => {
+        const beatsPerMeasure = session.timeSignature
+          ? parseInt(session.timeSignature.split("/")[0], 10) || 4
+          : 4;
+        timelineComponent.centerAt(measureIndex * beatsPerMeasure);
+      }, 50);
+    } catch (e) {
+      console.error("Failed to populate history timeline:", e);
     }
   }
 
@@ -628,6 +817,7 @@ export default class PlanHistoryPane extends BaseComponent {
     if (!isCurrentlyExpanded) {
       sessionElement.classList.add("expanded");
       this.setState({ expandedSessionId: sessionId });
+      this._populatePlanVisualizer(sessionId);
     } else {
       this.setState({ expandedSessionId: null });
     }

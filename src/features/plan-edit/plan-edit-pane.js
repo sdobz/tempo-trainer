@@ -5,8 +5,8 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
-import "../visualizers/plan-visualizer-simple.js";
+import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
+import "../visualizers/plan-visualizer.js";
 
 /**
  * @typedef {Object} PlanEditState
@@ -113,7 +113,7 @@ export default class PlanEditPane extends BaseComponent {
     this.planQuickActions = querySelector(this, "[data-plan-quick-actions]");
 
     // Get reference to plan visualizer component
-    this.drillPlanViz = this.querySelector("plan-visualizer-simple");
+    this.drillPlanViz = this.querySelector("plan-visualizer");
 
     // Bind event listeners
     this._cleanups.push(bindEvent(this.planLibrarySelect, "change", () => this._onPlanSelected()));
@@ -329,6 +329,8 @@ export default class PlanEditPane extends BaseComponent {
     if (this.drillPlanViz) {
       try {
         this.drillPlanViz.parse(planString);
+        // Never show scores in edit pane - clear them
+        this.drillPlanViz.setScores([]);
       } catch (e) {
         console.error("Failed to visualize plan:", e);
       }

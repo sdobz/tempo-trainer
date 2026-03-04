@@ -2,7 +2,7 @@
  * PaneManager manages hash-based pane navigation and callbacks.
  */
 
-import { getElementByID, getAllElements } from "./dom-utils.js";
+import { getAllElements, getElementByID } from "./dom-utils.js";
 
 class PaneManager {
   /**
@@ -71,9 +71,12 @@ class PaneManager {
    */
   _buildHash(paneName, params = {}) {
     let hash = paneName;
-    const paramEntries = Object.entries(params).filter(([, v]) => v !== null && v !== undefined);
+    const paramEntries = Object.entries(params).filter(([, v]) =>
+      v !== null && v !== undefined
+    );
     if (paramEntries.length > 0) {
-      const queryString = new URLSearchParams(Object.fromEntries(paramEntries)).toString();
+      const queryString = new URLSearchParams(Object.fromEntries(paramEntries))
+        .toString();
       hash += `?${queryString}`;
     }
     return hash;

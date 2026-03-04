@@ -1,5 +1,10 @@
 /* Timeline Visualization Component Styles */
 
+:host {
+  display: block;
+  width: 100%;
+}
+
 .timeline-visualization {
   display: block;
   width: 100%;

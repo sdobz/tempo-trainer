@@ -9,7 +9,9 @@ const { default: PlanPlayPane } = await import("./plan-play-pane.js");
  * Helper to create a fresh component instance and wait for it to be ready
  */
 async function createComponent() {
-  const element = document.createElement("plan-play-pane") as InstanceType<typeof PlanPlayPane>;
+  const element = document.createElement("plan-play-pane") as InstanceType<
+    typeof PlanPlayPane
+  >;
   await element.componentReady;
   return element;
 }
@@ -154,7 +156,10 @@ Deno.test("PlanPlayPane: getBeatsPerMeasure should parse time signature", async 
 Deno.test("PlanPlayPane: setTimeSignature should set time signature value", async () => {
   const component = await createComponent();
   component.setTimeSignature("6/8");
-  assertEquals((component.timeSignatureSelect as HTMLSelectElement).value, "6/8");
+  assertEquals(
+    (component.timeSignatureSelect as HTMLSelectElement).value,
+    "6/8",
+  );
 });
 
 Deno.test("PlanPlayPane: updateBeatIndicator should update display", async () => {
@@ -181,7 +186,7 @@ Deno.test(
     assertEquals(beatIndicator.textContent, "3");
     assertEquals(beatIndicator.classList.contains("active"), false);
     assertEquals(beatIndicator.classList.contains("downbeat"), false);
-  }
+  },
 );
 
 Deno.test("PlanPlayPane: clearBeatIndicator should clear display", async () => {
@@ -290,10 +295,13 @@ Deno.test("PlanPlayPane: start button should emit session-start event", async ()
   let eventFired = false;
   let eventData: any = null;
 
-  component.addEventListener("session-start", ((e: CustomEvent) => {
-    eventFired = true;
-    eventData = e.detail;
-  }) as EventListener);
+  component.addEventListener(
+    "session-start",
+    ((e: CustomEvent) => {
+      eventFired = true;
+      eventData = e.detail;
+    }) as EventListener,
+  );
 
   (component.bpmInput as HTMLInputElement).value = "120";
   (component.timeSignatureSelect as HTMLSelectElement).value = "4/4";
@@ -323,10 +331,13 @@ Deno.test("PlanPlayPane: view results button should emit navigate event", async 
   let eventFired = false;
   let eventData: any = null;
 
-  component.addEventListener("navigate", ((e: CustomEvent) => {
-    eventFired = true;
-    eventData = e.detail;
-  }) as EventListener);
+  component.addEventListener(
+    "navigate",
+    ((e: CustomEvent) => {
+      eventFired = true;
+      eventData = e.detail;
+    }) as EventListener,
+  );
 
   (component.viewResultsBtn as HTMLButtonElement).click();
 

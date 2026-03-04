@@ -32,8 +32,10 @@ class DrillSessionManager {
     // Callbacks for UI updates
     /** @type {((beatNum: number, measureIndex: number, shouldShow: boolean) => void)|null} */
     this.beatUpdateCallback = null;
-    /** @type {((overallScore: number) => void)|null} */
+    /** @type {((overallScore: number, measureScores: number[]) => void)|null} */
     this.scoreUpdateCallback = null;
+    /** @type {((measureIndex: number) => void)|null} */
+    this.highlightUpdateCallback = null;
     /** @type {((sessionData: any) => void)|null} */
     this.sessionCompleteCallback = null;
     /** @type {((status: string) => void)|null} */
@@ -53,8 +55,16 @@ class DrillSessionManager {
   }
 
   /**
+   * Registers callback for highlighted measure updates.
+   * @param {(measureIndex: number) => void} callback
+   */
+  onHighlightUpdate(callback) {
+    this.highlightUpdateCallback = callback;
+  }
+
+  /**
    * Registers callback for score updates.
-   * @param {(overallScore: number) => void} callback
+   * @param {(overallScore: number, measureScores: number[]) => void} callback
    */
   onScoreUpdate(callback) {
     this.scoreUpdateCallback = callback;
@@ -119,6 +129,9 @@ class DrillSessionManager {
 
       this.currentMeasureInTotal++;
       this.drillPlan.setHighlight(this.currentMeasureInTotal);
+      if (this.highlightUpdateCallback) {
+        this.highlightUpdateCallback(this.currentMeasureInTotal);
+      }
 
       const finalizedWithLagMeasureIndex = this.currentMeasureInTotal - 2;
       this.scorer.finalizeMeasure(finalizedWithLagMeasureIndex);
@@ -186,7 +199,7 @@ class DrillSessionManager {
 
     // Reset session state
     this.scorer.reset();
-    this.drillPlan.updateAllScores(this.scorer.getAllScores().map((score) => score ?? 0));
+    this.drillPlan.setScores(this.scorer.getAllScores().map((score) => score ?? 0));
     this.currentMeasureInTotal = 0;
     this.runStartedAt = Date.now();
     this.runFinalized = false;
@@ -195,6 +208,7 @@ class DrillSessionManager {
 
     // Reset UI
     this.drillPlan.setHighlight(0);
+    if (this.highlightUpdateCallback) this.highlightUpdateCallback(0);
     this.timeline.centerAt(0);
 
     // Start metronome
@@ -222,6 +236,7 @@ class DrillSessionManager {
 
     // Clear UI
     this.drillPlan.setHighlight(-1);
+    if (this.highlightUpdateCallback) this.highlightUpdateCallback(-1);
 
     if (this.statusUpdateCallback) {
       this.statusUpdateCallback("Stopped.");
@@ -257,6 +272,9 @@ class DrillSessionManager {
       this.isCompletingRun = false;
       this.completionTimeoutId = undefined;
       this.drillPlan.setHighlight(-1);
+      if (this.highlightUpdateCallback) {
+        this.highlightUpdateCallback(-1);
+      }
 
       if (this.statusUpdateCallback) {
         this.statusUpdateCallback("Drill complete!");
@@ -285,12 +303,12 @@ class DrillSessionManager {
       : 0;
 
     // Build session data object
+    // NOTE: Only store hits and plan; scores are recomputed on display
     const sessionData = {
       completed,
       durationSeconds: elapsedSeconds,
       measureHits: this.scorer.measureHits,
-      measureScores: this.scorer.getAllScores().map((score) => score ?? 0),
-      drillPlan: this.drillPlan.plan,
+      drillPlan: this.drillPlan.getPlan(),
       overallScore: this.scorer.getOverallScore(),
     };
 
@@ -309,9 +327,12 @@ class DrillSessionManager {
    * @private
    */
   _updateScoreDisplay() {
-    this.drillPlan.updateAllScores(this.scorer.getAllScores().map((score) => score ?? 0));
+    this.drillPlan.setScores(this.scorer.getAllScores().map((score) => score ?? 0));
     if (this.scoreUpdateCallback) {
-      this.scoreUpdateCallback(this.scorer.getOverallScore());
+      this.scoreUpdateCallback(
+        this.scorer.getOverallScore(),
+        this.scorer.getAllScores().map((score) => score ?? 0)
+      );
     }
   }
 

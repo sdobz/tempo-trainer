@@ -3,7 +3,9 @@ import "../base/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals } from "../base/assert.ts";
 
 // Dynamic import after mocks are set up
-const { default: CalibrationControl } = await import("./calibration-control.js");
+const { default: CalibrationControl } = await import(
+  "./calibration-control.js"
+);
 
 /**
  * MockCalibrationDetector for testing without real audio processing
@@ -20,7 +22,7 @@ class MockCalibrationDetector {
   getCalibratedBeatPosition(
     audioTime: number,
     runStartAudioTime: number,
-    beatDuration: number
+    beatDuration: number,
   ): number {
     return audioTime - runStartAudioTime;
   }
@@ -166,14 +168,20 @@ Deno.test(
     assertEquals(component.state.isCalibrated, true);
     if (component.statusIndicator) {
       assertEquals(component.statusIndicator.textContent, "✓ Calibrated");
-      assertEquals(component.statusIndicator.classList.contains("complete"), true);
+      assertEquals(
+        component.statusIndicator.classList.contains("complete"),
+        true,
+      );
     }
 
     component.updateStatus(false);
     assertEquals(component.state.isCalibrated, false);
     if (component.statusIndicator) {
       assertEquals(component.statusIndicator.textContent, "⚠️ Not calibrated");
-      assertEquals(component.statusIndicator.classList.contains("complete"), false);
+      assertEquals(
+        component.statusIndicator.classList.contains("complete"),
+        false,
+      );
     }
-  }
+  },
 );

@@ -5,9 +5,9 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
+import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
 import "../visualizers/timeline-visualization.js";
-import "../visualizers/plan-visualizer-play.js";
+import "../visualizers/plan-visualizer.js";
 import "../base/app-notification.js";
 
 /**
@@ -87,8 +87,8 @@ export default class PlanPlayPane extends BaseComponent {
     // Get reference to timeline-visualization component
     this.timelineViz = this.querySelector("timeline-visualization");
 
-    // Get reference to plan-visualizer-play component
-    this.planVisualizer = this.querySelector("plan-visualizer-play");
+    // Get reference to plan-visualizer component
+    this.planVisualizer = this.querySelector("plan-visualizer");
 
     // Bind event listeners
     this._cleanups.push(bindEvent(this.startBtn, "click", () => this._onStart()));
@@ -118,9 +118,9 @@ export default class PlanPlayPane extends BaseComponent {
     // If plan visualizer is available, parse and display the plan
     if (this.planVisualizer && this.drillPlan && typeof this.drillPlan.getPlan === "function") {
       try {
-        const plan = this.drillPlan.getPlan();
-        if (plan && plan.length > 0 && typeof this.planVisualizer.setDrillPlan === "function") {
-          this.planVisualizer.setDrillPlan(plan);
+        const planData = this.drillPlan.getPlan();
+        if (planData && typeof this.planVisualizer.setDrillPlan === "function") {
+          this.planVisualizer.setDrillPlan(planData);
         }
       } catch (e) {
         // Plan visualizer may not be available in tests
@@ -194,7 +194,10 @@ export default class PlanPlayPane extends BaseComponent {
   /**
    * Update overall score display
    */
-  updateScore(score) {
+  updateScore(score, measureScores) {
+    if (measureScores && this.planVisualizer) {
+      this.planVisualizer.setScores(measureScores);
+    }
     this.setState({ overallScore: score });
     const formattedScore = String(Math.round(score)).padStart(2, "0");
     this.overallScoreDisplay.textContent = "Overall Score: " + formattedScore;
@@ -296,7 +299,10 @@ export default class PlanPlayPane extends BaseComponent {
    * Handle calibration warning CTA action.
    */
   _onCalibrationWarningAction() {
-    dispatchEvent(this, "navigate", { pane: "onboarding", params: { target: "calibration" } });
+    dispatchEvent(this, "navigate", {
+      pane: "onboarding",
+      params: { target: "calibration" },
+    });
   }
 }
 

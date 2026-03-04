@@ -158,7 +158,9 @@ class MockNavigatorMediaDevices {
     } as MediaDeviceInfo,
   ];
 
-  async getUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream> {
+  async getUserMedia(
+    constraints: MediaStreamConstraints,
+  ): Promise<MediaStream> {
     const stream = new MockMediaStream();
     if (constraints.audio) {
       stream.addTrack({
@@ -205,7 +207,7 @@ if (!(globalThis as any).navigator) {
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (async (
   url: string | Request,
-  options?: RequestInit
+  options?: RequestInit,
 ): Promise<Response> => {
   const urlString = url instanceof Request ? url.url : url;
 

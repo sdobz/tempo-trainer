@@ -9,7 +9,9 @@ const { default: PlanEditPane } = await import("./plan-edit-pane.js");
  * Helper to create a fresh component instance and wait for it to be ready
  */
 async function createComponent() {
-  const element = document.createElement("plan-edit-pane") as InstanceType<typeof PlanEditPane>;
+  const element = document.createElement("plan-edit-pane") as InstanceType<
+    typeof PlanEditPane
+  >;
 
   await element.componentReady;
 

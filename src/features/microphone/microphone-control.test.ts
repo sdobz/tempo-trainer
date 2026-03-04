@@ -100,14 +100,20 @@ Deno.test("MicrophoneControl: updateStatus should set configured state and updat
   assertEquals(component.state.isConfigured, true);
   if (component.statusIndicator) {
     assertEquals(component.statusIndicator.textContent, "✓ Configured");
-    assertEquals(component.statusIndicator.classList.contains("complete"), true);
+    assertEquals(
+      component.statusIndicator.classList.contains("complete"),
+      true,
+    );
   }
 
   component.updateStatus(false);
   assertEquals(component.state.isConfigured, false);
   if (component.statusIndicator) {
     assertEquals(component.statusIndicator.textContent, "⚠️ Not configured");
-    assertEquals(component.statusIndicator.classList.contains("complete"), false);
+    assertEquals(
+      component.statusIndicator.classList.contains("complete"),
+      false,
+    );
   }
 });
 
@@ -168,7 +174,10 @@ Deno.test("MicrophoneControl: delegate should handle threshold state changes", a
 
 Deno.test("MicrophoneControl: delegate should handle threshold display updates", async () => {
   const component = await createComponent();
-  if (!component.micDetector || !component.thresholdLine || !component.thresholdLabel) return;
+  if (
+    !component.micDetector || !component.thresholdLine ||
+    !component.thresholdLabel
+  ) return;
 
   const delegate = component.micDetector.delegate;
   if (!delegate?.onThresholdChanged) return;

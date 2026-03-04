@@ -5,7 +5,11 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { querySelector, bindEvent, dispatchEvent } from "../base/component-utils.js";
+import {
+  bindEvent,
+  dispatchEvent,
+  querySelector,
+} from "../base/component-utils.js";
 import "../microphone/microphone-control.js";
 import "../calibration/calibration-control.js";
 
@@ -68,7 +72,9 @@ export default class OnboardingPane extends BaseComponent {
     }
 
     // Bind complete button
-    this._cleanups.push(bindEvent(this.completeBtn, "click", () => this._onComplete()));
+    this._cleanups.push(
+      bindEvent(this.completeBtn, "click", () => this._onComplete()),
+    );
   }
 
   onUnmount() {
