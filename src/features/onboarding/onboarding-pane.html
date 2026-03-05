@@ -8,16 +8,55 @@
     </p>
 
     <div class="onboarding-steps">
+      <div class="step" id="step-detector-selection">
+        <h3>1. Choose Hit Detection Method</h3>
+        <p>Select the detection method that works best for your setup:</p>
+        <fieldset class="detector-options">
+          <legend>Detection Method</legend>
+          <label>
+            <input
+              type="radio"
+              name="detector"
+              value="threshold"
+              data-detector-threshold
+              checked
+            />
+            <strong>Threshold (Recommended for beginners)</strong>
+            <br />
+            <small
+              >Simple and responsive. Triggers when microphone level crosses a
+              threshold.</small
+            >
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="detector"
+              value="adaptive"
+              data-detector-adaptive
+            />
+            <strong>Adaptive / Spectral Flux (Advanced)</strong>
+            <br />
+            <small>
+              More sophisticated. Uses frequency analysis to detect hits, great
+              for rejecting certain instruments.
+            </small>
+          </label>
+        </fieldset>
+      </div>
+
       <div class="step" id="step-microphone">
+        <h3>2. Configure Microphone</h3>
         <microphone-control></microphone-control>
       </div>
 
       <div class="step" id="step-calibration">
+        <h3>3. Calibrate System</h3>
         <calibration-control></calibration-control>
       </div>
 
       <div class="step">
-        <h3>3. Ready to Train!</h3>
+        <h3>4. Ready to Train!</h3>
         <p>Once calibrated, proceed to create a plan and start practicing.</p>
         <button data-complete-btn class="primary-btn">Go to Plan Editor</button>
       </div>

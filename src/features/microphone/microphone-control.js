@@ -7,10 +7,8 @@
 
 import BaseComponent from "../base/base-component.js";
 import { bindEvent, querySelector } from "../base/component-utils.js";
-import MicrophoneDetector from "./microphone-detector.js";
+import DetectorFactory from "./detector-factory.js";
 import StorageManager from "../base/storage-manager.js";
-
-/** @typedef {import("./microphone-detector.js").MicrophoneDetectorDelegate} MicrophoneDetectorDelegate */
 
 /**
  * @typedef {Object} MicrophoneControlState
@@ -45,6 +43,9 @@ export default class MicrophoneControl extends BaseComponent {
     this.thresholdLine = null;
     this.thresholdLabel = null;
     this.hitsList = null;
+
+    // Audio context for detector - shared across detector switches
+    this.audioContext = null;
 
     // Domain instance
     this.micDetector = null;
@@ -81,10 +82,28 @@ export default class MicrophoneControl extends BaseComponent {
     );
     this.hitsList = querySelector(this, "[data-microphone-hits-list]");
 
-    // Create domain instance with injected dependencies
+    // Get or create an AudioContext for this component
+    // (may be unavailable in test environment)
+    if (!this.audioContext) {
+      try {
+        this.audioContext = new (window.AudioContext ||
+          window.webkitAudioContext)();
+      } catch (e) {
+        // AudioContext not available (test environment, etc.)
+        // Detectors will handle null audioContext gracefully
+      }
+    }
+
+    // Create domain instance with injected dependencies via factory
     // - StorageManager: stateless utility, safe to reference directly
     // - this: component acts as the delegate for callbacks
-    this.micDetector = new MicrophoneDetector(StorageManager, this);
+    // - audioContext: shared Web Audio API context for all detectors
+    // - DetectorFactory reads persisted type preference ("threshold" or "adaptive")
+    this.micDetector = DetectorFactory.createPreferred(
+      StorageManager,
+      this,
+      this.audioContext,
+    );
 
     // Hydrate persisted detector values into UI on first render
     this._hydrateFromDetector();
@@ -98,7 +117,8 @@ export default class MicrophoneControl extends BaseComponent {
 
   /**
    * Set the microphone detector instance (dependency injection)
-   * Called by the wiring layer after the detector is created
+   * Called when detector is switched at runtime
+   * Preserves audioContext and reinjects current state
    * @param {MicrophoneDetector} detector - The detector instance to use
    */
   setDetector(detector) {
@@ -200,13 +220,29 @@ export default class MicrophoneControl extends BaseComponent {
 
   /**
    * Delegate method: Handle threshold changes from detector
-   * Updates threshold display values
+   * Updates threshold display values (threshold detector only)
    * @param {number} threshold Threshold value
    */
   onThresholdChanged(threshold) {
-    const percent = (threshold / 128) * 100;
-    this.thresholdLine.style.left = `${percent}%`;
-    this.thresholdLabel.textContent = `Threshold: ${threshold}`;
+    if (this.thresholdLine && this.thresholdLabel) {
+      const percent = (threshold / 128) * 100;
+      this.thresholdLine.style.left = `${percent}%`;
+      this.thresholdLabel.textContent = `Threshold: ${threshold}`;
+    }
+  }
+
+  /**
+   * Delegate method: Handle flux magnitude changes from detector
+   * Updates flux visualization (adaptive detector only)
+   * @param {number} fluxMagnitude Flux magnitude 0-100
+   */
+  onFluxChanged(fluxMagnitude) {
+    // Reuse thresholdLine to show the current flux value position for adaptive detector
+    if (this.thresholdLine && this.thresholdLabel) {
+      this.thresholdLine.style.left = `${fluxMagnitude}%`;
+      this.thresholdLine.classList.add("flux-indicator");
+      this.thresholdLabel.textContent = `Flux: ${Math.round(fluxMagnitude)}`;
+    }
   }
 
   /**
@@ -224,18 +260,21 @@ export default class MicrophoneControl extends BaseComponent {
    * @private
    */
   _setupUIEventListeners() {
-    // Threshold adjustment via pointer
+    // Threshold adjustment via pointer (only for threshold-based detectors)
+    const isThreshold = typeof this.micDetector.setThreshold === "function";
+
+    if (isThreshold) {
+      this._cleanups.push(
+        bindEvent(this.level, "pointerdown", (e) =>
+          this._onThresholdPointerDown(e),
+        ),
+        bindEvent(this.level, "pointermove", (e) =>
+          this._onThresholdPointerMove(e),
+        ),
+      );
+    }
+
     this._cleanups.push(
-      bindEvent(
-        this.level,
-        "pointerdown",
-        (e) => this._onThresholdPointerDown(e),
-      ),
-      bindEvent(
-        this.level,
-        "pointermove",
-        (e) => this._onThresholdPointerMove(e),
-      ),
       bindEvent(window, "pointerup", () => this._onThresholdPointerUp()),
       bindEvent(this.select, "change", () => this._onDeviceSelected()),
     );
@@ -325,13 +364,18 @@ export default class MicrophoneControl extends BaseComponent {
 
   /**
    * Calculate and set threshold from pointer position
+   * Only available on threshold detector; no-op for adaptive detector
    * @private
    */
   _setThresholdFromPointer(clientX) {
     const rect = this.level.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const threshold = Math.round(ratio * 128);
-    this.micDetector.setThreshold(threshold);
+
+    // Only call setThreshold if detector supports it (threshold-based detectors)
+    if (typeof this.micDetector.setThreshold === "function") {
+      this.micDetector.setThreshold(threshold);
+    }
   }
 
   /**

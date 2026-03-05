@@ -142,3 +142,44 @@
   margin-top: 0.5em;
   font-size: 0.8em;
 }
+
+/* Detector selection fieldset */
+.detector-options {
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 1em;
+  margin: 1em 0;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.detector-options legend {
+  padding: 0 0.5em;
+  color: #aaa;
+  font-weight: bold;
+}
+
+.detector-options label {
+  display: block;
+  margin: 0.8em 0;
+  padding: 0.8em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.detector-options label:hover {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.detector-options input[type="radio"] {
+  margin-right: 0.5em;
+  cursor: pointer;
+}
+
+.detector-options label small {
+  display: block;
+  margin-top: 0.3em;
+  color: #999;
+  font-size: 0.85em;
+  margin-left: 1.5em;
+}

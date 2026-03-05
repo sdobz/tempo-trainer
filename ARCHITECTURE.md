@@ -368,6 +368,101 @@ clearing scores from a session that just completed.
 
 ---
 
+## Beat Detection Strategy Pattern
+
+Hit detection algorithms are pluggable via the strategy pattern. This allows tempo-trainer to
+support multiple detection techniques—amplitude threshold, spectral flux, multi-band classification,
+etc.—without coupling the UI, calibration pipeline, or drill session logic to any single algorithm.
+
+### BeatDetector Interface
+
+All detection strategies must implement this contract:
+
+```javascript
+// @typedef {Object} BeatDetector
+// @property {(callback: (hitAudioTime: number) => void) => void} onHit
+// @property {() => Promise<boolean>} start
+// @property {() => void} stop
+// @property {boolean} isRunning
+```
+
+**Why no device selection on the detector?**
+
+Device selection is a UI concern, not a detection concern. The UI layer:
+1. Queries available devices (via browser AudioContext API, not the detector)
+2. Instantiates the detector with a chosen device ID
+3. If the device changes, stops the detector and creates a new instance with the new device ID
+
+This keeps detectors focused on audio analysis, not device management.
+
+**Optional visualization callbacks** (emitted as methods on the delegate):
+- `onLevelChanged(level)` — instantaneous RMS or spectral energy
+- `onPeakChanged(peak)` — max level in current window
+- `onThresholdChanged(threshold)` — threshold-based detector only
+- `onFluxChanged(magnitude)` — spectral flux detector only
+
+UI components query whether these optional methods exist and render appropriately.
+
+### Included Strategies
+
+**ThresholdDetector** (`src/features/microphone/threshold-detector.js`)
+- Algorithm: RMS amplitude deviation from baseline (128), user-settable threshold
+- Use case: Responsive, low-latency, simple to calibrate
+- Tuning: Threshold slider in microphone control; default ~40
+- Refractory cooldown: 100ms (prevents double-triggers from acoustic resonance)
+- Visualization: Shows current level + user-set threshold line
+- Device selection: Handled by UI layer; detector re-instantiated when device changes
+
+**AdaptiveDetector** (`src/features/microphone/adaptive-detector.js`)
+- Algorithm: Spectral flux (positive frame-to-frame magnitude change in STFT)
+- Use case: Frequency-aware, adaptive threshold (median + k×MAD), tempo-sensitive
+- Tuning: Fixed parameters; refractory period scales with tempo (BPM)
+- Refractory cooldown: 60000 / BPM milliseconds (e.g., 300ms at 200 BPM, 500ms at 120 BPM)
+- Visualization: Shows spectral flux magnitude for diagnostic feedback
+- Notes: Phase 1 uses RAF + main thread; AudioWorklet migration is planned for later phase
+- Device selection: Handled by UI layer; detector re-instantiated when device changes
+
+### Adding Future Detectors
+
+To add a new hit detection algorithm:
+
+1. Create `src/features/microphone/my-detector.js` implementing the BeatDetector contract
+2. Implement `onHit(callback)`, `start()`, `stop()`, and `isRunning` getter
+3. Add optional visualization callbacks: `onLevelChanged()`, `onPeakChanged()`, etc.
+4. Optional: add device management methods (e.g., `selectDevice()`) for UI convenience,
+   but keep device selection logic in the UI layer
+5. Register in `DetectorFactory`:
+   ```javascript
+   case "my-detector":
+     return new MyDetector(storageManager, delegate, audioContext);
+   ```
+6. Add test file `my-detector.test.ts`
+7. Update onboarding UI to show detector option (if user-facing)
+8. Update ARCHITECTURE.md with new strategy details
+
+No changes needed to `MicrophoneControl`, `CalibrationControl`, orchestration, or drill logic;
+they all work with any BeatDetector implementation.
+
+### DetectorFactory
+
+`DetectorFactory` (static methods) centralizes strategy creation and preference persistence:
+
+```javascript
+// Create instance by type
+const detector = DetectorFactory.createDetector("adaptive", storageManager, delegate, audioContext);
+
+// Get/set user preference
+DetectorFactory.setPreferredType(storageManager, "adaptive");
+const preferred = DetectorFactory.getPreferredType(storageManager); // "adaptive" or "threshold"
+
+// Create using stored preference
+const detector = DetectorFactory.createPreferred(storageManager, delegate, audioContext);
+```
+
+Storage key: `"tempoTrainer.detectorType"` (persists across sessions).
+
+---
+
 ## Validation Workflow
 
 Run quality gates frequently:

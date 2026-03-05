@@ -1,12 +1,10 @@
 /// <reference lib="dom" />
 import "../base/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals, assertNotEquals } from "../base/assert.ts";
-import { MicrophoneDetectorDelegate } from "./microphone-control.js";
 
 // Import the pure domain detector
-const { default: MicrophoneDetector } = await import(
-  "./microphone-detector.js"
-);
+const { default: MicrophoneDetector } =
+  await import("./microphone-detector.js");
 
 /**
  * Test suite for MicrophoneDetector behavior (pure domain logic, no UI).
@@ -48,15 +46,15 @@ class MockStorageManager {
   }
 }
 
-function createDetector(delegate: MicrophoneDetectorDelegate) {
+function createDetector(delegate: any) {
   return new MicrophoneDetector(new MockStorageManager(), delegate);
 }
 
 /**
  * MockDelegate tracks callback invocations for testing
- * Implements the MicrophoneDetectorDelegate interface
+ * Implements the detector delegate interface
  */
-class MockDelegate implements MicrophoneDetectorDelegate {
+class MockDelegate {
   calls: Record<string, any[]>;
 
   constructor() {
@@ -119,20 +117,26 @@ Deno.test("MicrophoneDetector: should support delegate callbacks", () => {
   assertEquals(detector.delegate === delegate, true);
 });
 
-Deno.test("MicrophoneDetector: setThreshold should update threshold value", () => {
-  const detector = createDetector(new MockDelegate());
-  detector.setThreshold(75);
-  assertEquals(detector.threshold, 75);
-});
+Deno.test(
+  "MicrophoneDetector: setThreshold should update threshold value",
+  () => {
+    const detector = createDetector(new MockDelegate());
+    detector.setThreshold(75);
+    assertEquals(detector.threshold, 75);
+  },
+);
 
-Deno.test("MicrophoneDetector: setThreshold should clamp to valid range", () => {
-  const detector = createDetector(new MockDelegate());
-  detector.setThreshold(-10);
-  assertEquals(detector.threshold, 0);
+Deno.test(
+  "MicrophoneDetector: setThreshold should clamp to valid range",
+  () => {
+    const detector = createDetector(new MockDelegate());
+    detector.setThreshold(-10);
+    assertEquals(detector.threshold, 0);
 
-  detector.setThreshold(200);
-  assertEquals(detector.threshold, 128);
-});
+    detector.setThreshold(200);
+    assertEquals(detector.threshold, 128);
+  },
+);
 
 Deno.test("MicrophoneDetector: setThreshold should call delegate", () => {
   const delegate = new MockDelegate();
@@ -179,18 +183,24 @@ Deno.test("MicrophoneDetector: should track last hit time", () => {
   assertEquals(detector.lastHitTime, 0);
 });
 
-Deno.test("MicrophoneDetector: should track last level and peak for delegates", () => {
-  const detector = createDetector(new MockDelegate());
-  assertEquals(detector.lastLevel, 0);
-  assertEquals(detector.lastPeak, 0);
-  assertEquals(detector.lastOverThreshold, false);
-});
+Deno.test(
+  "MicrophoneDetector: should track last level and peak for delegates",
+  () => {
+    const detector = createDetector(new MockDelegate());
+    assertEquals(detector.lastLevel, 0);
+    assertEquals(detector.lastPeak, 0);
+    assertEquals(detector.lastOverThreshold, false);
+  },
+);
 
-Deno.test("MicrophoneDetector: getAvailableDevices should return array", async () => {
-  const detector = createDetector(new MockDelegate());
-  const devices = await detector.getAvailableDevices();
-  assertEquals(Array.isArray(devices), true);
-});
+Deno.test(
+  "MicrophoneDetector: getAvailableDevices should return array",
+  async () => {
+    const detector = createDetector(new MockDelegate());
+    const devices = await detector.getAvailableDevices();
+    assertEquals(Array.isArray(devices), true);
+  },
+);
 
 Deno.test("MicrophoneDetector: should load settings from storage", () => {
   const detector = createDetector(new MockDelegate());
@@ -198,13 +208,16 @@ Deno.test("MicrophoneDetector: should load settings from storage", () => {
   assertEquals(typeof detector.selectedDeviceId, "string");
 });
 
-Deno.test("MicrophoneDetector: stop should clear RAF and mark as not running", () => {
-  const detector = createDetector(new MockDelegate());
-  detector.isRunning = true;
-  detector.rafId = 123;
+Deno.test(
+  "MicrophoneDetector: stop should clear RAF and mark as not running",
+  () => {
+    const detector = createDetector(new MockDelegate());
+    detector.isRunning = true;
+    detector.rafId = 123;
 
-  detector.stop();
+    detector.stop();
 
-  assertEquals(detector.isRunning, false);
-  assertEquals(detector.rafId, null);
-});
+    assertEquals(detector.isRunning, false);
+    assertEquals(detector.rafId, null);
+  },
+);
