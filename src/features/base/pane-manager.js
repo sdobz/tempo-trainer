@@ -7,17 +7,27 @@ import { getAllElements, getElementByID } from "./dom-utils.js";
 class PaneManager {
   /**
    * Creates a new PaneManager instance.
+   * Does NOT fire initial pane callbacks — call initialize() after registering
+   * all onPaneChange listeners to avoid a race where callbacks run before
+   * the wiring layer has registered them.
    */
   constructor() {
     /** @type {string|null} */
     this.currentPane = null;
+    /** @type {string|null} */
+    this._previousPane = null;
     /** @type {((pane: string) => void)[]} */
     this.paneChangeCallbacks = [];
 
-    // Listen for hash changes
+    // Listen for subsequent hash changes
     globalThis.addEventListener("hashchange", () => this._onHashChange());
+  }
 
-    // Initialize based on current URL
+  /**
+   * Called once by the wiring layer after all onPaneChange callbacks are registered.
+   * Reads the current URL hash and fires callbacks, ensuring listeners are in place first.
+   */
+  initialize() {
     this._onHashChange();
   }
 
@@ -92,6 +102,7 @@ class PaneManager {
     const currentPaneName = paneName || "onboarding"; // Default to onboarding
 
     if (this.currentPane !== currentPaneName) {
+      this._previousPane = this.currentPane;
       this.currentPane = currentPaneName;
       this._notifyListeners();
     }
@@ -109,11 +120,25 @@ class PaneManager {
   }
 
   /**
-   * Updates DOM visibility for the specified pane.
-   * Hides all panes and shows the current one, updates nav button states.
+   * Updates DOM visibility for the specified pane and fires visibility lifecycle hooks.
+   * Calls onHide() on all BaseComponent instances in the outgoing pane and onShow() on
+   * all BaseComponent instances in the incoming pane.
+   * Detection uses duck-typing: any element with onHide/onShow methods is notified.
    * @param {string} pane - The pane name to display
    */
   updateVisibility(pane) {
+    // Notify outgoing pane components
+    if (this._previousPane) {
+      const outgoingEl = document.getElementById(`pane-${this._previousPane}`);
+      if (outgoingEl) {
+        outgoingEl.querySelectorAll("*").forEach((el) => {
+          if (typeof (/** @type {any} */ (el)).onHide === "function") {
+            (/** @type {any} */ (el)).onHide();
+          }
+        });
+      }
+    }
+
     // Hide all panes
     getAllElements(".pane").forEach((el) => {
       const paneEl = /** @type {HTMLElement} */ (el);
@@ -129,6 +154,15 @@ class PaneManager {
       const buttonEl = /** @type {HTMLElement} */ (btn);
       buttonEl.classList.toggle("active", buttonEl.dataset.pane === pane);
     });
+
+    // Notify incoming pane components
+    currentPaneEl.querySelectorAll("*").forEach((el) => {
+      if (typeof (/** @type {any} */ (el)).onShow === "function") {
+        (/** @type {any} */ (el)).onShow();
+      }
+    });
+
+    this._previousPane = pane;
   }
 
   /**

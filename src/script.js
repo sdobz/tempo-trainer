@@ -66,28 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
       throw new Error("plan-visualizer component not found");
     }
 
-    // Use the component directly
+    // Extract reference only — callback wiring happens in init() after all components are ready
     drillPlan = drillPlanVizComponent;
-
-    // Setup feature callbacks for drill plan
-    drillPlan.onPlanChange((planData) => {
-      let measures = [];
-      if (Array.isArray(planData)) {
-        measures = planData;
-      } else if (planData && planData.plan) {
-        measures = planData.plan;
-      }
-
-      scorer.setDrillPlan(measures);
-      timeline.setDrillPlan(measures);
-
-      // Update plan-play pane visualizer when plan changes in edit pane
-      if (planPlayPane && planPlayPane.planVisualizer) {
-        planPlayPane.planVisualizer.setDrillPlan(planData);
-      }
-    });
-
-    // Note: plan-edit visualizer has no navigation setup to prevent click effects
   });
 
   const planPlayReady = planPlayPane.componentReady.then(() => {
@@ -100,9 +80,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Use the component directly
     timeline = timelineVizComponent;
 
-    // Initialize plan-play pane with dependencies
-    planPlayPane.init(drillPlan, scorer);
-
     // Handle session start
     planPlayPane.addEventListener("session-start", async (/** @type {CustomEvent} */ event) => {
       const { bpm, beatsPerMeasure } = event.detail;
@@ -111,6 +88,9 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const audioContext = await audioContextManager.ensureContext();
         audioContextManager.setContextForComponents(metronome, micDetector, calibration);
+
+        // Reset scorer before starting a new session
+        scorer.reset();
 
         // Start the drill session
         await drillSessionManager.startSession(bpm, beatsPerMeasure, audioContext);
@@ -282,11 +262,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   paneManager.onPaneChange(updatePaneVisibility);
 
-  // Trigger callback for initial pane if already set
-  const initialCurrentPane = paneManager.getCurrentPane();
-  if (initialCurrentPane) {
-    updatePaneVisibility(initialCurrentPane);
-  }
+  // Initialize pane manager after all callbacks are registered.
+  // This reads the current URL hash and fires the first pane-change callback.
+  // Must come after onPaneChange() registrations so listeners are in place.
+  // NOTE: hasInitialized is still false here, so updatePaneVisibility returns
+  // early — the actual first render happens at the end of init().
+  paneManager.initialize();
 
   // Setup navigation button click handlers
   getAllElements("[data-pane]").forEach((btn) => {
@@ -441,10 +422,27 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Initialize plan editor pane
+    // Initialize plan editor pane — must be after Promise.all so planLibrary is ready
     if (planEditPane) {
       planEditPane.init(planLibrary, planPlayPane.bpmInput, planPlayPane.timeSignatureSelect);
     }
+
+    // Wire plan-play pane — must be after Promise.all so drillPlan reference is valid
+    planPlayPane.init(drillPlan, scorer);
+
+    // Wire plan-change callback — must be after Promise.all so timeline reference is valid
+    drillPlan.onPlanChange((planData) => {
+      const measures = (planData && planData.plan) ? planData.plan
+        : Array.isArray(planData) ? planData
+        : [];
+
+      scorer.setDrillPlan(measures);
+      timeline.setDrillPlan(measures);
+
+      if (planPlayPane && planPlayPane.planVisualizer) {
+        planPlayPane.planVisualizer.setDrillPlan(planData);
+      }
+    });
 
     // Determine which pane to show
     const hasCompletedOnboarding = StorageManager.get("tempoTrainer.hasCompletedOnboarding");

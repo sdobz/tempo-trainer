@@ -5,9 +5,11 @@
  * All UI components should extend this class. It provides:
  * - Template loading from separate .html files
  * - Style loading from separate .css files
- * - Lifecycle hooks (onMount, onUnmount, onStateChange)
- * - State management with change detection
- * - Custom event dispatching
+ * - Lifecycle hooks (onMount, onUnmount, onStateChange, onShow, onHide)
+ * - State management with mount guard and re-entrance protection
+ * - Automatic event listener cleanup via this.listen()
+ * - Custom event emission via this.emit()
+ * - AbortController for fetch cancellation on disconnect
  */
 
 /**
@@ -31,6 +33,16 @@ export default class BaseComponent extends HTMLElement {
     this.state = {};
     /** @type {boolean} */
     this._mounted = false;
+    /** @type {boolean} Whether the component's pane is currently visible */
+    this._visible = false;
+    /** @type {boolean} Re-entrance guard for setState */
+    this._isUpdating = false;
+    /** @type {Partial<ComponentState>|null} Queued setState updates during onStateChange */
+    this._pendingUpdates = null;
+    /** @type {Array<() => void>} Cleanup functions registered via this.listen() */
+    this._cleanups = [];
+    /** @type {AbortController} Used to cancel in-flight fetch calls on disconnect */
+    this._initAbortController = new AbortController();
     /** @type {Promise<void>} */
     this.componentReady = this._initialize();
   }
@@ -56,8 +68,8 @@ export default class BaseComponent extends HTMLElement {
   }
 
   /**
-   * Lifecycle hook: called when component DOM is ready.
-   * Override to bind event listeners, initialize subcomponents, etc.
+   * Lifecycle hook: called once after template + styles are loaded and DOM is ready.
+   * Override to query DOM elements, bind event listeners via this.listen(), etc.
    * @virtual
    * @returns {Promise<void>}
    */
@@ -67,7 +79,8 @@ export default class BaseComponent extends HTMLElement {
 
   /**
    * Lifecycle hook: called when component is removed from DOM.
-   * Override to cleanup event listeners, abort pending requests, etc.
+   * this.listen() cleanups run automatically before this hook.
+   * Override for additional cleanup (e.g., stopping domain modules).
    * @virtual
    * @returns {void}
    */
@@ -76,8 +89,29 @@ export default class BaseComponent extends HTMLElement {
   }
 
   /**
+   * Lifecycle hook: called by PaneManager when this component's pane becomes visible.
+   * Override to resume expensive resources (mic streams, rAF loops, audio).
+   * @virtual
+   * @returns {void}
+   */
+  onShow() {
+    // Override in subclasses
+  }
+
+  /**
+   * Lifecycle hook: called by PaneManager when this component's pane is hidden.
+   * Override to pause expensive resources. Must be synchronous.
+   * @virtual
+   * @returns {void}
+   */
+  onHide() {
+    // Override in subclasses
+  }
+
+  /**
    * Lifecycle hook: called when state changes.
-   * Override to update DOM based on new state.
+   * This is the ONLY place DOM updates should happen — never update the DOM
+   * directly in event handlers or delegate callbacks; call setState() instead.
    * @virtual
    * @param {ComponentState} oldState Previous state
    * @param {ComponentState} newState New state
@@ -89,16 +123,78 @@ export default class BaseComponent extends HTMLElement {
 
   /**
    * Update component state and trigger onStateChange hook.
-   * @param {Partial<ComponentState>} updates Object with state changes
+   *
+   * Guards:
+   * - No-op if component is not mounted (prevents stale async callbacks).
+   * - Re-entrance safe: calls during onStateChange are queued and flushed after.
+   *
+   * @param {Partial<ComponentState>} updates Object with state changes to merge
    * @returns {void}
    */
   setState(updates) {
     if (!updates || typeof updates !== "object") {
       throw new Error("setState requires an object");
     }
+
+    // Mount guard: ignore updates after unmount
+    if (!this._mounted) {
+      return;
+    }
+
+    // Re-entrance guard: queue updates triggered during onStateChange
+    if (this._isUpdating) {
+      this._pendingUpdates = this._pendingUpdates
+        ? { ...this._pendingUpdates, ...updates }
+        : { ...updates };
+      return;
+    }
+
+    this._isUpdating = true;
     const oldState = { ...this.state };
     this.state = { ...this.state, ...updates };
-    this.onStateChange(oldState, this.state);
+    try {
+      this.onStateChange(oldState, this.state);
+    } finally {
+      this._isUpdating = false;
+    }
+
+    // Flush any updates that were queued during onStateChange
+    if (this._pendingUpdates) {
+      const pending = this._pendingUpdates;
+      this._pendingUpdates = null;
+      this.setState(pending);
+    }
+  }
+
+  /**
+   * Bind an event listener and automatically remove it on unmount.
+   * Prefer this over raw addEventListener inside components.
+   *
+   * @param {EventTarget} target Element or global target to bind to
+   * @param {string} event Event name (e.g. 'click', 'input')
+   * @param {EventListener} handler Event handler function
+   * @param {AddEventListenerOptions|boolean} [options] addEventListener options
+   * @returns {() => void} Cleanup function (also called automatically on unmount)
+   */
+  listen(target, event, handler, options) {
+    target.addEventListener(event, handler, options);
+    const cleanup = () => target.removeEventListener(event, handler, options);
+    this._cleanups.push(cleanup);
+    return cleanup;
+  }
+
+  /**
+   * Dispatch a bubbling CustomEvent from this element.
+   * Prefer this.emit() over importing dispatchEvent from component-utils.
+   *
+   * @param {string} name Event name
+   * @param {*} [detail] Event detail payload
+   * @returns {boolean} False if defaultPrevented, otherwise true
+   */
+  emit(name, detail) {
+    return this.dispatchEvent(
+      new CustomEvent(name, { detail, bubbles: true, composed: true }),
+    );
   }
 
   /**
@@ -107,11 +203,14 @@ export default class BaseComponent extends HTMLElement {
    * @returns {Promise<void>}
    */
   async _initialize() {
+    const signal = this._initAbortController.signal;
     try {
       // Load template
       const templateUrl =
         new URL(this.getTemplateUrl(), globalThis.location.origin).href;
-      const templateHtml = await fetch(templateUrl).then((r) => r.text());
+      const templateHtml = await fetch(templateUrl, { signal }).then((r) =>
+        r.text()
+      );
 
       // Create a temporary container to parse the HTML
       const tempDiv = document.createElement("div");
@@ -126,7 +225,7 @@ export default class BaseComponent extends HTMLElement {
       // Load and insert styles
       const styleUrl =
         new URL(this.getStyleUrl(), globalThis.location.origin).href;
-      const styleCss = await fetch(styleUrl).then((r) => r.text());
+      const styleCss = await fetch(styleUrl, { signal }).then((r) => r.text());
       const style = document.createElement("style");
       style.textContent = styleCss;
 
@@ -138,9 +237,22 @@ export default class BaseComponent extends HTMLElement {
       this._mounted = true;
       await this.onMount();
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        // Component was disconnected before initialization completed — ignore
+        return;
+      }
       console.error(`Failed to initialize ${this.constructor.name}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Run and clear all cleanup functions registered via this.listen().
+   * @private
+   */
+  _runCleanups() {
+    this._cleanups.forEach((fn) => fn());
+    this._cleanups = [];
   }
 
   /**
@@ -154,10 +266,14 @@ export default class BaseComponent extends HTMLElement {
 
   /**
    * Called when element is removed from DOM.
+   * Cancels in-flight template fetches, runs listen() cleanups, then calls onUnmount.
    * @internal
    * @returns {void}
    */
   disconnectedCallback() {
+    this._initAbortController.abort();
+    this._mounted = false;
+    this._runCleanups();
     this.onUnmount();
   }
 }

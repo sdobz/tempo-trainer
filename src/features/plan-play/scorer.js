@@ -37,10 +37,14 @@ class Scorer {
     this.beatDuration = beatDuration;
   }
 
-  /** @param {Measure[]} plan */
+  /**
+   * Update the drill plan. Does NOT reset scores — call reset() explicitly
+   * when starting a new session. This prevents a plan navigation event from
+   * wiping scores from a just-completed session.
+   * @param {Measure[]} plan
+   */
   setDrillPlan(plan) {
     this.drillPlan = plan;
-    this.reset();
   }
 
   reset() {
@@ -154,8 +158,28 @@ class Scorer {
 
   /** @param {number} errorMs */
   _scoreFromErrorMs(errorMs) {
-    const adjustedErrorMs = Math.max(0, errorMs - this.bestFeasibleErrorMs);
-    const normalized = Math.min(1, adjustedErrorMs / this.maxScorableErrorMs);
+    return Scorer.scoreFromErrorMs(
+      errorMs,
+      this.bestFeasibleErrorMs,
+      this.maxScorableErrorMs,
+    );
+  }
+
+  /**
+   * Canonical scoring function. Single authoritative implementation used by
+   * both the live scorer and historical analysis (PracticeSessionManager).
+   * Returns a score 0–99 for a given timing error in milliseconds.
+   *
+   * @param {number} errorMs - Timing error in milliseconds (absolute value)
+   * @param {number} [bestFeasibleErrorMs=18] - Errors below this threshold score 99
+   * @param {number} [maxScorableErrorMs=220] - Errors above this threshold score 0
+   * @returns {number} Score 0–99
+   */
+  static scoreFromErrorMs(errorMs, bestFeasibleErrorMs = 18, maxScorableErrorMs = 220) {
+    const adjustedErrorMs = Math.max(0, errorMs - bestFeasibleErrorMs);
+    // Divide by the scorable range so the boundary (maxScorableErrorMs) normalises to exactly 1 → score 0
+    const range = maxScorableErrorMs - bestFeasibleErrorMs;
+    const normalized = Math.min(1, adjustedErrorMs / range);
     const curved = Math.pow(normalized, 0.85);
     return Math.max(0, Math.min(99, Math.round((1 - curved) * 99)));
   }

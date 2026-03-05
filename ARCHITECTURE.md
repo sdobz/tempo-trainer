@@ -52,16 +52,85 @@ UI components follow a consistent base-class contract:
 Canonical lifecycle:
 
 1. Construct with default local state
-2. Load template + styles
-3. Mount and bind DOM events
-4. React to state transitions in a single update path
-5. Cleanup listeners/resources on unmount
+2. Load template + styles (fetch is cancellable via `AbortController`)
+3. Mount and bind DOM events via `this.listen()`
+4. React to state transitions in `onStateChange(oldState, newState)`
+5. `onShow()` / `onHide()` when pane visibility changes
+6. Cleanup listeners/resources on unmount (automatic via `this.listen()`)
 
 State pattern:
 
 - Local component state is plain data
 - `setState` merges updates, then triggers `onStateChange(oldState, newState)`
-- UI side effects occur in lifecycle hooks, not scattered across methods
+- **All DOM side effects live in `onStateChange`**, not scattered across methods
+- Methods that respond to events or delegate callbacks only call `setState`; they do not
+  directly manipulate the DOM
+- `setState` is a no-op if called after unmount (mount guard) and re-entrant calls are
+  queued and flushed after the current `onStateChange` completes (re-entrance guard)
+
+### BaseComponent API reference
+
+| Member | Description |
+|--------|-------------|
+| `componentReady` | Promise that resolves after `onMount()` completes |
+| `state` | Plain object; do not mutate directly |
+| `setState(updates)` | Shallow-merges updates, calls `onStateChange`; guarded against unmount and re-entrance |
+| `listen(target, event, handler, options?)` | Binds event listener and automatically removes it on unmount |
+| `emit(name, detail?)` | Dispatches a bubbling `CustomEvent` from this element |
+| `onMount()` | Override: called once after template + styles are loaded |
+| `onUnmount()` | Override: called on `disconnectedCallback`; `listen()` cleanups run first |
+| `onStateChange(old, new)` | Override: **the only place DOM updates should happen** |
+| `onShow()` | Override: called by `PaneManager` when this component's pane becomes visible |
+| `onHide()` | Override: called by `PaneManager` when this component's pane is hidden |
+
+### Visibility lifecycle
+
+Components that own expensive resources (microphone streams, `requestAnimationFrame` loops,
+audio processing) implement `onShow()` and `onHide()`:
+
+```javascript
+class MicrophoneControl extends BaseComponent {
+  onShow() {
+    if (!this.micDetector?.isRunning) this.micDetector?.start();
+  }
+  onHide() {
+    this.micDetector?.stop();
+  }
+}
+```
+
+`PaneManager.updateVisibility(pane)` calls `onHide()` on all `BaseComponent` instances inside
+the outgoing pane and `onShow()` on all instances inside the incoming pane. The orchestrator
+should **never** directly start or stop component resources in response to pane changes.
+
+### Component encapsulation rules
+
+The orchestrator and sibling components communicate with a component only through:
+
+1. **Public methods** — documented, intentional interface points
+2. **Custom events** — emitted via `this.emit(name, detail)`
+3. **`componentReady`** — to await initialization before wiring
+
+Forbidden from outside a component boundary:
+
+- Accessing internal DOM element references (`component.button`, `component.bpmInput`)
+- Adding event listeners to a component's internal elements
+- Passing one component's DOM elements as arguments to another component
+- Traversing more than one level of component nesting (`a.b.c`)
+
+If the orchestrator needs data that lives inside a component, the component should expose a
+method or emit an event. If configuration must be shared between two components, the
+orchestrator reads it from one and passes it as data to the other.
+
+### Auto-registration
+
+Components register themselves with a guard:
+
+```javascript
+if (!customElements.get("my-component")) {
+  customElements.define("my-component", MyComponent);
+}
+```
 
 ---
 
@@ -136,7 +205,8 @@ Benefits:
 Rules:
 
 - Domain modules depend on abstract contracts, not concrete implementations
-- Domain modules do not import utilities or services directly
+- Domain modules do not import utilities or services directly — accept them as constructor parameters
+- `StorageManager` is a service and must be injected, never imported in domain modules
 - UI components depend on domain modules and inject themselves as delegates
 - The orchestration layer (wiring) creates all instances and connects them
 - Tests provide mock implementations to verify behavior in isolation
@@ -184,6 +254,36 @@ For domain module tests:
 
 - Prefer deterministic input/output assertions
 - Isolate time/device dependencies behind explicit seams
+- Inject `MockStorageManager` instead of `StorageManager` to avoid localStorage side effects
+- Inject `MockDelegate` to capture callback invocations
+
+### Test tier priorities
+
+Tier 1 — domain modules with no UI (purest contracts, zero setup cost):
+`Scorer`, `PracticeSessionManager`, `PlanLibrary`
+
+Tier 2 — infrastructure:
+`BaseComponent` lifecycle guards, `PaneManager` navigation, `StorageManager`
+
+Tier 3 — component behavior:
+State transitions, custom event emission, delegate callbacks (requires DOM mock)
+
+### Canonical data shapes
+
+Plan data has a single canonical runtime shape. All parsing and conversion happens at the
+boundary; the rest of the codebase uses the canonical form:
+
+```javascript
+/**
+ * @typedef {{ type: "click" | "silent" | "click-in" }} Measure
+ * @typedef {{ on: number, off: number, reps: number, startIndex: number }} DrillSegment
+ * @typedef {{ plan: Measure[], segments: DrillSegment[] }} DrillPlan
+ */
+```
+
+Functions that accept external plan data (string, legacy array, history objects) must normalize
+to `DrillPlan` at entry. Defensive `if (Array.isArray(planData))` checks outside of parsing
+utilities indicate a missing normalization step and should be treated as bugs.
 
 ---
 
@@ -198,6 +298,34 @@ The wiring layer is the integration boundary between modules.
 
 When orchestration grows, split by capability (for example, input setup, session control, feedback updates) while preserving one-way data flow.
 
+### Coordinated initialization (three-phase init)
+
+All cross-component wiring must happen **after** all components are ready. Structure `init()` in
+three strict phases:
+
+```javascript
+async function init() {
+  // Phase 1 — wait for all components; extract references only
+  await Promise.all([compA.componentReady, compB.componentReady]);
+  const domainObj = compA.getDomainInstance(); // reference extraction only
+
+  // Phase 2 — wire callbacks now that all references are valid
+  domainObj.onChange((data) => compB.update(data)); // safe: compB is ready
+
+  // Phase 3 — navigate to initial pane
+  paneManager.initialize(); // fires first pane-change callback
+  paneManager.navigate(initialPane);
+}
+```
+
+**Rule:** Never wire cross-component callbacks inside individual `.then()` chains on individual
+`componentReady` promises. A callback wired in `compA.componentReady.then(...)` may execute
+before `compB.componentReady` resolves, leaving variables `undefined`.
+
+`PaneManager.initialize()` must be called **after** registering all `onPaneChange` callbacks.
+The constructor does not fire the initial pane change — `initialize()` does. This ensures
+listeners are in place before the first navigation event.
+
 ---
 
 ## Complexity Controls
@@ -209,6 +337,34 @@ Use these guardrails to keep architecture stable:
 - Minimize hidden global state
 - Centralize cross-cutting setup (test/bootstrap, shared utilities)
 - Refactor when a module handles multiple semantic concerns
+
+### Event listener discipline
+
+Inside components, bind all listeners via `this.listen()` rather than raw `addEventListener`.
+This guarantees removal on unmount without requiring `onUnmount` boilerplate:
+
+```javascript
+// Good — automatically cleaned up
+this.listen(this.startBtn, "click", () => this._onStart());
+
+// Avoid — requires manual cleanup tracking
+this._cleanups.push(bindEvent(this.startBtn, "click", () => this._onStart()));
+```
+
+For listeners on global targets (`window`, `document`), still prefer `this.listen()` and
+implement `onHide()` to pause them when the component is not visible.
+
+### Canonical scoring function
+
+All score calculations must use `Scorer.scoreFromErrorMs(errorMs)` as the single
+implementation. Duplicating the scoring curve in `PracticeSessionManager` or display components
+causes historically displayed scores to diverge from live session scores.
+
+### `setDrillPlan` vs `reset`
+
+`Scorer.setDrillPlan(plan)` updates the plan without resetting scores. Call `scorer.reset()`
+explicitly when starting a new session. This prevents a plan navigation event from accidentally
+clearing scores from a session that just completed.
 
 ---
 

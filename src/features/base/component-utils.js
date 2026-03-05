@@ -47,19 +47,21 @@ export function assertElement(element, expectedType = "Element") {
 
 /**
  * Bind event listener and return cleanup function.
- * @param {Element} element Element to bind to
+ * For use OUTSIDE of BaseComponent subclasses. Inside components, prefer this.listen().
+ * @param {EventTarget} element Element or global target to bind to
  * @param {string} eventName Event name (e.g., 'click', 'input')
  * @param {EventListener} handler Event handler
+ * @param {AddEventListenerOptions|boolean} [options] addEventListener options (supports capture, once, passive)
  * @returns {() => void} Cleanup function to unbind event
  */
-export function bindEvent(element, eventName, handler) {
-  element.addEventListener(eventName, handler);
-  return () => element.removeEventListener(eventName, handler);
+export function bindEvent(element, eventName, handler, options) {
+  element.addEventListener(eventName, handler, options);
+  return () => element.removeEventListener(eventName, handler, options);
 }
 
 /**
  * Bind multiple events at once, return cleanup function.
- * @param {Element} element Element to bind to
+ * @param {EventTarget} element Element or global target to bind to
  * @param {Object<string, EventListener>} handlers Map of eventName => handler
  * @returns {() => void} Cleanup function
  */
@@ -167,4 +169,28 @@ export function createButton(text, onClick, classes = []) {
   btn.addEventListener("click", onClick);
   classes.forEach((cls) => btn.classList.add(cls));
   return btn;
+}
+
+/**
+ * Returns the keys whose values differ between two state objects.
+ * Useful in onStateChange to determine which slice of state changed.
+ *
+ * @param {Object.<string, *>} oldState
+ * @param {Object.<string, *>} newState
+ * @returns {string[]} Array of changed key names
+ *
+ * @example
+ * onStateChange(oldState, newState) {
+ *   const changed = changedKeys(oldState, newState);
+ *   if (changed.includes('isPlaying')) {
+ *     this.startBtn.disabled = newState.isPlaying;
+ *   }
+ * }
+ */
+export function changedKeys(oldState, newState) {
+  const keys = new Set([
+    ...Object.keys(oldState),
+    ...Object.keys(newState),
+  ]);
+  return [...keys].filter((k) => oldState[k] !== newState[k]);
 }

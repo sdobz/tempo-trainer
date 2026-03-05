@@ -25,15 +25,27 @@ import StorageManager from "../base/storage-manager.js";
  */
 
 /**
+ * Storage interface expected by PlanLibrary (matches StorageManager static API as instance).
+ * @typedef {{ get(key: string, def?: string|null): string|null, set(key: string, value: unknown): boolean }} StorageLike
+ */
+
+/**
  * PlanLibrary manages drill plans including built-in patterns and custom user-created plans.
  * Provides methods for retrieving, creating, modifying, and analyzing practice plans.
  */
 class PlanLibrary {
   /**
    * Creates a new PlanLibrary instance.
-   * Initializes with built-in practice plans and loads custom plans from storage.
+   * @param {StorageLike|null} [storage] - Optional storage implementation.
+   *   Defaults to an adapter over the static StorageManager.
+   *   Inject a mock in tests to avoid localStorage side effects.
    */
-  constructor() {
+  constructor(storage = null) {
+    /** @type {StorageLike} */
+    this.storage = storage ?? {
+      get: (key, def = null) => StorageManager.get(key, def),
+      set: (key, value) => StorageManager.set(key, value),
+    };
     this.storageKey = "tempoTrainer.customPlans";
     this.builtInPlans = this._getBuiltInPlans();
   }
@@ -157,7 +169,7 @@ class PlanLibrary {
    * @returns {Plan[]} Array of custom plan objects
    */
   getCustomPlans() {
-    const stored = StorageManager.get(this.storageKey);
+    const stored = this.storage.get(this.storageKey);
     if (!stored) return [];
 
     try {
@@ -225,7 +237,7 @@ class PlanLibrary {
       customPlans.push(plan);
     }
 
-    StorageManager.set(this.storageKey, JSON.stringify(customPlans));
+    this.storage.set(this.storageKey, JSON.stringify(customPlans));
     return plan;
   }
 
@@ -242,7 +254,7 @@ class PlanLibrary {
       return false; // Plan not found
     }
 
-    StorageManager.set(this.storageKey, JSON.stringify(filtered));
+    this.storage.set(this.storageKey, JSON.stringify(filtered));
     return true;
   }
 

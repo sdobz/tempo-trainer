@@ -5,7 +5,11 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
+import {
+  bindEvent,
+  dispatchEvent,
+  querySelector,
+} from "../base/component-utils.js";
 import "../visualizers/plan-visualizer.js";
 import "../visualizers/timeline-visualization.js";
 
@@ -100,7 +104,9 @@ export default class PlanHistoryPane extends BaseComponent {
     }
 
     sessions.forEach((session, index) => {
-      const isExpanded = expandSessionId ? session.id === expandSessionId : index === 0;
+      const isExpanded = expandSessionId
+        ? session.id === expandSessionId
+        : index === 0;
       const sessionEl = this._renderSession(session, isExpanded);
       this.historyList.appendChild(sessionEl);
     });
@@ -109,7 +115,8 @@ export default class PlanHistoryPane extends BaseComponent {
     this._setupEventListeners();
 
     // Populate plan visualizer only for the initially expanded session
-    const activeSessionId = expandSessionId || (sessions.length > 0 ? sessions[0].id : null);
+    const activeSessionId =
+      expandSessionId || (sessions.length > 0 ? sessions[0].id : null);
     if (activeSessionId) {
       this._populatePlanVisualizer(activeSessionId);
     }
@@ -128,15 +135,17 @@ export default class PlanHistoryPane extends BaseComponent {
     if (!this.historyList) return;
 
     // Session header clicks for expand/collapse
-    this.historyList.querySelectorAll(".history-session-header").forEach((header) => {
-      const headerEl = /** @type {HTMLElement} */ (header);
-      this._cleanups.push(
-        bindEvent(headerEl, "click", () => {
-          const sessionId = headerEl.dataset.sessionId || "";
-          this._toggleSessionExpanded(sessionId);
-        })
-      );
-    });
+    this.historyList
+      .querySelectorAll(".history-session-header")
+      .forEach((header) => {
+        const headerEl = /** @type {HTMLElement} */ (header);
+        this._cleanups.push(
+          bindEvent(headerEl, "click", () => {
+            const sessionId = headerEl.dataset.sessionId || "";
+            this._toggleSessionExpanded(sessionId);
+          }),
+        );
+      });
 
     // Retry button clicks
     this.historyList.querySelectorAll(".retry-session-btn").forEach((btn) => {
@@ -149,7 +158,7 @@ export default class PlanHistoryPane extends BaseComponent {
           if (session && session.plan) {
             dispatchEvent(this, "retry-plan", { plan: session.plan });
           }
-        })
+        }),
       );
     });
 
@@ -159,7 +168,7 @@ export default class PlanHistoryPane extends BaseComponent {
         bindEvent(btn, "click", (e) => {
           e.stopPropagation();
           dispatchEvent(this, "navigate", { pane: "plan-edit" });
-        })
+        }),
       );
     });
 
@@ -173,7 +182,7 @@ export default class PlanHistoryPane extends BaseComponent {
           if (sessionId) {
             dispatchEvent(this, "delete-session", { sessionId });
           }
-        })
+        }),
       );
     });
   }
@@ -185,7 +194,14 @@ export default class PlanHistoryPane extends BaseComponent {
    * @returns {HTMLElement}
    */
   _renderSession(session, isExpanded) {
-    const { plan, overallScore, completed, timestamp, metrics, durationSeconds } = session;
+    const {
+      plan,
+      overallScore,
+      completed,
+      timestamp,
+      metrics,
+      durationSeconds,
+    } = session;
     const date = new Date(timestamp);
     const dateStr = date.toLocaleDateString("en-US", {
       month: "short",
@@ -208,10 +224,9 @@ export default class PlanHistoryPane extends BaseComponent {
       <div class="history-session-header" data-session-id="${session.id}">
         <div class="session-header-left">
           <div class="session-chevron">▼</div>
-          <div class="session-score" title="Overall score">${String(overallScore).padStart(
-            2,
-            "0"
-          )}</div>
+          <div class="session-score" title="Overall score">${String(
+            overallScore,
+          ).padStart(2, "0")}</div>
           <div class="session-plan">${plan.name}</div>
         </div>
         <div class="session-header-right">
@@ -243,7 +258,7 @@ export default class PlanHistoryPane extends BaseComponent {
     const measureScores = this._computeScoresFromHits(
       session.measureHits,
       session.drillPlan,
-      session.bpm
+      session.bpm,
     );
 
     return `
@@ -313,7 +328,7 @@ export default class PlanHistoryPane extends BaseComponent {
                       <span style="color: #aaa; font-size: 0.9em;">${r.suggestion}</span><br>
                       <span style="color: #888; font-size: 0.85em; font-style: italic;">→ ${r.action}</span>
                     </p>
-                  `
+                  `,
                   )
                   .join("")}
               </div>
@@ -375,9 +390,10 @@ export default class PlanHistoryPane extends BaseComponent {
         category: "Tempo",
         priority: "high",
         suggestion: `Tempo control needed: You're consistently ${metrics.drift.direction} by ~${Math.abs(
-          metrics.drift.avgErrorBeats * 500
+          metrics.drift.avgErrorBeats * 500,
         )}ms. Focus on steady internal clock.`,
-        action: "Slow down and count in your head. Try the calibration exercise again.",
+        action:
+          "Slow down and count in your head. Try the calibration exercise again.",
       });
     } else if (metrics.drift.severity === "medium") {
       recommendations.push({
@@ -404,17 +420,22 @@ export default class PlanHistoryPane extends BaseComponent {
         category: "Accuracy",
         priority: "medium",
         suggestion: `Several measures had incomplete hits. Clean up your technique.`,
-        action: "Work on the weak measures separately. Slow down and focus on each beat.",
+        action:
+          "Work on the weak measures separately. Slow down and focus on each beat.",
       });
     }
 
     // Rhythm recommendations
-    if (metrics.rhythm.consistency === "variable" || metrics.rhythm.consistency === "unknown") {
+    if (
+      metrics.rhythm.consistency === "variable" ||
+      metrics.rhythm.consistency === "unknown"
+    ) {
       recommendations.push({
         category: "Rhythm",
         priority: "medium",
         suggestion: `Timing between hits is inconsistent. Your rhythm sense needs work.`,
-        action: "Practice with a metronome. Feel the pulse, don't just hit randomly.",
+        action:
+          "Practice with a metronome. Feel the pulse, don't just hit randomly.",
       });
     }
 
@@ -424,7 +445,8 @@ export default class PlanHistoryPane extends BaseComponent {
         category: "Performance",
         priority: "high",
         suggestion: `Your scores vary wildly (${metrics.consistency.range} point range). Some measures are much weaker.`,
-        action: "Focus on the weakest measures. Identify when you perform best and replicate that.",
+        action:
+          "Focus on the weakest measures. Identify when you perform best and replicate that.",
       });
     } else if (metrics.consistency.consistency === "variable") {
       recommendations.push({
@@ -491,9 +513,15 @@ export default class PlanHistoryPane extends BaseComponent {
     const firstHalf = scores.slice(0, Math.floor(len / 2));
     const secondHalf = scores.slice(Math.floor(len / 2));
 
-    const avgFirst = Math.round(firstHalf.reduce((a, b) => a + b) / firstHalf.length);
-    const avgSecond = Math.round(secondHalf.reduce((a, b) => a + b) / secondHalf.length);
-    const avgOverall = Math.round(scores.reduce((a, b) => a + b) / scores.length);
+    const avgFirst = Math.round(
+      firstHalf.reduce((a, b) => a + b) / firstHalf.length,
+    );
+    const avgSecond = Math.round(
+      secondHalf.reduce((a, b) => a + b) / secondHalf.length,
+    );
+    const avgOverall = Math.round(
+      scores.reduce((a, b) => a + b) / scores.length,
+    );
 
     // Calculate variance
     /** @param {number[]} arr */
@@ -529,7 +557,7 @@ export default class PlanHistoryPane extends BaseComponent {
       } else {
         primary = "↔️ Variable Performance";
         secondary = `Score range: ${Math.min(...scores)}-${Math.max(
-          ...scores
+          ...scores,
         )}. Average: ${avgOverall}`;
       }
     }
@@ -558,11 +586,14 @@ export default class PlanHistoryPane extends BaseComponent {
     ];
 
     const quarterlyAvg = quarters.map((q) =>
-      q.length > 0 ? Math.round(q.reduce((a, b) => a + b) / q.length) : 0
+      q.length > 0 ? Math.round(q.reduce((a, b) => a + b) / q.length) : 0,
     );
 
     // Detect middle slump
-    if (quarterlyAvg[1] < quarterlyAvg[0] - 5 || quarterlyAvg[2] < quarterlyAvg[0] - 5) {
+    if (
+      quarterlyAvg[1] < quarterlyAvg[0] - 5 ||
+      quarterlyAvg[2] < quarterlyAvg[0] - 5
+    ) {
       return "Middle section dip detected—focus on maintaining energy through the middle.";
     }
 
@@ -572,7 +603,10 @@ export default class PlanHistoryPane extends BaseComponent {
     }
 
     // Detect slow warm-up then improvement
-    if (quarterlyAvg[0] < quarterlyAvg[1] && quarterlyAvg[1] < quarterlyAvg[3]) {
+    if (
+      quarterlyAvg[0] < quarterlyAvg[1] &&
+      quarterlyAvg[1] < quarterlyAvg[3]
+    ) {
       return "Slow warm-up, then steady improvement—good learning curve.";
     }
 
@@ -581,7 +615,7 @@ export default class PlanHistoryPane extends BaseComponent {
     const lastThird = scores.slice(Math.floor((2 * len) / 3));
     const driftAmount = Math.round(
       lastThird.reduce((a, b) => a + b) / lastThird.length -
-        firstThird.reduce((a, b) => a + b) / firstThird.length
+        firstThird.reduce((a, b) => a + b) / firstThird.length,
     );
 
     if (driftAmount > 8) {
@@ -667,7 +701,10 @@ export default class PlanHistoryPane extends BaseComponent {
         }
       }
 
-      const measureScore = Math.max(0, Math.min(99, Math.round(scoreSum / beatsPerMeasure)));
+      const measureScore = Math.max(
+        0,
+        Math.min(99, Math.round(scoreSum / beatsPerMeasure)),
+      );
       scores.push(measureScore);
     }
 
@@ -683,7 +720,7 @@ export default class PlanHistoryPane extends BaseComponent {
 
     try {
       const vizEl = this.historyList.querySelector(
-        `plan-visualizer[data-session-id="${sessionId}"]`
+        `plan-visualizer[data-session-id="${sessionId}"]`,
       );
       if (!vizEl) return;
 
@@ -699,7 +736,7 @@ export default class PlanHistoryPane extends BaseComponent {
             if (vizEl.componentReady) {
               await vizEl.componentReady;
             }
-            
+
             // Set up the visualizer with the drill plan
             vizEl.setDrillPlan(session.drillPlan);
 
@@ -714,9 +751,13 @@ export default class PlanHistoryPane extends BaseComponent {
             const computedScores = this._computeScoresFromHits(
               session.measureHits,
               session.drillPlan,
-              session.bpm
+              session.bpm,
             );
-            if (computedScores && computedScores.length > 0 && vizEl.setScores) {
+            if (
+              computedScores &&
+              computedScores.length > 0 &&
+              vizEl.setScores
+            ) {
               vizEl.setScores(computedScores);
             }
 
@@ -725,7 +766,7 @@ export default class PlanHistoryPane extends BaseComponent {
             console.error("Failed to populate plan visualizer:", e);
           }
         };
-        
+
         waitForComponent();
       }
     } catch (e) {
@@ -742,9 +783,11 @@ export default class PlanHistoryPane extends BaseComponent {
   _showTimelineForSession(sessionId, measureIndex) {
     if (!this.historyList) return;
 
-    const wrapper = this.historyList.querySelector(`[data-timeline-wrapper="${sessionId}"]`);
+    const wrapper = this.historyList.querySelector(
+      `[data-timeline-wrapper="${sessionId}"]`,
+    );
     const timelineComponent = this.historyList.querySelector(
-      `timeline-visualization[data-session-timeline="${sessionId}"]`
+      `timeline-visualization[data-session-timeline="${sessionId}"]`,
     );
 
     if (!wrapper || !timelineComponent) return;
@@ -802,7 +845,7 @@ export default class PlanHistoryPane extends BaseComponent {
     if (!this.historyList) return;
 
     const sessionElement = this.historyList.querySelector(
-      `.history-session[data-session-id="${sessionId}"]`
+      `.history-session[data-session-id="${sessionId}"]`,
     );
     if (!sessionElement) return;
 
