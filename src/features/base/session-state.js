@@ -1,3 +1,12 @@
+import { createContext } from "./context.js";
+
+/**
+ * Context token.  Provided at the document root by script.js;
+ * consumed by plan-play-pane and any other component that needs session data.
+ * @type {import('./context.js').Context<SessionState|null>}
+ */
+export const SessionStateContext = createContext("session-state", null);
+
 /**
  * SessionState — single source of truth for session-scoped shared values.
  *
@@ -140,4 +149,5 @@ class SessionState {
   }
 }
 
+export { SessionState };
 export default SessionState;

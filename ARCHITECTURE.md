@@ -185,7 +185,7 @@ The delegate pattern enables loose coupling: the domain module doesn't depend on
 
 ## Inversion of Control: Dependency Injection
 
-Domain modules accept their dependencies as constructor parameters rather than importing them directly. This **inversion of control** enables testability, reusability, and decoupling from concrete implementations.
+Domain modules accept their dependencies as parameters instead of instantiating them internally. This **inversion of control** enables testability, reusability, and decoupling from concrete implementations.
 
 Dependencies that should be injected:
 

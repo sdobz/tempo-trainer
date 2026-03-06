@@ -1,7 +1,7 @@
 // --- ESM Module Imports ---
 import StorageManager from "./features/base/storage-manager.js";
 import Services from "./features/base/services.js";
-import SessionState from "./features/base/session-state.js";
+import SessionState, { SessionStateContext } from "./features/base/session-state.js";
 import DetectorManager from "./features/microphone/detector-manager.js";
 import Metronome from "./features/plan-play/metronome.js";
 import Scorer from "./features/plan-play/scorer.js";
@@ -44,8 +44,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // run after template fetches complete — always after this synchronous registration.
   const detectorManager = new DetectorManager(StorageManager);
   Services.register("detectorManager", detectorManager);
-  Services.register("sessionState", sessionState);
-  Services.register("audioContextManager", audioContextManager);
+
+  // Provide SessionStateContext at document root so all custom elements below can consume it.
+  // Must happen before any component's onMount() runs (components mount asynchronously after
+  // template fetch, so this synchronous registration always wins).
+  document.documentElement.addEventListener("context-request", (event) => {
+    if (event.context !== SessionStateContext) return;
+    event.stopPropagation();
+    event.callback(sessionState);
+  });
 
   // Register audioContextManager once. Wire it to dependent objects when the
   // AudioContext is first created — one call site instead of three.
@@ -56,8 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Wait for components to be ready
   let calibration;
-  let drillPlan; // Will be initialized after plan-edit-pane is ready
-  let timeline; // Will be initialized after plan-play-pane is ready
+  let timeline; // Direct ref for imperative playback: centerAt, addDetection, clearDetections
   let drillSessionManager; // Will be initialized after all components ready
 
   const onboardingReady = onboardingPane.componentReady.then(() => {
@@ -78,25 +84,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  const planEditReady = planEditPane.componentReady.then(() => {
-    // Get the plan visualizer component
-    const drillPlanVizComponent = planEditPane.querySelector("plan-visualizer");
-    if (!drillPlanVizComponent) {
-      throw new Error("plan-visualizer component not found");
-    }
-
-    // Extract reference only — callback wiring happens in init() after all components are ready
-    drillPlan = drillPlanVizComponent;
-  });
+  const planEditReady = planEditPane.componentReady;
 
   const planPlayReady = planPlayPane.componentReady.then(() => {
-    // Get the timeline-visualization component
+    // Get the timeline-visualization component for imperative playback operations only
     const timelineVizComponent = planPlayPane.querySelector("timeline-visualization");
     if (!timelineVizComponent) {
       throw new Error("timeline-visualization component not found");
     }
-
-    // Use the component directly
     timeline = timelineVizComponent;
 
     // Handle navigation
@@ -305,16 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Setup BPM and time signature change handlers after plan-play pane is ready
-  planPlayPane.componentReady.then(() => {
-    planPlayPane.bpmInput.addEventListener("input", () => {
-      sessionState.setBPM(parseInt(planPlayPane.bpmInput.value, 10));
-    });
-
-    planPlayPane.timeSignatureSelect.addEventListener("change", () => {
-      const beatsPerMeasure = parseInt(planPlayPane.timeSignatureSelect.value.split("/")[0], 10);
-      sessionState.setBeatsPerMeasure(beatsPerMeasure);
-    });
-  });
+  // NOTE: BPM/time-sig input listeners now live inside plan-play-pane (via consumeContext).
 
   // --- Initialization ---
 
@@ -327,13 +313,14 @@ document.addEventListener("DOMContentLoaded", () => {
       metronome,
       scorer,
       timeline,
-      drillPlan,
       calibration,
       detectorManager,
+      sessionState,
+      planPlayPane.playbackState,
     );
 
-    // Wire SessionState subscribers — single fan-out for BPM, time signature, and plan.
-    // All future changes go through sessionState; no manual fan-out elsewhere.
+    // Wire SessionState subscribers — single fan-out for BPM and time signature.
+    // plan-play-pane self-wires planData and beatsPerMeasure via consumeContext.
     sessionState.subscribe({
       onBPMChange: (bpm) => {
         metronome.setBPM(bpm);
@@ -343,14 +330,11 @@ document.addEventListener("DOMContentLoaded", () => {
       onBeatsPerMeasureChange: (n) => {
         metronome.setTimeSignature(n);
         scorer.setBeatsPerMeasure(n);
-        timeline.setBeatsPerMeasure(n);
         if (calibration) calibration.setBeatsPerMeasure(n);
       },
       onPlanChange: (planData) => {
         const measures = planData?.plan ?? (Array.isArray(planData) ? planData : []);
         scorer.setDrillPlan(measures);
-        timeline.setDrillPlan(measures);
-        if (planPlayPane?.planVisualizer) planPlayPane.planVisualizer.setDrillPlan(planData);
       },
     });
 
@@ -361,7 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const audioContext = await audioContextManager.ensureContext();
         scorer.reset();
         await drillSessionManager.startSession(audioContext);
-        planPlayPane.setPlaying(true);
+        planPlayPane.playbackState.update({ isPlaying: true });
       } catch (error) {
         console.error("Failed to start session:", error);
         alert("Web Audio API is not supported in this browser");
@@ -370,26 +354,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     planPlayPane.addEventListener("session-stop", () => {
       drillSessionManager.stopSession();
-      planPlayPane.setPlaying(false);
-      planPlayPane.clearBeatIndicator();
+      planPlayPane.playbackState.update({ isPlaying: false });
     });
 
-    // Wire DrillSessionManager callbacks to UI
-    drillSessionManager.onBeatUpdate((beatNum, _measureIndex, shouldShow) => {
-      planPlayPane.updateBeatIndicator(beatNum, beatNum === 1, shouldShow);
-    });
-
-    drillSessionManager.onHighlightUpdate((currentMeasureIndex) => {
-      planPlayPane.planVisualizer.setHighlight(currentMeasureIndex);
-    });
-
-    drillSessionManager.onScoreUpdate((overallScore, measureScores) => {
-      planPlayPane.updateScore(overallScore, measureScores);
-    });
-
-    drillSessionManager.onStatusUpdate((status) => {
-      planPlayPane.setStatus(status);
-    });
+    // DrillSessionManager now updates PlaybackState directly for beat/highlight/score/status.
 
     drillSessionManager.onSessionComplete((sessionData) => {
       // Augment session data with plan info from plan editor
@@ -422,10 +390,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (sessionData.completed) {
         planPlayPane.reset();
         scorer.reset();
-        // Don't show scores on edit pane visualizer - only on play pane during play
-        drillPlan.setScores([]);
-        drillPlan.setHighlight(-1);
-        timeline.centerAt(0);
       }
 
       // Update history display and navigate to history pane with expanded session
@@ -440,15 +404,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (planEditPane) {
       planEditPane.init(planLibrary);
     }
-
-    // Wire plan-play pane — must be after Promise.all so drillPlan reference is valid
-    planPlayPane.init(drillPlan, scorer);
-
-    // Wire plan-change callback — routes through SessionState so all subscribers
-    // (scorer, timeline, planVisualizer) are notified via the single subscription above.
-    drillPlan.onPlanChange((planData) => {
-      sessionState.setPlan(planData);
-    });
 
     // Determine which pane to show
     const hasCompletedOnboarding = StorageManager.get("tempoTrainer.hasCompletedOnboarding");
@@ -465,18 +420,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initialize display — push current plan through SessionState so all subscribers
     // (scorer, timeline, planVisualizer) receive it via the subscription wired above.
-    const currentPlanData = typeof drillPlan.getPlan === "function" ? drillPlan.getPlan() : null;
-    if (currentPlanData) {
-      sessionState.setPlan(currentPlanData);
+    if (sessionState.plan) {
+      sessionState.setPlan(sessionState.plan);
     }
 
-    timeline.centerAt(0);
-    // Don't show scores on edit pane visualizer - only initialize play pane with zeros
-    drillPlan.setScores([]);
-    planPlayPane.updateScore(
-      scorer.getOverallScore(),
-      scorer.getAllScores().map((score) => score ?? 0)
-    );
+    planPlayPane.reset();
     planPlayPane.setCalibrationWarningVisible(!hasCalibration);
 
     // Display existing sessions from history
@@ -484,8 +432,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (sessions.length > 0) {
       planHistoryPane.displaySessions(sessions);
     }
-
-    planPlayPane.setStatus("Ready.");
 
     // Mark initialization complete and navigate to initial pane
     // This will trigger updatePaneVisibility which will now handle mic setup

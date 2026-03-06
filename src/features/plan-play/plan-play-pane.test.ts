@@ -25,36 +25,7 @@ class MockTimeline {
   centerAt(_position: number) {}
   addDetection(_position: number) {}
   setDrillPlan(_plan: any[]) {}
-}
-
-/**
- * Mock DrillPlan class
- */
-class MockDrillPlan {
-  parse(_planString: string) {}
-  setHighlight(_measureIndex: number) {}
-  getMeasureType(_measureIndex: number): string {
-    return "active";
-  }
-  getLength(): number {
-    return 10;
-  }
-  onPlanChange(_callback: (plan: any[]) => void) {}
-  onMeasureClick(_callback: (measureIndex: number) => void) {}
-}
-
-/**
- * Mock Scorer class
- */
-class MockScorer {
-  registerHit(_beatPosition: number) {}
-  finalizeMeasure(_measureIndex: number) {}
-  getOverallScore(): number {
-    return 85;
-  }
-  setDrillPlan(_plan: any[]) {}
-  setBeatsPerMeasure(_beats: number) {}
-  setBeatDuration(_duration: number) {}
+  clearDetections() {}
 }
 
 Deno.test("PlanPlayPane: should initialize with default state", async () => {
@@ -122,15 +93,38 @@ Deno.test("PlanPlayPane: setState should throw on invalid argument", async () =>
   }
 });
 
-Deno.test("PlanPlayPane: should initialize dependencies via init()", async () => {
+Deno.test("PlanPlayPane: should expose playbackState getter", async () => {
   const component = await createComponent();
-  const mockDrillPlan = new MockDrillPlan();
-  const mockScorer = new MockScorer();
+  const ps = component.playbackState;
+  assertEquals(typeof ps.subscribe, "function");
+  assertEquals(typeof ps.update, "function");
+  assertEquals(ps.state.isPlaying, false);
+});
 
-  component.init(mockDrillPlan, mockScorer);
+Deno.test("PlanPlayPane: playbackState.update should reflect status in DOM", async () => {
+  const component = await createComponent();
+  component.playbackState.update({ status: "Running..." });
+  assertEquals((component.statusDiv as HTMLElement).textContent, "Running...");
+});
 
-  assertEquals(component.drillPlan, mockDrillPlan);
-  assertEquals(component.scorer, mockScorer);
+Deno.test("PlanPlayPane: playbackState.update beat should update beat indicator", async () => {
+  const component = await createComponent();
+  component.playbackState.update({
+    beat: { beatNum: 2, isDownbeat: false, shouldShow: true },
+  });
+  const indicator = component.beatIndicator as HTMLElement;
+  assertEquals(indicator.textContent, "2");
+  assertEquals(indicator.classList.contains("active"), true);
+});
+
+Deno.test("PlanPlayPane: playbackState.update score should update score display", async () => {
+  const component = await createComponent();
+  component.playbackState.update({ overallScore: 75 });
+  assertEquals(component.state.overallScore, 75);
+  assertEquals(
+    (component.overallScoreDisplay as HTMLElement).textContent,
+    "Overall Score: 75",
+  );
 });
 
 Deno.test("PlanPlayPane: getBPM should return BPM value as number", async () => {
@@ -160,69 +154,6 @@ Deno.test("PlanPlayPane: setTimeSignature should set time signature value", asyn
     (component.timeSignatureSelect as HTMLSelectElement).value,
     "6/8",
   );
-});
-
-Deno.test("PlanPlayPane: updateBeatIndicator should update display", async () => {
-  const component = await createComponent();
-  const beatIndicator = component.beatIndicator as HTMLElement;
-
-  component.updateBeatIndicator(1, true, true);
-  assertEquals(beatIndicator.textContent, "1");
-  assertEquals(beatIndicator.classList.contains("downbeat"), true);
-
-  component.updateBeatIndicator(2, false, true);
-  assertEquals(beatIndicator.textContent, "2");
-  assertEquals(beatIndicator.classList.contains("active"), true);
-  assertEquals(beatIndicator.classList.contains("downbeat"), false);
-});
-
-Deno.test(
-  "PlanPlayPane: updateBeatIndicator should not show beat when shouldShow is false",
-  async () => {
-    const component = await createComponent();
-    const beatIndicator = component.beatIndicator as HTMLElement;
-
-    component.updateBeatIndicator(3, false, false);
-    assertEquals(beatIndicator.textContent, "3");
-    assertEquals(beatIndicator.classList.contains("active"), false);
-    assertEquals(beatIndicator.classList.contains("downbeat"), false);
-  },
-);
-
-Deno.test("PlanPlayPane: clearBeatIndicator should clear display", async () => {
-  const component = await createComponent();
-  const beatIndicator = component.beatIndicator as HTMLElement;
-
-  component.updateBeatIndicator(4, false, true);
-  assertEquals(beatIndicator.textContent, "4");
-
-  component.clearBeatIndicator();
-  assertEquals(beatIndicator.textContent, "");
-  assertEquals(beatIndicator.className, "beat-indicator");
-});
-
-Deno.test("PlanPlayPane: setStatus should update status message", async () => {
-  const component = await createComponent();
-  const statusDiv = component.statusDiv as HTMLElement;
-
-  component.setStatus("Running...");
-  assertEquals(statusDiv.textContent, "Running...");
-
-  component.setStatus("Completed!");
-  assertEquals(statusDiv.textContent, "Completed!");
-});
-
-Deno.test("PlanPlayPane: updateScore should update score display", async () => {
-  const component = await createComponent();
-  const scoreDisplay = component.overallScoreDisplay as HTMLElement;
-
-  component.updateScore(75);
-  assertEquals(component.state.overallScore, 75);
-  assertEquals(scoreDisplay.textContent, "Overall Score: 75");
-
-  component.updateScore(5);
-  assertEquals(component.state.overallScore, 5);
-  assertEquals(scoreDisplay.textContent, "Overall Score: 05");
 });
 
 Deno.test("PlanPlayPane: setStartDisabled should enable/disable start button", async () => {
@@ -266,11 +197,13 @@ Deno.test("PlanPlayPane: setPlaying should update state and button states", asyn
 Deno.test("PlanPlayPane: reset should reset to initial state", async () => {
   const component = await createComponent();
 
-  // Set some state
-  component.updateBeatIndicator(3, false, true);
-  component.setStatus("Running...");
-  component.updateScore(75);
-  component.setPlaying(true);
+  // Set some state via playbackState
+  component.playbackState.update({
+    beat: { beatNum: 3, isDownbeat: false, shouldShow: true },
+    status: "Running...",
+    overallScore: 75,
+    isPlaying: true,
+  });
   component.setState({ currentMeasure: 5 });
 
   // Reset

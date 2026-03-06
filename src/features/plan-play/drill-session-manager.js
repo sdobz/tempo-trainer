@@ -2,47 +2,44 @@
  * DrillSessionManager manages the drill session lifecycle and coordinates
  * metronome, scorer, timeline, and drill plan during active sessions.
  */
-import Services from "../base/services.js";
 
 class DrillSessionManager {
   /**
    * @param {Object} metronome - Metronome instance
    * @param {Object} scorer - Scorer instance
    * @param {Object} timeline - Timeline visualization component
-   * @param {Object} drillPlan - DrillPlan visualization component
    * @param {Object} calibration - CalibrationDetector instance
    * @param {Object} micDetector - MicrophoneDetector / DetectorManager instance
+   * @param {import('../base/session-state.js').default} sessionState
+   * @param {import('./playback-state.js').PlaybackState} playbackState
    */
-  constructor(metronome, scorer, timeline, drillPlan, calibration, micDetector) {
+  constructor(metronome, scorer, timeline, calibration, micDetector, sessionState, playbackState) {
     this.metronome = metronome;
     this.scorer = scorer;
     this.timeline = timeline;
-    this.drillPlan = drillPlan;
     this.calibration = calibration;
     this.micDetector = micDetector;
-    this.sessionState = Services.get("sessionState");
+    this.sessionState = sessionState;
+    this.playbackState = playbackState;
+
+    // Local plan model — kept in sync with sessionState.plan
+    /** @type {Array<{type: string}>} */
+    this._plan = [];
+    /** @type {{ plan: Array<{type:string}>, segments: any[] }|null} */
+    this._planData = null;
+
+    // Initialise from current sessionState plan if already set
+    if (this.sessionState.plan) {
+      this._updateLocalPlan(this.sessionState.plan);
+    }
+
+    // Keep local model in sync when plan changes
+    this.sessionState.subscribe({
+      onPlanChange: (planData) => this._updateLocalPlan(planData),
+    });
 
     // Session state
     this.currentMeasureInTotal = 0;
-    /** @type {number|null} */
-    this.runStartedAt = null;
-    this.runFinalized = false;
-    this.isCompletingRun = false;
-    /** @type {number|undefined} */
-    this.completionTimeoutId = undefined;
-    this.timelineRunStartAudioTime = 0;
-
-    // Callbacks for UI updates
-    /** @type {((beatNum: number, measureIndex: number, shouldShow: boolean) => void)|null} */
-    this.beatUpdateCallback = null;
-    /** @type {((overallScore: number, measureScores: number[]) => void)|null} */
-    this.scoreUpdateCallback = null;
-    /** @type {((measureIndex: number) => void)|null} */
-    this.highlightUpdateCallback = null;
-    /** @type {((sessionData: any) => void)|null} */
-    this.sessionCompleteCallback = null;
-    /** @type {((status: string) => void)|null} */
-    this.statusUpdateCallback = null;
 
     // Setup internal callbacks
     this._setupMetronomeCallbacks();
@@ -50,27 +47,38 @@ class DrillSessionManager {
   }
 
   /**
-   * Registers callback for beat updates (for UI updates).
-   * @param {(beatNum: number, measureIndex: number, shouldShow: boolean) => void} callback
+   * Updates the local plan model from the plan data object.
+   * @param {{ plan: Array<{type: string}>, segments: any[] }|null} planData
+   * @private
    */
-  onBeatUpdate(callback) {
-    this.beatUpdateCallback = callback;
+  _updateLocalPlan(planData) {
+    if (planData && planData.plan && Array.isArray(planData.plan)) {
+      this._plan = planData.plan;
+      this._planData = planData;
+    } else if (Array.isArray(planData)) {
+      this._plan = planData;
+      this._planData = { plan: planData, segments: [] };
+    } else {
+      this._plan = [];
+      this._planData = null;
+    }
   }
 
   /**
-   * Registers callback for highlighted measure updates.
-   * @param {(measureIndex: number) => void} callback
+   * Returns the measure type at the given index from the local model.
+   * @param {number} index
+   * @returns {string|null}
    */
-  onHighlightUpdate(callback) {
-    this.highlightUpdateCallback = callback;
+  _getMeasureType(index) {
+    return this._plan[index]?.type ?? null;
   }
 
   /**
-   * Registers callback for score updates.
-   * @param {(overallScore: number, measureScores: number[]) => void} callback
+   * Returns the total number of measures in the current plan.
+   * @returns {number}
    */
-  onScoreUpdate(callback) {
-    this.scoreUpdateCallback = callback;
+  _getPlanLength() {
+    return this._plan.length;
   }
 
   /**
@@ -79,14 +87,6 @@ class DrillSessionManager {
    */
   onSessionComplete(callback) {
     this.sessionCompleteCallback = callback;
-  }
-
-  /**
-   * Registers callback for status updates.
-   * @param {(status: string) => void} callback
-   */
-  onStatusUpdate(callback) {
-    this.statusUpdateCallback = callback;
   }
 
   /**
@@ -99,7 +99,7 @@ class DrillSessionManager {
         /** @type {number} */ time,
         /** @type {number} */ timeUntilBeat
       ) => {
-        const measureType = this.drillPlan.getMeasureType(this.currentMeasureInTotal);
+        const measureType = this._getMeasureType(this.currentMeasureInTotal);
 
         if (measureType === "silent") {
           return false;
@@ -118,9 +118,9 @@ class DrillSessionManager {
 
         setTimeout(() => {
           if (!this.metronome.isRunning) return;
-          if (this.beatUpdateCallback) {
-            this.beatUpdateCallback(beatNumber, this.currentMeasureInTotal, shouldShowBeat);
-          }
+          this.playbackState.update({
+            beat: { beatNum: beatNumber, isDownbeat: beatInMeasure === 0, shouldShow: shouldShowBeat },
+          });
         }, timeUntilBeat * 1000);
 
         return true;
@@ -131,16 +131,13 @@ class DrillSessionManager {
       if (this.isCompletingRun) return;
 
       this.currentMeasureInTotal++;
-      this.drillPlan.setHighlight(this.currentMeasureInTotal);
-      if (this.highlightUpdateCallback) {
-        this.highlightUpdateCallback(this.currentMeasureInTotal);
-      }
+      this.playbackState.update({ highlight: this.currentMeasureInTotal });
 
       const finalizedWithLagMeasureIndex = this.currentMeasureInTotal - 2;
       this.scorer.finalizeMeasure(finalizedWithLagMeasureIndex);
       this._updateScoreDisplay();
 
-      if (this.currentMeasureInTotal >= this.drillPlan.getLength()) {
+      if (this.currentMeasureInTotal >= this._getPlanLength()) {
         this._handleDrillComplete();
       }
     });
@@ -205,7 +202,6 @@ class DrillSessionManager {
 
     // Reset session state
     this.scorer.reset();
-    this.drillPlan.setScores(this.scorer.getAllScores().map((score) => score ?? 0));
     this.currentMeasureInTotal = 0;
     this.runStartedAt = Date.now();
     this.runFinalized = false;
@@ -213,17 +209,14 @@ class DrillSessionManager {
     this.timelineRunStartAudioTime = audioContext.currentTime;
 
     // Reset UI
-    this.drillPlan.setHighlight(0);
-    if (this.highlightUpdateCallback) this.highlightUpdateCallback(0);
+    this.playbackState.update({ highlight: 0 });
     this.timeline.centerAt(0);
 
     // Start metronome
     this.metronome.start();
 
     // Update status
-    if (this.statusUpdateCallback) {
-      this.statusUpdateCallback("Running...");
-    }
+    this.playbackState.update({ status: "Running..." });
   }
 
   /**
@@ -241,12 +234,9 @@ class DrillSessionManager {
     this.metronome.stop();
 
     // Clear UI
-    this.drillPlan.setHighlight(-1);
-    if (this.highlightUpdateCallback) this.highlightUpdateCallback(-1);
+    this.playbackState.update({ highlight: -1 });
 
-    if (this.statusUpdateCallback) {
-      this.statusUpdateCallback("Stopped.");
-    }
+    this.playbackState.update({ status: "Stopped." });
   }
 
   /**
@@ -265,26 +255,19 @@ class DrillSessionManager {
       )
     );
 
-    if (this.statusUpdateCallback) {
-      this.statusUpdateCallback("Drill complete. Capturing final hits...");
-    }
+    this.playbackState.update({ status: "Drill complete. Capturing final hits..." });
 
     this.completionTimeoutId = globalThis.setTimeout(() => {
-      this.scorer.finalizeMeasure(this.drillPlan.getLength() - 2);
-      this.scorer.finalizeMeasure(this.drillPlan.getLength() - 1);
+      this.scorer.finalizeMeasure(this._getPlanLength() - 2);
+      this.scorer.finalizeMeasure(this._getPlanLength() - 1);
       this._updateScoreDisplay();
       this._finalizeRun(true);
 
       this.isCompletingRun = false;
       this.completionTimeoutId = undefined;
-      this.drillPlan.setHighlight(-1);
-      if (this.highlightUpdateCallback) {
-        this.highlightUpdateCallback(-1);
-      }
+      this.playbackState.update({ highlight: -1 });
 
-      if (this.statusUpdateCallback) {
-        this.statusUpdateCallback("Drill complete!");
-      }
+      this.playbackState.update({ status: "Drill complete!" });
     }, finalHitGraceMs);
   }
 
@@ -295,10 +278,10 @@ class DrillSessionManager {
    * @private
    */
   _finalizeRun(completed) {
-    if (this.runFinalized || this.drillPlan.getLength() === 0) return null;
+    if (this.runFinalized || this._getPlanLength() === 0) return null;
 
     // Finalize all measures
-    for (let index = 0; index < this.drillPlan.getLength(); index++) {
+    for (let index = 0; index < this._getPlanLength(); index++) {
       this.scorer.finalizeMeasure(index);
     }
     this._updateScoreDisplay();
@@ -314,7 +297,7 @@ class DrillSessionManager {
       completed,
       durationSeconds: elapsedSeconds,
       measureHits: this.scorer.measureHits,
-      drillPlan: this.drillPlan.getPlan(),
+      drillPlan: this._planData,
       overallScore: this.scorer.getOverallScore(),
     };
 
@@ -333,13 +316,10 @@ class DrillSessionManager {
    * @private
    */
   _updateScoreDisplay() {
-    this.drillPlan.setScores(this.scorer.getAllScores().map((score) => score ?? 0));
-    if (this.scoreUpdateCallback) {
-      this.scoreUpdateCallback(
-        this.scorer.getOverallScore(),
-        this.scorer.getAllScores().map((score) => score ?? 0)
-      );
-    }
+    this.playbackState.update({
+      overallScore: this.scorer.getOverallScore(),
+      scores: this.scorer.getAllScores().map((score) => score ?? 0),
+    });
   }
 
   /**

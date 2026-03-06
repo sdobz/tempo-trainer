@@ -113,18 +113,10 @@ Deno.test("PlanEditPane: should have element references after mount", async () =
   assertEquals(component.segmentsList !== null, true);
 });
 
-Deno.test("PlanEditPane: should pass string plan format to drillPlan.parse", async () => {
+Deno.test("PlanEditPane: should pass planData to PlaybackContext on showPlanInfo", async () => {
   const component = await createComponent();
 
-  let parseArg = "";
-
-  // Mock the visualization component's parse method
-  component.drillPlanViz = {
-    parse: (input: string) => {
-      parseArg = input;
-    },
-  } as any;
-
+  // After _showPlanInfo, the _planView should have planData set
   component._showPlanInfo({
     id: "p1",
     name: "Test",
@@ -137,8 +129,19 @@ Deno.test("PlanEditPane: should pass string plan format to drillPlan.parse", asy
     ],
   });
 
-  assertEquals(typeof parseArg, "string");
-  assertEquals(parseArg, "1,1,2;2,0,1");
+  const planData = component._planView.state.planData;
+  assertEquals(planData !== null, true);
+  if (!planData) return;
+  assertEquals(Array.isArray(planData.plan), true);
+  assertEquals(Array.isArray(planData.segments), true);
+  // First entry is click-in
+  assertEquals(planData.plan[0].type, "click-in");
+  // User segments (excluding click-in) should match input
+  const userSegs = planData.segments.filter((s: any) => !s.isClickIn);
+  assertEquals(userSegs.length, 2);
+  assertEquals(userSegs[0].on, 1);
+  assertEquals(userSegs[0].off, 1);
+  assertEquals(userSegs[0].reps, 2);
 });
 
 Deno.test("PlanEditPane: should hide edit action for built-in plans", async () => {

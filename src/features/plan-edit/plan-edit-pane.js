@@ -6,7 +6,8 @@
 
 import BaseComponent from "../base/base-component.js";
 import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
-import Services from "../base/services.js";
+import { PlaybackState, PlaybackContext } from "../plan-play/playback-state.js";
+import { SessionStateContext } from "../base/session-state.js";
 import "../visualizers/plan-visualizer.js";
 
 /**
@@ -43,8 +44,8 @@ export default class PlanEditPane extends BaseComponent {
     /** @type {import('../base/session-state.js').default|null} */
     this.sessionState = null;
 
-    // Component references (set in onMount)
-    this.drillPlanViz = null;
+    // Subscribable plan view — provided to child visualizer via PlaybackContext
+    this._planView = new PlaybackState();
 
     // DOM element references (set in onMount)
     this.planLibrarySelect = null;
@@ -113,8 +114,20 @@ export default class PlanEditPane extends BaseComponent {
     this.startPlanPlayBtn = querySelector(this, "[data-start-plan-play-btn]");
     this.planQuickActions = querySelector(this, "[data-plan-quick-actions]");
 
-    // Get reference to plan visualizer component
-    this.drillPlanViz = this.querySelector("plan-visualizer");
+    // Provide PlaybackContext to descendant visualizer
+    this.provideContext(PlaybackContext, () => this._planView);
+
+    // Obtain SessionStateContext so we can update the shared plan
+    this.consumeContext(SessionStateContext, (ss) => {
+      this.sessionState = ss;
+    });
+
+    // When plan-visualizer emits plan-change (e.g. during parse), update sessionState
+    this.listen(this, "plan-change", (e) => {
+      if (this.sessionState) {
+        this.sessionState.setPlan(e.detail);
+      }
+    });
 
     // Bind event listeners
     this._cleanups.push(bindEvent(this.planLibrarySelect, "change", () => this._onPlanSelected()));
@@ -139,8 +152,6 @@ export default class PlanEditPane extends BaseComponent {
    */
   init(planLibrary) {
     this.planLibrary = planLibrary;
-    this.sessionState = Services.get("sessionState");
-
     this._populatePlanLibrary();
   }
 
@@ -240,10 +251,64 @@ export default class PlanEditPane extends BaseComponent {
   }
 
   /**
+   * Normalize UI/library segment shapes into DrillPlan object format.
+   * Returns { plan: Measure[], segments: DrillSegment[] } directly without string roundtrip.
+   * @param {Array} rawSegments
+   * @returns {{ plan: Array<{type:string}>, segments: Array }}
+   */
+  _segmentsToPlanData(rawSegments) {
+    const plan = [];
+    const segs = [];
+
+    // Normalize raw segment shapes
+    const segments = (Array.isArray(rawSegments) ? rawSegments : [])
+      .map((segment) => {
+        if (
+          typeof segment?.on === "number" &&
+          typeof segment?.off === "number" &&
+          typeof segment?.reps === "number"
+        ) {
+          return {
+            on: Math.max(0, segment.on),
+            off: Math.max(0, segment.off),
+            reps: Math.max(1, segment.reps),
+          };
+        }
+        if (typeof segment?.measures === "number") {
+          return { on: Math.max(0, segment.measures), off: 0, reps: 1 };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    // Click-in measure is always the first entry
+    segs.push({ isClickIn: true, on: 1, off: 0, reps: 1, startIndex: 0 });
+    plan.push({ type: "click-in" });
+
+    let currentIndex = 1;
+    for (const { on, off, reps } of segments) {
+      segs.push({ on, off, reps, startIndex: currentIndex });
+      for (let rep = 0; rep < reps; rep++) {
+        for (let i = 0; i < on; i++) {
+          plan.push({ type: "click" });
+          currentIndex++;
+        }
+        for (let i = 0; i < off; i++) {
+          plan.push({ type: "silent" });
+          currentIndex++;
+        }
+      }
+    }
+
+    return { plan, segments: segs };
+  }
+
+  /**
    * Normalize UI/library segment shapes into DrillPlan parse string format.
    * Format: "on,off,reps;on,off,reps"
    * @param {Array} segments
    * @returns {string}
+   * @deprecated Use _segmentsToPlanData() instead
    */
   _segmentsToPlanString(segments) {
     if (!Array.isArray(segments) || segments.length === 0) return "";
@@ -299,17 +364,12 @@ export default class PlanEditPane extends BaseComponent {
     }
 
     const segments = plan.segments || [];
-    const planString = this._segmentsToPlanString(segments);
-    const normalizedSegments = planString
-      ? planString.split(";").map((step) => {
-          const [on, off, reps] = step.split(",").map((value) => parseInt(value, 10));
-          return { on, off, reps };
-        })
-      : [];
+    const planData = this._segmentsToPlanData(segments);
+    const userSegs = planData.segments.filter((s) => !s.isClickIn);
 
-    this.planStatSegments.textContent = normalizedSegments.length;
+    this.planStatSegments.textContent = userSegs.length;
 
-    const totalMeasures = normalizedSegments.reduce(
+    const totalMeasures = userSegs.reduce(
       (sum, seg) => sum + (seg.on + seg.off) * seg.reps,
       0
     );
@@ -323,16 +383,9 @@ export default class PlanEditPane extends BaseComponent {
 
     this.planInfoDisplay.style.display = "block";
 
-    // Update visualization
-    if (this.drillPlanViz) {
-      try {
-        this.drillPlanViz.parse(planString);
-        // Never show scores in edit pane - clear them
-        this.drillPlanViz.setScores([]);
-      } catch (e) {
-        console.error("Failed to visualize plan:", e);
-      }
-    }
+    // Update visualiser via PlaybackContext and propagate to sessionState
+    this._planView.update({ planData, scores: [] });
+    if (this.sessionState) this.sessionState.setPlan(planData);
 
     // Show/hide action buttons
     this.clonePlanBtn.style.display = "inline-block";
@@ -576,15 +629,14 @@ export default class PlanEditPane extends BaseComponent {
    * Update visualization during editing
    */
   _updateEditorVisualization() {
-    if (!this.drillPlanViz || this.editingSegments.length === 0) {
+    if (this.editingSegments.length === 0) {
       return;
     }
 
     try {
-      const planString = this._segmentsToPlanString(this.editingSegments);
-      if (planString) {
-        this.drillPlanViz.parse(planString);
-      }
+      const planData = this._segmentsToPlanData(this.editingSegments);
+      this._planView.update({ planData });
+      if (this.sessionState) this.sessionState.setPlan(planData);
     } catch (e) {
       console.error("Failed to update visualization:", e);
     }
@@ -595,15 +647,9 @@ export default class PlanEditPane extends BaseComponent {
    */
   _onStartTraining() {
     if (this.currentPlan) {
-      // Parse plan for visualization
-      if (this.drillPlanViz) {
-        try {
-          const planString = this._segmentsToPlanString(this.currentPlan.segments || []);
-          this.drillPlanViz.parse(planString);
-        } catch (e) {
-          console.error("Failed to parse plan:", e);
-        }
-      }
+      // Ensure sessionState has the current plan before navigating
+      const planData = this._planView.state.planData;
+      if (planData && this.sessionState) this.sessionState.setPlan(planData);
 
       // Emit navigation event
       dispatchEvent(this, "navigate", { pane: "plan-play" });

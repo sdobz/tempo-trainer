@@ -6,6 +6,8 @@
 
 import BaseComponent from "../base/base-component.js";
 import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
+import { PlaybackState, PlaybackContext } from "./playback-state.js";
+import { SessionStateContext } from "../base/session-state.js";
 import "../visualizers/timeline-visualization.js";
 import "../visualizers/plan-visualizer.js";
 import "../base/app-notification.js";
@@ -41,13 +43,16 @@ export default class PlanPlayPane extends BaseComponent {
     /** @type {Array<() => void>} */
     this._cleanups = [];
 
-    // Injected dependencies (set externally)
-    this.drillPlan = null;
-    this.scorer = null;
+    // Subscribable playback state — provided to descendant visualizers via PlaybackContext
+    this._playbackState = new PlaybackState();
 
-    // Component references (set in onMount)
+    // SessionState reference obtained via consumeContext (wired in onMount)
+    /** @type {import('../base/session-state.js').default|null} */
+    this._sessionState = null;
+
+    // Direct timeline ref for imperative playback operations (centerAt, addDetection, etc.)
+    /** @type {any} */
     this.timelineViz = null;
-    this.planVisualizer = null;
 
     // DOM element references (set in onMount)
     this.bpmInput = null;
@@ -84,11 +89,66 @@ export default class PlanPlayPane extends BaseComponent {
     this.viewResultsBtn = querySelector(this, "[data-view-results-btn]");
     this.calibrationWarning = querySelector(this, "[data-calibration-warning]");
 
-    // Get reference to timeline-visualization component
+    // Obtain direct ref to timeline for imperative playback operations
     this.timelineViz = this.querySelector("timeline-visualization");
 
-    // Get reference to plan-visualizer component
-    this.planVisualizer = this.querySelector("plan-visualizer");
+    // Provide PlaybackContext so descendant visualizers can subscribe to playback state
+    this.provideContext(PlaybackContext, () => this._playbackState);
+
+    // Subscribe to playbackState for own DOM rendering
+    this._cleanups.push(
+      this._playbackState.subscribe((state) => {
+        // Beat indicator
+        if (state.beat) {
+          this.beatIndicator.textContent = String(state.beat.beatNum);
+          this.beatIndicator.className = "beat-indicator";
+          if (state.beat.shouldShow) {
+            this.beatIndicator.classList.add(state.beat.isDownbeat ? "downbeat" : "active");
+          }
+        } else {
+          this.beatIndicator.textContent = "";
+          this.beatIndicator.className = "beat-indicator";
+        }
+        // Status
+        this.statusDiv.textContent = state.status;
+        // Score
+        const formattedScore = String(Math.round(state.overallScore)).padStart(2, "00");
+        this.overallScoreDisplay.textContent = "Overall Score: " + formattedScore;
+        this.setState({ overallScore: state.overallScore });
+        // Playing state
+        this.setPlaying(state.isPlaying);
+      })
+    );
+
+    // Consume SessionStateContext — wire BPM, beatsPerMeasure and plan into playbackState
+    this.consumeContext(SessionStateContext, (ss) => {
+      this._sessionState = ss;
+      // Initialise from current session state
+      this.setBPM(ss.bpm);
+      this._playbackState.update({ planData: ss.plan, beatsPerMeasure: ss.beatsPerMeasure });
+      this._cleanups.push(
+        ss.subscribe({
+          onBPMChange: (bpm) => this.setBPM(bpm),
+          onBeatsPerMeasureChange: (n) => this._playbackState.update({ beatsPerMeasure: n }),
+          onPlanChange: (planData) => this._playbackState.update({ planData }),
+        })
+      );
+    });
+
+    // BPM / time-signature input listeners — update SessionState so all consumers see the change
+    this._cleanups.push(
+      bindEvent(this.bpmInput, "input", () => {
+        const bpm = parseInt(this.bpmInput.value, 10);
+        if (!isNaN(bpm) && this._sessionState) this._sessionState.setBPM(bpm);
+      })
+    );
+    this._cleanups.push(
+      bindEvent(this.timeSignatureSelect, "change", () => {
+        const beatsPerMeasure = parseInt(this.timeSignatureSelect.value.split("/")[0], 10);
+        if (!isNaN(beatsPerMeasure) && this._sessionState)
+          this._sessionState.setBeatsPerMeasure(beatsPerMeasure);
+      })
+    );
 
     // Bind event listeners
     this._cleanups.push(bindEvent(this.startBtn, "click", () => this._onStart()));
@@ -104,28 +164,6 @@ export default class PlanPlayPane extends BaseComponent {
   onUnmount() {
     this._cleanups.forEach((cleanup) => cleanup());
     this._cleanups = [];
-  }
-
-  /**
-   * Initialize the component with dependencies
-   * @param {DrillPlan} drillPlan
-   * @param {Scorer} scorer
-   */
-  init(drillPlan, scorer) {
-    this.drillPlan = drillPlan;
-    this.scorer = scorer;
-
-    // If plan visualizer is available, parse and display the plan
-    if (this.planVisualizer && this.drillPlan && typeof this.drillPlan.getPlan === "function") {
-      try {
-        const planData = this.drillPlan.getPlan();
-        if (planData && typeof this.planVisualizer.setDrillPlan === "function") {
-          this.planVisualizer.setDrillPlan(planData);
-        }
-      } catch (e) {
-        // Plan visualizer may not be available in tests
-      }
-    }
   }
 
   // --- Public Methods ---
@@ -163,44 +201,11 @@ export default class PlanPlayPane extends BaseComponent {
   }
 
   /**
-   * Update beat indicator display
-   * @param {number} beatNumber - 1-indexed beat number
-   * @param {boolean} isDownbeat - Whether this is the first beat of measure
-   * @param {boolean} shouldShow - Whether to show the beat visually
+   * Get the PlaybackState instance (used by DrillSessionManager).
+   * @returns {PlaybackState}
    */
-  updateBeatIndicator(beatNumber, isDownbeat, shouldShow) {
-    this.beatIndicator.textContent = String(beatNumber);
-    this.beatIndicator.className = "beat-indicator";
-    if (shouldShow) {
-      this.beatIndicator.classList.add(isDownbeat ? "downbeat" : "active");
-    }
-  }
-
-  /**
-   * Clear beat indicator
-   */
-  clearBeatIndicator() {
-    this.beatIndicator.textContent = "";
-    this.beatIndicator.className = "beat-indicator";
-  }
-
-  /**
-   * Update status message
-   */
-  setStatus(message) {
-    this.statusDiv.textContent = message;
-  }
-
-  /**
-   * Update overall score display
-   */
-  updateScore(score, measureScores) {
-    if (measureScores && this.planVisualizer) {
-      this.planVisualizer.setScores(measureScores);
-    }
-    this.setState({ overallScore: score });
-    const formattedScore = String(Math.round(score)).padStart(2, "0");
-    this.overallScoreDisplay.textContent = "Overall Score: " + formattedScore;
+  get playbackState() {
+    return this._playbackState;
   }
 
   /**
@@ -233,10 +238,14 @@ export default class PlanPlayPane extends BaseComponent {
    * Reset to initial state
    */
   reset() {
-    this.clearBeatIndicator();
-    this.setStatus("Ready.");
-    this.updateScore(0);
-    this.setPlaying(false);
+    this._playbackState.update({
+      beat: null,
+      status: "Ready.",
+      scores: [],
+      overallScore: 0,
+      highlight: -1,
+      isPlaying: false,
+    });
     this.setState({ currentMeasure: 0 });
 
     if (this.timelineViz) {

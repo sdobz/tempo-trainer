@@ -6,6 +6,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector } from "../base/component-utils.js";
+import { PlaybackContext } from "../plan-play/playback-state.js";
 
 /** @typedef {{ type: string }} Measure */
 
@@ -30,7 +31,8 @@ export default class TimelineVisualization extends BaseComponent {
     /** @type {Measure[]} */
     this.drillPlan = [];
     this.beatsPerMeasure = 4;
-    this.lastBeatPosition = 0;
+    /** @type {(() => void)|null} */
+    this._cleanupPlayback = null;
   }
 
   getTemplateUrl() {
@@ -45,6 +47,24 @@ export default class TimelineVisualization extends BaseComponent {
     // Get the viewport and track elements
     this.viewport = querySelector(this, "[data-timeline-viewport]");
     this.track = querySelector(this, "[data-timeline-track]");
+
+    // Consume PlaybackContext provided by ancestor pane
+    this.consumeContext(PlaybackContext, (ps) => {
+      this._cleanupPlayback = ps.subscribe((state) => {
+        if (state.planData?.plan) {
+          this.drillPlan = state.planData.plan;
+        }
+        this.beatsPerMeasure = state.beatsPerMeasure;
+        this.build();
+      });
+    });
+  }
+
+  onUnmount() {
+    if (this._cleanupPlayback) {
+      this._cleanupPlayback();
+      this._cleanupPlayback = null;
+    }
   }
 
   /**

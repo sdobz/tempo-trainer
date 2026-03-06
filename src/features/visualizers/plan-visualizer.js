@@ -7,6 +7,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector } from "../base/component-utils.js";
+import { PlaybackContext } from "../plan-play/playback-state.js";
 
 /** @typedef {{ type: string }} Measure */
 /** @typedef {{ on: number, off: number, reps: number, startIndex: number }} DrillSegment */
@@ -32,8 +33,8 @@ export default class PlanVisualizer extends BaseComponent {
     /** @type {any} */
     this.delegate = null;
 
-    /** @type {((plan: Measure[]) => void)|null} */
-    this.onPlanChangeCallback = null;
+    /** @type {(() => void)|null} */
+    this._cleanupPlayback = null;
   }
 
   getTemplateUrl() {
@@ -58,6 +59,22 @@ export default class PlanVisualizer extends BaseComponent {
 
     this.updateInteractiveState();
     this.render();
+
+    // Consume PlaybackContext provided by ancestor pane (plan-play or plan-edit)
+    this.consumeContext(PlaybackContext, (ps) => {
+      this._cleanupPlayback = ps.subscribe((state) => {
+        if (state.planData) this.setDrillPlan(state.planData);
+        this.setScores(state.scores);
+        this.setHighlight(state.highlight);
+      });
+    });
+  }
+
+  onUnmount() {
+    if (this._cleanupPlayback) {
+      this._cleanupPlayback();
+      this._cleanupPlayback = null;
+    }
   }
 
   /**
@@ -79,14 +96,6 @@ export default class PlanVisualizer extends BaseComponent {
         viz.classList.remove("interactive");
       }
     }
-  }
-
-  /**
-   * Registers a callback to be invoked when the plan changes.
-   * @param {(plan: Measure[]) => void} callback
-   */
-  onPlanChange(callback) {
-    this.onPlanChangeCallback = callback;
   }
 
   /**
@@ -146,10 +155,8 @@ export default class PlanVisualizer extends BaseComponent {
 
     this.render();
 
-    if (this.onPlanChangeCallback) {
-      // NOTE: Passing complete structure instead of just plan array
-      this.onPlanChangeCallback({ plan: this.plan, segments: this.segments });
-    }
+    // Notify ancestors that the plan changed (e.g. plan-edit-pane updates sessionState)
+    this.emit("plan-change", { plan: this.plan, segments: this.segments });
 
     return this.plan;
   }
