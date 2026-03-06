@@ -5,8 +5,11 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
-import { PlaybackState, PlaybackContext } from "../plan-play/playback-state.js";
+import {
+  bindEvent,
+  dispatchEvent,
+  querySelector,
+} from "../base/component-utils.js";
 import { SessionStateContext } from "../base/session-state.js";
 import "../visualizers/plan-visualizer.js";
 
@@ -43,9 +46,6 @@ export default class PlanEditPane extends BaseComponent {
     this.planLibrary = null;
     /** @type {import('../base/session-state.js').default|null} */
     this.sessionState = null;
-
-    // Subscribable plan view — provided to child visualizer via PlaybackContext
-    this._planView = new PlaybackState();
 
     // DOM element references (set in onMount)
     this.planLibrarySelect = null;
@@ -95,15 +95,27 @@ export default class PlanEditPane extends BaseComponent {
     this.newPlanBtn = querySelector(this, "[data-new-plan-btn]");
     this.planInfoDisplay = querySelector(this, "[data-plan-info-display]");
     this.planInfoName = querySelector(this, "[data-plan-info-name]");
-    this.planInfoDescription = querySelector(this, "[data-plan-info-description]");
-    this.planInfoDifficulty = querySelector(this, "[data-plan-info-difficulty]");
+    this.planInfoDescription = querySelector(
+      this,
+      "[data-plan-info-description]",
+    );
+    this.planInfoDifficulty = querySelector(
+      this,
+      "[data-plan-info-difficulty]",
+    );
     this.planStatSegments = querySelector(this, "[data-plan-stat-segments]");
     this.planStatMeasures = querySelector(this, "[data-plan-stat-measures]");
     this.planStatDuration = querySelector(this, "[data-plan-stat-duration]");
     this.planEditorSection = querySelector(this, "[data-plan-editor-section]");
     this.planNameInput = querySelector(this, "[data-plan-name-input]");
-    this.planDescriptionInput = querySelector(this, "[data-plan-description-input]");
-    this.planDifficultyInput = querySelector(this, "[data-plan-difficulty-input]");
+    this.planDescriptionInput = querySelector(
+      this,
+      "[data-plan-description-input]",
+    );
+    this.planDifficultyInput = querySelector(
+      this,
+      "[data-plan-difficulty-input]",
+    );
     this.segmentsList = querySelector(this, "[data-segments-list]");
     this.addSegmentBtn = querySelector(this, "[data-add-segment-btn]");
     this.savePlanBtn = querySelector(this, "[data-save-plan-btn]");
@@ -114,31 +126,39 @@ export default class PlanEditPane extends BaseComponent {
     this.startPlanPlayBtn = querySelector(this, "[data-start-plan-play-btn]");
     this.planQuickActions = querySelector(this, "[data-plan-quick-actions]");
 
-    // Provide PlaybackContext to descendant visualizer
-    this.provideContext(PlaybackContext, () => this._planView);
-
     // Obtain SessionStateContext so we can update the shared plan
     this.consumeContext(SessionStateContext, (ss) => {
       this.sessionState = ss;
     });
 
-    // When plan-visualizer emits plan-change (e.g. during parse), update sessionState
-    this.listen(this, "plan-change", (e) => {
-      if (this.sessionState) {
-        this.sessionState.setPlan(e.detail);
-      }
-    });
-
     // Bind event listeners
-    this._cleanups.push(bindEvent(this.planLibrarySelect, "change", () => this._onPlanSelected()));
-    this._cleanups.push(bindEvent(this.newPlanBtn, "click", () => this._onNewPlan()));
-    this._cleanups.push(bindEvent(this.editPlanBtn, "click", () => this._onEditPlan()));
-    this._cleanups.push(bindEvent(this.clonePlanBtn, "click", () => this._onClonePlan()));
-    this._cleanups.push(bindEvent(this.savePlanBtn, "click", () => this._onSavePlan()));
-    this._cleanups.push(bindEvent(this.cancelEditBtn, "click", () => this._onCancelEdit()));
-    this._cleanups.push(bindEvent(this.deletePlanBtn, "click", () => this._onDeletePlan()));
-    this._cleanups.push(bindEvent(this.addSegmentBtn, "click", () => this._onAddSegment()));
-    this._cleanups.push(bindEvent(this.startPlanPlayBtn, "click", () => this._onStartTraining()));
+    this._cleanups.push(
+      bindEvent(this.planLibrarySelect, "change", () => this._onPlanSelected()),
+    );
+    this._cleanups.push(
+      bindEvent(this.newPlanBtn, "click", () => this._onNewPlan()),
+    );
+    this._cleanups.push(
+      bindEvent(this.editPlanBtn, "click", () => this._onEditPlan()),
+    );
+    this._cleanups.push(
+      bindEvent(this.clonePlanBtn, "click", () => this._onClonePlan()),
+    );
+    this._cleanups.push(
+      bindEvent(this.savePlanBtn, "click", () => this._onSavePlan()),
+    );
+    this._cleanups.push(
+      bindEvent(this.cancelEditBtn, "click", () => this._onCancelEdit()),
+    );
+    this._cleanups.push(
+      bindEvent(this.deletePlanBtn, "click", () => this._onDeletePlan()),
+    );
+    this._cleanups.push(
+      bindEvent(this.addSegmentBtn, "click", () => this._onAddSegment()),
+    );
+    this._cleanups.push(
+      bindEvent(this.startPlanPlayBtn, "click", () => this._onStartTraining()),
+    );
   }
 
   onUnmount() {
@@ -199,7 +219,9 @@ export default class PlanEditPane extends BaseComponent {
     } else {
       params.delete("plan");
     }
-    const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+    const newUrl = params.toString()
+      ? `?${params.toString()}`
+      : window.location.pathname;
     window.history.replaceState({}, "", newUrl);
   }
 
@@ -212,7 +234,8 @@ export default class PlanEditPane extends BaseComponent {
     if (!this.planLibrary) return;
 
     const plans = this.planLibrary.getAllPlans();
-    this.planLibrarySelect.innerHTML = '<option value="">Select a plan...</option>';
+    this.planLibrarySelect.innerHTML =
+      '<option value="">Select a plan...</option>';
 
     plans.forEach((plan) => {
       const option = document.createElement("option");
@@ -341,7 +364,9 @@ export default class PlanEditPane extends BaseComponent {
       })
       .filter((segment) => segment !== null);
 
-    return normalized.map((segment) => `${segment.on},${segment.off},${segment.reps}`).join(";");
+    return normalized
+      .map((segment) => `${segment.on},${segment.off},${segment.reps}`)
+      .join(";");
   }
 
   /**
@@ -371,7 +396,7 @@ export default class PlanEditPane extends BaseComponent {
 
     const totalMeasures = userSegs.reduce(
       (sum, seg) => sum + (seg.on + seg.off) * seg.reps,
-      0
+      0,
     );
     this.planStatMeasures.textContent = totalMeasures;
 
@@ -383,8 +408,7 @@ export default class PlanEditPane extends BaseComponent {
 
     this.planInfoDisplay.style.display = "block";
 
-    // Update visualiser via PlaybackContext and propagate to sessionState
-    this._planView.update({ planData, scores: [] });
+    // Update sessionState so descendant visualizers see the change via SessionStateContext
     if (this.sessionState) this.sessionState.setPlan(planData);
 
     // Show/hide action buttons
@@ -418,7 +442,9 @@ export default class PlanEditPane extends BaseComponent {
       this.planNameInput.value = plan.name || "";
       this.planDescriptionInput.value = plan.description || "";
       this.planDifficultyInput.value = plan.difficulty || "";
-      this.deletePlanBtn.style.display = plan.isBuiltIn ? "none" : "inline-block";
+      this.deletePlanBtn.style.display = plan.isBuiltIn
+        ? "none"
+        : "inline-block";
     } else {
       this.planNameInput.value = "";
       this.planDescriptionInput.value = "";
@@ -492,7 +518,7 @@ export default class PlanEditPane extends BaseComponent {
           this.editingSegments.splice(index, 1);
           this._renderSegmentsList();
           this._updateEditorVisualization();
-        })
+        }),
       );
 
       this.segmentsList.appendChild(segmentEl);
@@ -595,7 +621,12 @@ export default class PlanEditPane extends BaseComponent {
    * Handle "Delete Plan" button
    */
   _onDeletePlan() {
-    if (!this.planLibrary || !this.editingPlan?.id || this.editingPlan.isBuiltIn) return;
+    if (
+      !this.planLibrary ||
+      !this.editingPlan?.id ||
+      this.editingPlan.isBuiltIn
+    )
+      return;
 
     if (!confirm(`Delete "${this.editingPlan.name}"?`)) {
       return;
@@ -635,7 +666,6 @@ export default class PlanEditPane extends BaseComponent {
 
     try {
       const planData = this._segmentsToPlanData(this.editingSegments);
-      this._planView.update({ planData });
       if (this.sessionState) this.sessionState.setPlan(planData);
     } catch (e) {
       console.error("Failed to update visualization:", e);
@@ -648,7 +678,7 @@ export default class PlanEditPane extends BaseComponent {
   _onStartTraining() {
     if (this.currentPlan) {
       // Ensure sessionState has the current plan before navigating
-      const planData = this._planView.state.planData;
+      const planData = this.sessionState?.plan;
       if (planData && this.sessionState) this.sessionState.setPlan(planData);
 
       // Emit navigation event

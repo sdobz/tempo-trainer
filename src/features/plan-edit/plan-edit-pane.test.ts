@@ -24,13 +24,16 @@ Deno.test("PlanEditPane: should initialize with default state", async () => {
   assertEquals(component.state.currentPlanId, null);
 });
 
-Deno.test("PlanEditPane: should have required template and style URLs", async () => {
-  const component = await createComponent();
-  assertEquals(typeof component.getTemplateUrl(), "string");
-  assertEquals(typeof component.getStyleUrl(), "string");
-  assertEquals(component.getTemplateUrl().includes("html"), true);
-  assertEquals(component.getStyleUrl().includes("css"), true);
-});
+Deno.test(
+  "PlanEditPane: should have required template and style URLs",
+  async () => {
+    const component = await createComponent();
+    assertEquals(typeof component.getTemplateUrl(), "string");
+    assertEquals(typeof component.getStyleUrl(), "string");
+    assertEquals(component.getTemplateUrl().includes("html"), true);
+    assertEquals(component.getStyleUrl().includes("css"), true);
+  },
+);
 
 Deno.test("PlanEditPane: should update state via setState()", async () => {
   const component = await createComponent();
@@ -49,141 +52,176 @@ Deno.test("PlanEditPane: should merge state updates, not replace", async () => {
   assertEquals(component.state.currentPlanId, "plan-1");
 });
 
-Deno.test("PlanEditPane: should call onStateChange hook when state updates", async () => {
-  const component = await createComponent();
-  let hookCalled = false;
-  let oldState: any = null;
-  let newState: any = null;
+Deno.test(
+  "PlanEditPane: should call onStateChange hook when state updates",
+  async () => {
+    const component = await createComponent();
+    let hookCalled = false;
+    let oldState: any = null;
+    let newState: any = null;
 
-  component.onStateChange = (oldS, newS) => {
-    hookCalled = true;
-    oldState = oldS;
-    newState = newS;
-  };
+    component.onStateChange = (oldS, newS) => {
+      hookCalled = true;
+      oldState = oldS;
+      newState = newS;
+    };
 
-  component.setState({ isEditing: true });
-  assertEquals(hookCalled, true);
-  assertEquals(oldState?.isEditing, false);
-  assertEquals(newState?.isEditing, true);
-});
+    component.setState({ isEditing: true });
+    assertEquals(hookCalled, true);
+    assertEquals(oldState?.isEditing, false);
+    assertEquals(newState?.isEditing, true);
+  },
+);
 
 Deno.test("PlanEditPane: should register as custom element", () => {
   const customElement = customElements.get("plan-edit-pane");
   assertEquals(customElement !== undefined, true);
 });
 
-Deno.test("PlanEditPane: setState should throw on invalid argument", async () => {
-  const component = await createComponent();
-  try {
-    component.setState(null as any);
-    assertEquals(true, false); // Should not reach here
-  } catch (e) {
-    assertEquals((e as Error).message, "setState requires an object");
-  }
-});
+Deno.test(
+  "PlanEditPane: setState should throw on invalid argument",
+  async () => {
+    const component = await createComponent();
+    try {
+      component.setState(null as any);
+      assertEquals(true, false); // Should not reach here
+    } catch (e) {
+      assertEquals((e as Error).message, "setState requires an object");
+    }
+  },
+);
 
-Deno.test("PlanEditPane: setState should accept valid state objects", async () => {
-  const component = await createComponent();
-  component.setState({});
-  assertEquals(component.state.isEditing, false);
-  component.setState({ isEditing: true, currentPlanId: "id-1" });
-  assertEquals(component.state.isEditing, true);
-  assertEquals(component.state.currentPlanId, "id-1");
-});
+Deno.test(
+  "PlanEditPane: setState should accept valid state objects",
+  async () => {
+    const component = await createComponent();
+    component.setState({});
+    assertEquals(component.state.isEditing, false);
+    component.setState({ isEditing: true, currentPlanId: "id-1" });
+    assertEquals(component.state.isEditing, true);
+    assertEquals(component.state.currentPlanId, "id-1");
+  },
+);
 
-Deno.test("PlanEditPane: getCurrentPlan should return null initially", async () => {
-  const component = await createComponent();
-  assertEquals(component.getCurrentPlan(), null);
-});
+Deno.test(
+  "PlanEditPane: getCurrentPlan should return null initially",
+  async () => {
+    const component = await createComponent();
+    assertEquals(component.getCurrentPlan(), null);
+  },
+);
 
-Deno.test("PlanEditPane: getAllPlans should return empty array when not initialized", async () => {
-  const component = await createComponent();
-  const plans = component.getAllPlans();
-  assertEquals(Array.isArray(plans), true);
-  assertEquals(plans.length, 0);
-});
+Deno.test(
+  "PlanEditPane: getAllPlans should return empty array when not initialized",
+  async () => {
+    const component = await createComponent();
+    const plans = component.getAllPlans();
+    assertEquals(Array.isArray(plans), true);
+    assertEquals(plans.length, 0);
+  },
+);
 
-Deno.test("PlanEditPane: should have element references after mount", async () => {
-  const component = await createComponent();
-  assertEquals(component.planLibrarySelect !== null, true);
-  assertEquals(component.newPlanBtn !== null, true);
-  assertEquals(component.planInfoDisplay !== null, true);
-  assertEquals(component.planEditorSection !== null, true);
-  assertEquals(component.planNameInput !== null, true);
-  assertEquals(component.segmentsList !== null, true);
-});
+Deno.test(
+  "PlanEditPane: should have element references after mount",
+  async () => {
+    const component = await createComponent();
+    assertEquals(component.planLibrarySelect !== null, true);
+    assertEquals(component.newPlanBtn !== null, true);
+    assertEquals(component.planInfoDisplay !== null, true);
+    assertEquals(component.planEditorSection !== null, true);
+    assertEquals(component.planNameInput !== null, true);
+    assertEquals(component.segmentsList !== null, true);
+  },
+);
 
-Deno.test("PlanEditPane: should pass planData to PlaybackContext on showPlanInfo", async () => {
-  const component = await createComponent();
+Deno.test(
+  "PlanEditPane: should propagate planData to sessionState on showPlanInfo",
+  async () => {
+    const component = await createComponent();
 
-  // After _showPlanInfo, the _planView should have planData set
-  component._showPlanInfo({
-    id: "p1",
-    name: "Test",
-    description: "",
-    difficulty: "Beginner",
-    bpm: 120,
-    segments: [
-      { on: 1, off: 1, reps: 2 },
-      { on: 2, off: 0, reps: 1 },
-    ],
-  });
+    // Inject a mock sessionState so the component can forward plan data
+    const mockSessionState = {
+      plan: null as any,
+      setPlan(p: any) {
+        this.plan = p;
+      },
+    };
+    component.sessionState = mockSessionState as any;
 
-  const planData = component._planView.state.planData;
-  assertEquals(planData !== null, true);
-  if (!planData) return;
-  assertEquals(Array.isArray(planData.plan), true);
-  assertEquals(Array.isArray(planData.segments), true);
-  // First entry is click-in
-  assertEquals(planData.plan[0].type, "click-in");
-  // User segments (excluding click-in) should match input
-  const userSegs = planData.segments.filter((s: any) => !s.isClickIn);
-  assertEquals(userSegs.length, 2);
-  assertEquals(userSegs[0].on, 1);
-  assertEquals(userSegs[0].off, 1);
-  assertEquals(userSegs[0].reps, 2);
-});
+    component._showPlanInfo({
+      id: "p1",
+      name: "Test",
+      description: "",
+      difficulty: "Beginner",
+      bpm: 120,
+      segments: [
+        { on: 1, off: 1, reps: 2 },
+        { on: 2, off: 0, reps: 1 },
+      ],
+    });
 
-Deno.test("PlanEditPane: should hide edit action for built-in plans", async () => {
-  const component = await createComponent();
+    const planData = mockSessionState.plan;
+    assertEquals(planData !== null, true);
+    if (!planData) return;
+    assertEquals(Array.isArray(planData.plan), true);
+    assertEquals(Array.isArray(planData.segments), true);
+    // First entry is click-in
+    assertEquals(planData.plan[0].type, "click-in");
+    // User segments (excluding click-in) should match input
+    const userSegs = planData.segments.filter((s: any) => !s.isClickIn);
+    assertEquals(userSegs.length, 2);
+    assertEquals(userSegs[0].on, 1);
+    assertEquals(userSegs[0].off, 1);
+    assertEquals(userSegs[0].reps, 2);
+  },
+);
 
-  component._showPlanInfo({
-    id: "builtin-1",
-    name: "Built-in Plan",
-    isBuiltIn: true,
-    segments: [{ on: 1, off: 1, reps: 1 }],
-  });
+Deno.test(
+  "PlanEditPane: should hide edit action for built-in plans",
+  async () => {
+    const component = await createComponent();
 
-  assertEquals(component.editPlanBtn !== null, true);
-  assertEquals(component.clonePlanBtn !== null, true);
-  assertEquals(component.startPlanPlayBtn !== null, true);
+    component._showPlanInfo({
+      id: "builtin-1",
+      name: "Built-in Plan",
+      isBuiltIn: true,
+      segments: [{ on: 1, off: 1, reps: 1 }],
+    });
 
-  const editBtn = component.editPlanBtn as HTMLElement;
-  const cloneBtn = component.clonePlanBtn as HTMLElement;
-  const startBtn = component.startPlanPlayBtn as HTMLElement;
+    assertEquals(component.editPlanBtn !== null, true);
+    assertEquals(component.clonePlanBtn !== null, true);
+    assertEquals(component.startPlanPlayBtn !== null, true);
 
-  assertEquals(editBtn.style.display, "none");
-  assertEquals(cloneBtn.style.display, "inline-block");
-  assertEquals(startBtn.style.display, "inline-block");
-});
+    const editBtn = component.editPlanBtn as HTMLElement;
+    const cloneBtn = component.clonePlanBtn as HTMLElement;
+    const startBtn = component.startPlanPlayBtn as HTMLElement;
 
-Deno.test("PlanEditPane: should not open editor for built-in plans", async () => {
-  const component = await createComponent();
+    assertEquals(editBtn.style.display, "none");
+    assertEquals(cloneBtn.style.display, "inline-block");
+    assertEquals(startBtn.style.display, "inline-block");
+  },
+);
 
-  component.currentPlan = {
-    id: "builtin-1",
-    name: "Built-in Plan",
-    isBuiltIn: true,
-    segments: [{ on: 1, off: 1, reps: 1 }],
-  };
+Deno.test(
+  "PlanEditPane: should not open editor for built-in plans",
+  async () => {
+    const component = await createComponent();
 
-  component._onEditPlan();
+    component.currentPlan = {
+      id: "builtin-1",
+      name: "Built-in Plan",
+      isBuiltIn: true,
+      segments: [{ on: 1, off: 1, reps: 1 }],
+    };
 
-  assertEquals(component.state.isEditing, false);
-  assertEquals(component.planEditorSection !== null, true);
-  const editorSection = component.planEditorSection as HTMLElement;
-  assertEquals(editorSection.style.display, "none");
-});
+    component._onEditPlan();
+
+    assertEquals(component.state.isEditing, false);
+    assertEquals(component.planEditorSection !== null, true);
+    const editorSection = component.planEditorSection as HTMLElement;
+    assertEquals(editorSection.style.display, "none");
+  },
+);
 
 Deno.test("PlanEditPane: should block delete for built-in plans", async () => {
   const component = await createComponent();

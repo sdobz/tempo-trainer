@@ -8,6 +8,7 @@
 import BaseComponent from "../base/base-component.js";
 import { querySelector } from "../base/component-utils.js";
 import { PlaybackContext } from "../plan-play/playback-state.js";
+import { SessionStateContext } from "../base/session-state.js";
 
 /** @typedef {{ type: string }} Measure */
 /** @typedef {{ on: number, off: number, reps: number, startIndex: number }} DrillSegment */
@@ -35,6 +36,8 @@ export default class PlanVisualizer extends BaseComponent {
 
     /** @type {(() => void)|null} */
     this._cleanupPlayback = null;
+    /** @type {(() => void)|null} */
+    this._cleanupSession = null;
   }
 
   getTemplateUrl() {
@@ -60,10 +63,19 @@ export default class PlanVisualizer extends BaseComponent {
     this.updateInteractiveState();
     this.render();
 
-    // Consume PlaybackContext provided by ancestor pane (plan-play or plan-edit)
+    // Consume SessionStateContext for authoritative plan data
+    this.consumeContext(SessionStateContext, (ss) => {
+      if (ss.plan) this.setDrillPlan(ss.plan);
+      this._cleanupSession = ss.subscribe({
+        onPlanChange: (planData) => {
+          if (planData) this.setDrillPlan(planData);
+        },
+      });
+    });
+
+    // Consume PlaybackContext for runtime scores/highlight overlay
     this.consumeContext(PlaybackContext, (ps) => {
       this._cleanupPlayback = ps.subscribe((state) => {
-        if (state.planData) this.setDrillPlan(state.planData);
         this.setScores(state.scores);
         this.setHighlight(state.highlight);
       });
@@ -74,6 +86,10 @@ export default class PlanVisualizer extends BaseComponent {
     if (this._cleanupPlayback) {
       this._cleanupPlayback();
       this._cleanupPlayback = null;
+    }
+    if (this._cleanupSession) {
+      this._cleanupSession();
+      this._cleanupSession = null;
     }
   }
 
@@ -226,7 +242,10 @@ export default class PlanVisualizer extends BaseComponent {
 
             const capturedIndex = globalMeasureIndex;
             block.addEventListener("click", () => {
-              if (this.delegate && typeof this.delegate.onMeasureClick === "function") {
+              if (
+                this.delegate &&
+                typeof this.delegate.onMeasureClick === "function"
+              ) {
                 this.delegate.onMeasureClick(capturedIndex);
               }
             });

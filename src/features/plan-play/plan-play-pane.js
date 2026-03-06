@@ -5,7 +5,11 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
+import {
+  bindEvent,
+  dispatchEvent,
+  querySelector,
+} from "../base/component-utils.js";
 import { PlaybackState, PlaybackContext } from "./playback-state.js";
 import { SessionStateContext } from "../base/session-state.js";
 import "../visualizers/timeline-visualization.js";
@@ -80,7 +84,10 @@ export default class PlanPlayPane extends BaseComponent {
   onMount() {
     // Query all DOM elements
     this.bpmInput = querySelector(this, "[data-bpm-input]");
-    this.timeSignatureSelect = querySelector(this, "[data-time-signature-select]");
+    this.timeSignatureSelect = querySelector(
+      this,
+      "[data-time-signature-select]",
+    );
     this.beatIndicator = querySelector(this, "[data-beat-indicator]");
     this.statusDiv = querySelector(this, "[data-status]");
     this.startBtn = querySelector(this, "[data-start-btn]");
@@ -103,7 +110,9 @@ export default class PlanPlayPane extends BaseComponent {
           this.beatIndicator.textContent = String(state.beat.beatNum);
           this.beatIndicator.className = "beat-indicator";
           if (state.beat.shouldShow) {
-            this.beatIndicator.classList.add(state.beat.isDownbeat ? "downbeat" : "active");
+            this.beatIndicator.classList.add(
+              state.beat.isDownbeat ? "downbeat" : "active",
+            );
           }
         } else {
           this.beatIndicator.textContent = "";
@@ -112,26 +121,27 @@ export default class PlanPlayPane extends BaseComponent {
         // Status
         this.statusDiv.textContent = state.status;
         // Score
-        const formattedScore = String(Math.round(state.overallScore)).padStart(2, "00");
-        this.overallScoreDisplay.textContent = "Overall Score: " + formattedScore;
+        const formattedScore = String(Math.round(state.overallScore)).padStart(
+          2,
+          "00",
+        );
+        this.overallScoreDisplay.textContent =
+          "Overall Score: " + formattedScore;
         this.setState({ overallScore: state.overallScore });
         // Playing state
         this.setPlaying(state.isPlaying);
-      })
+      }),
     );
 
-    // Consume SessionStateContext — wire BPM, beatsPerMeasure and plan into playbackState
+    // Consume SessionStateContext — wire BPM into the pane's own display
     this.consumeContext(SessionStateContext, (ss) => {
       this._sessionState = ss;
       // Initialise from current session state
       this.setBPM(ss.bpm);
-      this._playbackState.update({ planData: ss.plan, beatsPerMeasure: ss.beatsPerMeasure });
       this._cleanups.push(
         ss.subscribe({
           onBPMChange: (bpm) => this.setBPM(bpm),
-          onBeatsPerMeasureChange: (n) => this._playbackState.update({ beatsPerMeasure: n }),
-          onPlanChange: (planData) => this._playbackState.update({ planData }),
-        })
+        }),
       );
     });
 
@@ -140,24 +150,31 @@ export default class PlanPlayPane extends BaseComponent {
       bindEvent(this.bpmInput, "input", () => {
         const bpm = parseInt(this.bpmInput.value, 10);
         if (!isNaN(bpm) && this._sessionState) this._sessionState.setBPM(bpm);
-      })
+      }),
     );
     this._cleanups.push(
       bindEvent(this.timeSignatureSelect, "change", () => {
-        const beatsPerMeasure = parseInt(this.timeSignatureSelect.value.split("/")[0], 10);
+        const beatsPerMeasure = parseInt(
+          this.timeSignatureSelect.value.split("/")[0],
+          10,
+        );
         if (!isNaN(beatsPerMeasure) && this._sessionState)
           this._sessionState.setBeatsPerMeasure(beatsPerMeasure);
-      })
+      }),
     );
 
     // Bind event listeners
-    this._cleanups.push(bindEvent(this.startBtn, "click", () => this._onStart()));
+    this._cleanups.push(
+      bindEvent(this.startBtn, "click", () => this._onStart()),
+    );
     this._cleanups.push(bindEvent(this.stopBtn, "click", () => this._onStop()));
-    this._cleanups.push(bindEvent(this.viewResultsBtn, "click", () => this._onViewResults()));
+    this._cleanups.push(
+      bindEvent(this.viewResultsBtn, "click", () => this._onViewResults()),
+    );
     this._cleanups.push(
       bindEvent(this.calibrationWarning, "notification-action", () =>
-        this._onCalibrationWarningAction()
-      )
+        this._onCalibrationWarningAction(),
+      ),
     );
   }
 
@@ -268,7 +285,8 @@ export default class PlanPlayPane extends BaseComponent {
     if (shouldShow) {
       this.calibrationWarning.show({
         type: "warning",
-        message: "Microphone offset is not calibrated. Timing feedback may be inaccurate.",
+        message:
+          "Microphone offset is not calibrated. Timing feedback may be inaccurate.",
         actionLabel: "Calibrate Now",
         actionDetail: { pane: "onboarding", params: { target: "calibration" } },
       });

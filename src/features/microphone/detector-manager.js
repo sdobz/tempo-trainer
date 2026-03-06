@@ -8,6 +8,14 @@ import {
   serializeParams,
   deserializeParams,
 } from "./detector-params.js";
+import { createContext } from "../base/context.js";
+
+/**
+ * Context token.  Provided at document root by script.js;
+ * consumed by microphone-control and onboarding-pane.
+ * @type {import('../base/context.js').Context<DetectorManager|null>}
+ */
+export const DetectorManagerContext = createContext("detector-manager", null);
 
 /**
  * DetectorManager — Owns the full lifetime of beat detection.
@@ -277,13 +285,25 @@ class DetectorManager {
 
     switch (params.type) {
       case DETECTOR_TYPES.THRESHOLD:
-        this._detector = new ThresholdDetector(this._audioInput, params, delegate);
+        this._detector = new ThresholdDetector(
+          this._audioInput,
+          params,
+          delegate,
+        );
         break;
       case DETECTOR_TYPES.ADAPTIVE:
-        this._detector = new AdaptiveDetector(this._audioInput, params, delegate);
+        this._detector = new AdaptiveDetector(
+          this._audioInput,
+          params,
+          delegate,
+        );
         break;
       default:
-        this._detector = new ThresholdDetector(this._audioInput, params, delegate);
+        this._detector = new ThresholdDetector(
+          this._audioInput,
+          params,
+          delegate,
+        );
     }
 
     // Re-wire timing callback if one was registered
@@ -326,7 +346,10 @@ class DetectorManager {
       return { ...DEFAULT_ADAPTIVE_PARAMS, id };
     }
 
-    const legacyThreshold = this._storage.getInt("tempoTrainer.hitThreshold", -1);
+    const legacyThreshold = this._storage.getInt(
+      "tempoTrainer.hitThreshold",
+      -1,
+    );
     if (legacyThreshold >= 0) {
       const sensitivity = 1 - legacyThreshold / 128;
       return { ...DEFAULT_THRESHOLD_PARAMS, id, sensitivity };

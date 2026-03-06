@@ -1,8 +1,10 @@
 // --- ESM Module Imports ---
 import StorageManager from "./features/base/storage-manager.js";
-import Services from "./features/base/services.js";
-import SessionState, { SessionStateContext } from "./features/base/session-state.js";
+import SessionState, {
+  SessionStateContext,
+} from "./features/base/session-state.js";
 import DetectorManager from "./features/microphone/detector-manager.js";
+import { DetectorManagerContext } from "./features/microphone/detector-manager.js";
 import Metronome from "./features/plan-play/metronome.js";
 import Scorer from "./features/plan-play/scorer.js";
 import PlanLibrary from "./features/plan-edit/plan-library.js";
@@ -23,16 +25,24 @@ import { getAllElements } from "./features/base/dom-utils.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- DOM Elements ---
-  const onboardingPane = /** @type {OnboardingPane} */ (document.querySelector("onboarding-pane"));
-  const planEditPane = /** @type {PlanEditPane} */ (document.querySelector("plan-edit-pane"));
+  const onboardingPane = /** @type {OnboardingPane} */ (
+    document.querySelector("onboarding-pane")
+  );
+  const planEditPane = /** @type {PlanEditPane} */ (
+    document.querySelector("plan-edit-pane")
+  );
   const planHistoryPane = /** @type {PlanHistoryPane} */ (
     document.querySelector("plan-history-pane")
   );
-  const planPlayPane = /** @type {PlanPlayPane} */ (document.querySelector("plan-play-pane"));
+  const planPlayPane = /** @type {PlanPlayPane} */ (
+    document.querySelector("plan-play-pane")
+  );
 
   // --- Feature Instances ---
   const planLibrary = new PlanLibrary();
-  const metronome = new Metronome(/** @type {AudioContext} */ (/** @type {unknown} */ (null)));
+  const metronome = new Metronome(
+    /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
+  );
   const scorer = new Scorer(4, 0.5); // Will be configured when session starts
   const practiceSessionManager = new PracticeSessionManager();
   const audioContextManager = new AudioContextManager();
@@ -43,15 +53,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // Components call Services.get("detectorManager") in their onMount() hooks, which
   // run after template fetches complete — always after this synchronous registration.
   const detectorManager = new DetectorManager(StorageManager);
-  Services.register("detectorManager", detectorManager);
 
-  // Provide SessionStateContext at document root so all custom elements below can consume it.
-  // Must happen before any component's onMount() runs (components mount asynchronously after
-  // template fetch, so this synchronous registration always wins).
+  // Provide SessionStateContext and DetectorManagerContext at document root.
+  // Synchronous registration; runs before any component's async onMount().
   document.documentElement.addEventListener("context-request", (event) => {
-    if (event.context !== SessionStateContext) return;
-    event.stopPropagation();
-    event.callback(sessionState);
+    if (event.context === SessionStateContext) {
+      event.stopPropagation();
+      event.callback(sessionState);
+    } else if (event.context === DetectorManagerContext) {
+      event.stopPropagation();
+      event.callback(detectorManager);
+    }
   });
 
   // Register audioContextManager once. Wire it to dependent objects when the
@@ -88,49 +100,63 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const planPlayReady = planPlayPane.componentReady.then(() => {
     // Get the timeline-visualization component for imperative playback operations only
-    const timelineVizComponent = planPlayPane.querySelector("timeline-visualization");
+    const timelineVizComponent = planPlayPane.querySelector(
+      "timeline-visualization",
+    );
     if (!timelineVizComponent) {
       throw new Error("timeline-visualization component not found");
     }
     timeline = timelineVizComponent;
 
     // Handle navigation
-    planPlayPane.addEventListener("navigate", (/** @type {CustomEvent} */ event) => {
-      const { pane, params } = event.detail;
-      if (pane) {
-        paneManager.navigate(pane, params || {});
-      }
-    });
+    planPlayPane.addEventListener(
+      "navigate",
+      (/** @type {CustomEvent} */ event) => {
+        const { pane, params } = event.detail;
+        if (pane) {
+          paneManager.navigate(pane, params || {});
+        }
+      },
+    );
   });
 
   // Initialize plan-history-pane event listeners
   const planHistoryReady = planHistoryPane.componentReady.then(() => {
     // Handle retry plan
-    planHistoryPane.addEventListener("retry-plan", (/** @type {CustomEvent} */ event) => {
-      const { plan } = event.detail;
-      planEditPane.selectPlanByObject(plan);
-      paneManager.navigate("plan-play");
-    });
+    planHistoryPane.addEventListener(
+      "retry-plan",
+      (/** @type {CustomEvent} */ event) => {
+        const { plan } = event.detail;
+        planEditPane.selectPlanByObject(plan);
+        paneManager.navigate("plan-play");
+      },
+    );
 
     // Handle navigation
-    planHistoryPane.addEventListener("navigate", (/** @type {CustomEvent} */ event) => {
-      const { pane } = event.detail;
-      if (pane) {
-        paneManager.navigate(pane);
-      }
-    });
+    planHistoryPane.addEventListener(
+      "navigate",
+      (/** @type {CustomEvent} */ event) => {
+        const { pane } = event.detail;
+        if (pane) {
+          paneManager.navigate(pane);
+        }
+      },
+    );
 
     // Handle deleting a session from history
-    planHistoryPane.addEventListener("delete-session", (/** @type {CustomEvent} */ event) => {
-      const { sessionId } = event.detail;
-      if (!sessionId) return;
+    planHistoryPane.addEventListener(
+      "delete-session",
+      (/** @type {CustomEvent} */ event) => {
+        const { sessionId } = event.detail;
+        if (!sessionId) return;
 
-      const deleted = practiceSessionManager.deleteSession(sessionId);
-      if (!deleted) return;
+        const deleted = practiceSessionManager.deleteSession(sessionId);
+        if (!deleted) return;
 
-      const allSessions = practiceSessionManager.getSessions();
-      planHistoryPane.displaySessions(allSessions);
-    });
+        const allSessions = practiceSessionManager.getSessions();
+        planHistoryPane.displaySessions(allSessions);
+      },
+    );
   });
 
   // Handle onboarding completion
@@ -139,12 +165,15 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Handle navigation from plan-edit-pane
-  planEditPane.addEventListener("navigate", (/** @type {CustomEvent} */ event) => {
-    const { pane } = event.detail;
-    if (pane) {
-      paneManager.navigate(pane);
-    }
-  });
+  planEditPane.addEventListener(
+    "navigate",
+    (/** @type {CustomEvent} */ event) => {
+      const { pane } = event.detail;
+      if (pane) {
+        paneManager.navigate(pane);
+      }
+    },
+  );
 
   //--- Onboarding Status Update ---
 
@@ -153,8 +182,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Check whether the user has explicitly adjusted sensitivity from the type-appropriate default
     // threshold detector default: 0.594 (= 1 - 52/128), adaptive default: 0.5
-    const defaultSensitivity = detectorManager.getParams().type === "adaptive" ? 0.5 : 0.594;
-    const hasAdjustedThreshold = Math.abs(detectorManager.sensitivity - defaultSensitivity) > 0.01;
+    const defaultSensitivity =
+      detectorManager.getParams().type === "adaptive" ? 0.5 : 0.594;
+    const hasAdjustedThreshold =
+      Math.abs(detectorManager.sensitivity - defaultSensitivity) > 0.01;
 
     // Check if calibration data exists in storage (offset can be legitimately 0 ms)
     const hasCalibrated =
@@ -210,16 +241,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const params = paneManager.getCurrentParams();
       if (params.target === "calibration") {
-        const calibrationStep = onboardingPane.querySelector("#step-calibration");
-        if (calibrationStep && typeof calibrationStep.scrollIntoView === "function") {
+        const calibrationStep =
+          onboardingPane.querySelector("#step-calibration");
+        if (
+          calibrationStep &&
+          typeof calibrationStep.scrollIntoView === "function"
+        ) {
           calibrationStep.scrollIntoView({
             behavior: "smooth",
             block: "center",
           });
         }
 
-        const calibrationButton = onboardingPane.querySelector("[data-calibration-btn]");
-        if (calibrationButton && typeof calibrationButton.focus === "function") {
+        const calibrationButton = onboardingPane.querySelector(
+          "[data-calibration-btn]",
+        );
+        if (
+          calibrationButton &&
+          typeof calibrationButton.focus === "function"
+        ) {
           calibrationButton.focus();
         }
       }
@@ -265,17 +305,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Listen for microphone sensitivity adjustments
   onboardingPane.componentReady.then(() => {
-    if (onboardingPane.microphoneControl && onboardingPane.microphoneControl.level) {
-      onboardingPane.microphoneControl.level.addEventListener("pointerup", () => {
-        // Update onboarding status after sensitivity adjustment
-        setTimeout(() => updateOnboardingStatus(), 100);
-      });
+    if (
+      onboardingPane.microphoneControl &&
+      onboardingPane.microphoneControl.level
+    ) {
+      onboardingPane.microphoneControl.level.addEventListener(
+        "pointerup",
+        () => {
+          // Update onboarding status after sensitivity adjustment
+          setTimeout(() => updateOnboardingStatus(), 100);
+        },
+      );
     }
   });
 
   // Intercept calibration button to ensure audioContext exists
   onboardingPane.componentReady.then(() => {
-    if (onboardingPane.calibrationControl && onboardingPane.calibrationControl.button) {
+    if (
+      onboardingPane.calibrationControl &&
+      onboardingPane.calibrationControl.button
+    ) {
       onboardingPane.calibrationControl.button.addEventListener(
         "click",
         async (e) => {
@@ -294,7 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }
         },
-        true
+        true,
       );
     }
   });
@@ -306,7 +355,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function init() {
     // Wait for all components to be ready
-    await Promise.all([onboardingReady, planEditReady, planPlayReady, planHistoryReady]);
+    await Promise.all([
+      onboardingReady,
+      planEditReady,
+      planPlayReady,
+      planHistoryReady,
+    ]);
 
     // Create DrillSessionManager now that all components are ready
     drillSessionManager = new DrillSessionManager(
@@ -333,7 +387,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (calibration) calibration.setBeatsPerMeasure(n);
       },
       onPlanChange: (planData) => {
-        const measures = planData?.plan ?? (Array.isArray(planData) ? planData : []);
+        const measures =
+          planData?.plan ?? (Array.isArray(planData) ? planData : []);
         scorer.setDrillPlan(measures);
       },
     });
@@ -406,7 +461,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Determine which pane to show
-    const hasCompletedOnboarding = StorageManager.get("tempoTrainer.hasCompletedOnboarding");
+    const hasCompletedOnboarding = StorageManager.get(
+      "tempoTrainer.hasCompletedOnboarding",
+    );
     const hasCalibration = calibration
       ? typeof calibration.hasCalibrationData === "function"
         ? calibration.hasCalibrationData()

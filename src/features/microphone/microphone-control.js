@@ -9,7 +9,7 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import Services from "../base/services.js";
+import { DetectorManagerContext } from "./detector-manager.js";
 import { bindEvent, querySelector } from "../base/component-utils.js";
 
 /**
@@ -40,6 +40,8 @@ export default class MicrophoneControl extends BaseComponent {
     this.hitsList = null;
 
     this._isAdjustingSensitivity = false;
+    /** @type {import('./detector-manager.js').default|null} */
+    this._detectorManager = null;
   }
 
   getTemplateUrl() {
@@ -51,27 +53,37 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   async onMount() {
-    this.statusIndicator = querySelector(this, "[data-microphone-status-indicator]");
+    this.statusIndicator = querySelector(
+      this,
+      "[data-microphone-status-indicator]",
+    );
     this.select = querySelector(this, "[data-microphone-select]");
     this.level = querySelector(this, "[data-microphone-level]");
     this.levelBar = querySelector(this, "[data-microphone-level-bar]");
     this.peakHold = querySelector(this, "[data-microphone-peak-hold]");
-    this.sensitivityLine = querySelector(this, "[data-microphone-threshold-line]");
-    this.sensitivityLabel = querySelector(this, "[data-microphone-threshold-label]");
+    this.sensitivityLine = querySelector(
+      this,
+      "[data-microphone-threshold-line]",
+    );
+    this.sensitivityLabel = querySelector(
+      this,
+      "[data-microphone-threshold-label]",
+    );
     this.hitsList = querySelector(this, "[data-microphone-hits-list]");
 
     // Register as the UI delegate — DetectorManager pushes initial state immediately
-    const detectorManager = Services.get("detectorManager");
-    detectorManager.setDelegate(this);
-
-    this._setupUIEventListeners(detectorManager);
-    await this._populateDevices(detectorManager);
+    this.consumeContext(DetectorManagerContext, (dm) => {
+      this._detectorManager = dm;
+      dm.setDelegate(this);
+      this._setupUIEventListeners(dm);
+      this._populateDevices(dm);
+    });
   }
 
   onUnmount() {
     // Remove self as delegate to stop receiving callbacks after unmount
-    if (Services.has("detectorManager")) {
-      Services.get("detectorManager").setDelegate(null);
+    if (this._detectorManager) {
+      this._detectorManager.setDelegate(null);
     }
     // Cancel any pending hit-dot removal timers
     this._hitTimers.forEach((id) => clearTimeout(id));
@@ -171,10 +183,18 @@ export default class MicrophoneControl extends BaseComponent {
   _setupUIEventListeners(detectorManager) {
     // Sensitivity adjustment via pointer drag on the level bar
     this._cleanups.push(
-      bindEvent(this.level, "pointerdown", (e) => this._onSensitivityPointerDown(e, detectorManager)),
-      bindEvent(this.level, "pointermove", (e) => this._onSensitivityPointerMove(e, detectorManager)),
-      bindEvent(window, "pointerup", () => { this._isAdjustingSensitivity = false; }),
-      bindEvent(this.select, "change", () => this._onDeviceSelected(detectorManager)),
+      bindEvent(this.level, "pointerdown", (e) =>
+        this._onSensitivityPointerDown(e, detectorManager),
+      ),
+      bindEvent(this.level, "pointermove", (e) =>
+        this._onSensitivityPointerMove(e, detectorManager),
+      ),
+      bindEvent(window, "pointerup", () => {
+        this._isAdjustingSensitivity = false;
+      }),
+      bindEvent(this.select, "change", () =>
+        this._onDeviceSelected(detectorManager),
+      ),
     );
   }
 
@@ -228,7 +248,10 @@ export default class MicrophoneControl extends BaseComponent {
   /** @private */
   _setSensitivityFromPointer(clientX, detectorManager) {
     const rect = this.level.getBoundingClientRect();
-    const sensitivity = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const sensitivity = Math.max(
+      0,
+      Math.min(1, (clientX - rect.left) / rect.width),
+    );
     detectorManager.setSensitivity(sensitivity);
   }
 }

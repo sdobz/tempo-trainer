@@ -6,7 +6,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { querySelector } from "../base/component-utils.js";
-import { PlaybackContext } from "../plan-play/playback-state.js";
+import { SessionStateContext } from "../base/session-state.js";
 
 /** @typedef {{ type: string }} Measure */
 
@@ -32,7 +32,7 @@ export default class TimelineVisualization extends BaseComponent {
     this.drillPlan = [];
     this.beatsPerMeasure = 4;
     /** @type {(() => void)|null} */
-    this._cleanupPlayback = null;
+    this._cleanupSession = null;
   }
 
   getTemplateUrl() {
@@ -48,22 +48,32 @@ export default class TimelineVisualization extends BaseComponent {
     this.viewport = querySelector(this, "[data-timeline-viewport]");
     this.track = querySelector(this, "[data-timeline-track]");
 
-    // Consume PlaybackContext provided by ancestor pane
-    this.consumeContext(PlaybackContext, (ps) => {
-      this._cleanupPlayback = ps.subscribe((state) => {
-        if (state.planData?.plan) {
-          this.drillPlan = state.planData.plan;
-        }
-        this.beatsPerMeasure = state.beatsPerMeasure;
-        this.build();
+    // Consume SessionStateContext for plan and beatsPerMeasure
+    this.consumeContext(SessionStateContext, (ss) => {
+      if (ss.plan?.plan) {
+        this.drillPlan = ss.plan.plan;
+      }
+      this.beatsPerMeasure = ss.beatsPerMeasure;
+      this.build();
+      this._cleanupSession = ss.subscribe({
+        onPlanChange: (planData) => {
+          if (planData?.plan) {
+            this.drillPlan = planData.plan;
+          }
+          this.build();
+        },
+        onBeatsPerMeasureChange: (n) => {
+          this.beatsPerMeasure = n;
+          this.build();
+        },
       });
     });
   }
 
   onUnmount() {
-    if (this._cleanupPlayback) {
-      this._cleanupPlayback();
-      this._cleanupPlayback = null;
+    if (this._cleanupSession) {
+      this._cleanupSession();
+      this._cleanupSession = null;
     }
   }
 
@@ -107,7 +117,8 @@ export default class TimelineVisualization extends BaseComponent {
     }
     this._deferBuildCount = 0;
 
-    const totalBeats = this.drillPlan.length * this.beatsPerMeasure + this.tailBeats;
+    const totalBeats =
+      this.drillPlan.length * this.beatsPerMeasure + this.tailBeats;
     const contentWidth = totalBeats * this.pxPerBeat;
     const paddingWidth = viewportWidth;
     const totalWidth = paddingWidth + contentWidth + paddingWidth;

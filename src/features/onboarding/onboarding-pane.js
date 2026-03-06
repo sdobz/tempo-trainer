@@ -4,7 +4,7 @@
  */
 
 import BaseComponent from "../base/base-component.js";
-import Services from "../base/services.js";
+import { DetectorManagerContext } from "../microphone/detector-manager.js";
 import {
   bindEvent,
   dispatchEvent,
@@ -42,6 +42,8 @@ export default class OnboardingPane extends BaseComponent {
     // Sub-component references
     this.microphoneControl = null;
     this.calibrationControl = null;
+    /** @type {import('../microphone/detector-manager.js').default|null} */
+    this._detectorManager = null;
   }
 
   /**
@@ -72,13 +74,14 @@ export default class OnboardingPane extends BaseComponent {
     if (this.microphoneControl) await this.microphoneControl.componentReady;
     if (this.calibrationControl) await this.calibrationControl.componentReady;
 
-    // Restore persisted detector type selection
-    if (Services.has("detectorManager")) {
-      const currentType = Services.get("detectorManager").getParams().type;
+    // Restore persisted detector type selection via context
+    this.consumeContext(DetectorManagerContext, (dm) => {
+      this._detectorManager = dm;
+      const currentType = dm.getParams().type;
       detectorRadios.forEach((radio) => {
         radio.checked = radio.value === currentType;
       });
-    }
+    });
 
     // Bind detector selection change
     detectorRadios.forEach((radio) => {
@@ -118,8 +121,10 @@ export default class OnboardingPane extends BaseComponent {
    * @private
    */
   _onDetectorChange(event) {
-    if (!Services.has("detectorManager")) return;
-    Services.get("detectorManager").setActiveDetector({ type: event.target.value });
+    if (!this._detectorManager) return;
+    this._detectorManager.setActiveDetector({
+      type: event.target.value,
+    });
   }
 
   /** @private */

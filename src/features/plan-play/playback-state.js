@@ -21,8 +21,6 @@ export const PlaybackContext = createContext("playback", null);
 
 /**
  * @typedef {{
- *   planData: { plan: Array<{type:string}>, segments: any[] } | null,
- *   beatsPerMeasure: number,
  *   scores: number[],
  *   highlight: number,
  *   overallScore: number,
@@ -36,8 +34,6 @@ export class PlaybackState {
   constructor() {
     /** @type {PlaybackSnapshot} */
     this._state = {
-      planData: null,
-      beatsPerMeasure: 4,
       scores: [],
       highlight: -1,
       overallScore: 0,

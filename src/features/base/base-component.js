@@ -291,10 +291,12 @@ export default class BaseComponent extends HTMLElement {
     const signal = this._initAbortController.signal;
     try {
       // Load template
-      const templateUrl =
-        new URL(this.getTemplateUrl(), globalThis.location.origin).href;
+      const templateUrl = new URL(
+        this.getTemplateUrl(),
+        globalThis.location.origin,
+      ).href;
       const templateHtml = await fetch(templateUrl, { signal }).then((r) =>
-        r.text()
+        r.text(),
       );
 
       // Create a temporary container to parse the HTML
@@ -308,8 +310,8 @@ export default class BaseComponent extends HTMLElement {
         : tempDiv.cloneNode(true);
 
       // Load and insert styles
-      const styleUrl =
-        new URL(this.getStyleUrl(), globalThis.location.origin).href;
+      const styleUrl = new URL(this.getStyleUrl(), globalThis.location.origin)
+        .href;
       const styleCss = await fetch(styleUrl, { signal }).then((r) => r.text());
       const style = document.createElement("style");
       style.textContent = styleCss;

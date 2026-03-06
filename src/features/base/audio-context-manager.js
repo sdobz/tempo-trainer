@@ -29,8 +29,8 @@ class AudioContextManager {
         /** @type {Window & { webkitAudioContext?: typeof AudioContext }} */ (
           globalThis
         );
-      const AudioContextClass = globalThis.AudioContext ||
-        webkitWindow.webkitAudioContext;
+      const AudioContextClass =
+        globalThis.AudioContext || webkitWindow.webkitAudioContext;
 
       if (!AudioContextClass) {
         throw new Error("Web Audio API not available");

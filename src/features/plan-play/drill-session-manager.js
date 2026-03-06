@@ -13,7 +13,15 @@ class DrillSessionManager {
    * @param {import('../base/session-state.js').default} sessionState
    * @param {import('./playback-state.js').PlaybackState} playbackState
    */
-  constructor(metronome, scorer, timeline, calibration, micDetector, sessionState, playbackState) {
+  constructor(
+    metronome,
+    scorer,
+    timeline,
+    calibration,
+    micDetector,
+    sessionState,
+    playbackState,
+  ) {
     this.metronome = metronome;
     this.scorer = scorer;
     this.timeline = timeline;
@@ -97,7 +105,7 @@ class DrillSessionManager {
       (
         /** @type {number} */ beatInMeasure,
         /** @type {number} */ time,
-        /** @type {number} */ timeUntilBeat
+        /** @type {number} */ timeUntilBeat,
       ) => {
         const measureType = this._getMeasureType(this.currentMeasureInTotal);
 
@@ -109,7 +117,11 @@ class DrillSessionManager {
         const downbeatFreq = 880.0;
         const beatFreq = 440.0;
         const freq =
-          measureType === "click-in" ? clickInFreq : beatInMeasure === 0 ? downbeatFreq : beatFreq;
+          measureType === "click-in"
+            ? clickInFreq
+            : beatInMeasure === 0
+              ? downbeatFreq
+              : beatFreq;
 
         this.metronome.scheduleClick(time, freq);
 
@@ -119,12 +131,16 @@ class DrillSessionManager {
         setTimeout(() => {
           if (!this.metronome.isRunning) return;
           this.playbackState.update({
-            beat: { beatNum: beatNumber, isDownbeat: beatInMeasure === 0, shouldShow: shouldShowBeat },
+            beat: {
+              beatNum: beatNumber,
+              isDownbeat: beatInMeasure === 0,
+              shouldShow: shouldShowBeat,
+            },
           });
         }, timeUntilBeat * 1000);
 
         return true;
-      }
+      },
     );
 
     this.metronome.onMeasureComplete(() => {
@@ -151,11 +167,12 @@ class DrillSessionManager {
       this.micDetector.onHit((/** @type {number} */ hitAudioTime) => {
         // Accept hits during normal run or during completion grace period
         if (this.metronome.isRunning || this.isCompletingRun) {
-          const detectedBeatPosition = this.calibration.getCalibratedBeatPosition(
-            hitAudioTime,
-            this.timelineRunStartAudioTime,
-            this.metronome.beatDuration
-          );
+          const detectedBeatPosition =
+            this.calibration.getCalibratedBeatPosition(
+              hitAudioTime,
+              this.timelineRunStartAudioTime,
+              this.metronome.beatDuration,
+            );
 
           this.timeline.addDetection(detectedBeatPosition);
           this.scorer.registerHit(detectedBeatPosition);
@@ -251,11 +268,15 @@ class DrillSessionManager {
     const finalHitGraceMs = Math.max(
       300,
       Math.round(
-        (this.scorer.lateHitAssignmentWindowBeats + 0.5) * this.metronome.beatDuration * 1000
-      )
+        (this.scorer.lateHitAssignmentWindowBeats + 0.5) *
+          this.metronome.beatDuration *
+          1000,
+      ),
     );
 
-    this.playbackState.update({ status: "Drill complete. Capturing final hits..." });
+    this.playbackState.update({
+      status: "Drill complete. Capturing final hits...",
+    });
 
     this.completionTimeoutId = globalThis.setTimeout(() => {
       this.scorer.finalizeMeasure(this._getPlanLength() - 2);
@@ -328,11 +349,15 @@ class DrillSessionManager {
    * @param {AudioContext} audioContext - Web Audio API context
    */
   updateTimelineScroll(audioContext) {
-    if ((this.metronome.isRunning || this.isCompletingRun) && audioContext && this.calibration) {
+    if (
+      (this.metronome.isRunning || this.isCompletingRun) &&
+      audioContext &&
+      this.calibration
+    ) {
       const beatPosition = this.calibration.getCalibratedBeatPosition(
         audioContext.currentTime,
         this.timelineRunStartAudioTime,
-        this.metronome.beatDuration
+        this.metronome.beatDuration,
       );
       this.timeline.centerAt(beatPosition);
     }
