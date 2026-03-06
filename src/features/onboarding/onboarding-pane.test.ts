@@ -31,13 +31,6 @@ const mockDetectorManager = {
   onHit(_cb: Function) {},
 };
 
-// Provide DetectorManagerContext at document root before any component mounts.
-document.documentElement.addEventListener("context-request", (event: any) => {
-  if (event.context !== DetectorManagerContext) return;
-  event.stopPropagation();
-  event.callback(mockDetectorManager);
-});
-
 // Dynamic import after mocks are set up
 const { default: OnboardingPane } = await import("./onboarding-pane.js");
 
@@ -49,7 +42,11 @@ async function createComponent() {
     typeof OnboardingPane
   >;
 
-  document.body.appendChild(element);
+  element.addEventListener("context-request", (event: any) => {
+    if (event.context !== DetectorManagerContext) return;
+    event.stopPropagation();
+    event.callback(mockDetectorManager);
+  });
   await element.componentReady;
 
   return element;

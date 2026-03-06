@@ -74,6 +74,7 @@ class AdaptiveDetector {
     /** @private */ this._peakHoldUntil = 0;
     /** @private */ this._fluxHistory = [];
     /** @private */ this._entropyHistory = [];
+    /** @private */ this._now = () => performance.now();
 
     /** @type {((hitAudioTime: number) => void)|null} */
     this.onHitCallback = null;
@@ -164,10 +165,7 @@ class AdaptiveDetector {
       return;
     }
 
-    const now = performance.now();
-    if (!this._lastDetectTime) this._lastDetectTime = now;
-    const deltaSeconds = (now - this._lastDetectTime) / 1000;
-    this._lastDetectTime = now;
+    const now = this._now();
 
     analyserNode.getByteFrequencyData(this._frequencyData);
 
@@ -175,14 +173,40 @@ class AdaptiveDetector {
       this._frequencyData,
       this._previousFrequencyData,
     );
+    const entropy = this._calculateSpectralEntropy(this._frequencyData);
+
+    this._previousFrequencyData.set(this._frequencyData);
+
+    this.processFeatureFrame(flux, entropy, {
+      nowMs: now,
+      audioTimeSeconds: this._audioInput.audioContext?.currentTime,
+    });
+
+    this._rafId = requestAnimationFrame(() => this._detectLoop());
+  }
+
+  /**
+   * Process precomputed spectral features for one frame.
+   *
+   * This is used by the live analyser loop and by deterministic offline tests.
+   * @param {number} flux
+   * @param {number} entropy
+   * @param {{ nowMs?: number, audioTimeSeconds?: number }} [options]
+   * @returns {{ level: number, peak: number, threshold: number, hit: boolean }}
+   */
+  processFeatureFrame(flux, entropy, options = {}) {
+    const now = typeof options.nowMs === "number" ? options.nowMs : this._now();
+    let deltaSeconds = 0;
+    if (this._lastDetectTime) {
+      deltaSeconds = (now - this._lastDetectTime) / 1000;
+    }
+    this._lastDetectTime = now;
 
     // Rolling flux history for adaptive threshold
     this._fluxHistory.push(flux);
     if (this._fluxHistory.length > this._historyWindowSize) {
       this._fluxHistory.shift();
     }
-
-    this._previousFrequencyData.set(this._frequencyData);
 
     // Spectral flux as the "level" signal (0–1); flux range is typically 0–20
     const level = Math.min(1, flux / 20);
@@ -218,7 +242,6 @@ class AdaptiveDetector {
     }
 
     // Spectral entropy for noise rejection
-    const entropy = this._calculateSpectralEntropy(this._frequencyData);
     this._entropyHistory.push(entropy);
     if (this._entropyHistory.length > this._historyWindowSize) {
       this._entropyHistory.shift();
@@ -226,22 +249,34 @@ class AdaptiveDetector {
 
     const refractoryMs = (this._baseRefractoryMs * this._baseRefractionBpm) / this._bpm;
 
+    let hit = false;
     if (
       flux >= adaptiveThreshold &&
       entropy < this._entropyThreshold &&
       now - this._lastHitTime > refractoryMs
     ) {
       this._lastHitTime = now;
-      this._handleHit();
+      hit = true;
+      this._handleHit(options.audioTimeSeconds);
     }
 
-    this._rafId = requestAnimationFrame(() => this._detectLoop());
+    return {
+      level,
+      peak,
+      threshold: thresholdPos,
+      hit,
+    };
   }
 
   /** @private */
-  _handleHit() {
+  _handleHit(hitAudioTime) {
     this.delegate?.onHit?.();
-    if (this.onHitCallback && this._audioInput.audioContext) {
+    if (!this.onHitCallback) return;
+    if (typeof hitAudioTime === "number") {
+      this.onHitCallback(hitAudioTime);
+      return;
+    }
+    if (this._audioInput.audioContext) {
       this.onHitCallback(this._audioInput.audioContext.currentTime);
     }
   }

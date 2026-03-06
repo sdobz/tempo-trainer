@@ -53,20 +53,17 @@ class MockDetectorManager {
 
 let mockManager: MockDetectorManager;
 
-// Provide DetectorManagerContext at document root for all test components.
-document.documentElement.addEventListener("context-request", (event: any) => {
-  if (event.context !== DetectorManagerContext) return;
-  event.stopPropagation();
-  event.callback(mockManager);
-});
-
 async function createComponent() {
   mockManager = new MockDetectorManager();
 
   const element = document.createElement("microphone-control") as InstanceType<
     typeof MicrophoneControl
   >;
-  document.body.appendChild(element);
+  element.addEventListener("context-request", (event: any) => {
+    if (event.context !== DetectorManagerContext) return;
+    event.stopPropagation();
+    event.callback(mockManager);
+  });
   await element.componentReady;
   return element;
 }

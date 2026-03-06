@@ -48,6 +48,7 @@ class ThresholdDetector {
     /** @private */ this._lastDetectTime = 0;
     /** @private */ this._lastLevel = -1;
     /** @private */ this._lastPeak = -1;
+    /** @private */ this._now = () => performance.now();
 
     /** @type {((hitAudioTime: number) => void)|null} */
     this.onHitCallback = null;
@@ -125,10 +126,7 @@ class ThresholdDetector {
       return;
     }
 
-    const now = performance.now();
-    if (!this._lastDetectTime) this._lastDetectTime = now;
-    const deltaSeconds = (now - this._lastDetectTime) / 1000;
-    this._lastDetectTime = now;
+    const now = this._now();
 
     analyserNode.getByteTimeDomainData(this._bufferData);
 
@@ -138,6 +136,30 @@ class ThresholdDetector {
       const val = Math.abs(this._bufferData[i] - 128);
       if (val > maxVal) maxVal = val;
     }
+
+    this.processPeakFrame(maxVal, {
+      nowMs: now,
+      audioTimeSeconds: this._audioInput.audioContext?.currentTime,
+    });
+
+    this._rafId = requestAnimationFrame(() => this._detectLoop());
+  }
+
+  /**
+   * Process a precomputed peak-amplitude frame.
+   *
+   * This is used by the live analyser loop and by deterministic offline tests.
+   * @param {number} maxVal Peak absolute deviation from center 128 (0-128)
+   * @param {{ nowMs?: number, audioTimeSeconds?: number }} [options]
+   * @returns {{ level: number, peak: number, threshold: number, hit: boolean }}
+   */
+  processPeakFrame(maxVal, options = {}) {
+    const now = typeof options.nowMs === "number" ? options.nowMs : this._now();
+    let deltaSeconds = 0;
+    if (this._lastDetectTime) {
+      deltaSeconds = (now - this._lastDetectTime) / 1000;
+    }
+    this._lastDetectTime = now;
 
     // Emit level: 0–1
     const level = maxVal / 128;
@@ -167,18 +189,30 @@ class ThresholdDetector {
     }
 
     // Hit detection
+    let hit = false;
     if (maxVal >= threshold && now - this._lastHitTime > this._hitCooldownMs) {
       this._lastHitTime = now;
-      this._handleHit();
+      hit = true;
+      this._handleHit(options.audioTimeSeconds);
     }
 
-    this._rafId = requestAnimationFrame(() => this._detectLoop());
+    return {
+      level,
+      peak,
+      threshold: threshold / 128,
+      hit,
+    };
   }
 
   /** @private */
-  _handleHit() {
+  _handleHit(hitAudioTime) {
     this.delegate?.onHit?.();
-    if (this.onHitCallback && this._audioInput.audioContext) {
+    if (!this.onHitCallback) return;
+    if (typeof hitAudioTime === "number") {
+      this.onHitCallback(hitAudioTime);
+      return;
+    }
+    if (this._audioInput.audioContext) {
       this.onHitCallback(this._audioInput.audioContext.currentTime);
     }
   }
