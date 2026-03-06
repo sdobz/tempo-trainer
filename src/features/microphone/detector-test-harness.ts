@@ -1,4 +1,5 @@
 import FFT from "npm:fft.js@4.0.4";
+import { assert, assertEquals } from "../base/assert.ts";
 
 export type MockAudioSource = {
   analyserNode: ReplayAnalyserNode;
@@ -346,6 +347,54 @@ export function compareHits(
     precision,
     recall,
   };
+}
+
+export function assertHits(options: {
+  hits: number[];
+  expectedHits: number[];
+  toleranceMs: number;
+  label?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const comparison = compareHits(options.hits, options.expectedHits, {
+    toleranceMs: options.toleranceMs,
+  });
+
+  const firstMismatches = Array.from(
+    { length: Math.min(comparison.comparedCount, 12) },
+    (_, index) => ({
+      index,
+      actual: options.hits[index],
+      expected: options.expectedHits[index],
+      deltaMs: comparison.deltasMs[index],
+    }),
+  );
+
+  const diagnostics = JSON.stringify(
+    {
+      label: options.label ?? "detector-hit-assert",
+      toleranceMs: options.toleranceMs,
+      hitCount: options.hits.length,
+      expectedCount: options.expectedHits.length,
+      countsMatch: comparison.countsMatch,
+      comparedCount: comparison.comparedCount,
+      allWithinTolerance: comparison.allWithinTolerance,
+      maxDeltaMs: comparison.maxDeltaMs,
+      falsePositives: comparison.falsePositives,
+      falseNegatives: comparison.falseNegatives,
+      hits: comparison.actual,
+      expectedHits: comparison.expected,
+      firstMismatches,
+      ...(options.metadata ? { metadata: options.metadata } : {}),
+    },
+    null,
+    2,
+  );
+
+  assertEquals(comparison.countsMatch, true, diagnostics);
+  assert(comparison.allWithinTolerance, diagnostics);
+
+  return comparison;
 }
 
 function floatToByte(sample: number) {

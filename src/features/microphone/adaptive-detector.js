@@ -48,7 +48,9 @@ class AdaptiveDetector {
     this._baseRefractoryMs = 250;
     this._baseRefractionBpm = 60;
     this._bpm =
-      typeof params.bpm === "number" ? Math.max(40, Math.min(240, params.bpm)) : 120;
+      typeof params.bpm === "number"
+        ? Math.max(40, Math.min(240, params.bpm))
+        : 120;
 
     // Timing constants (shared with ThresholdDetector)
     /** @private */ this._peakHoldMs = 180;
@@ -74,6 +76,9 @@ class AdaptiveDetector {
     /** @private */ this._peakHoldUntil = 0;
     /** @private */ this._fluxHistory = [];
     /** @private */ this._entropyHistory = [];
+    /** @private */ this._warmupFramesRemaining = 0;
+    /** @private */ this._previousFlux = 0;
+    /** @private */ this._isArmed = true;
     /** @private */ this._now = () => performance.now();
 
     /** @type {((hitAudioTime: number) => void)|null} */
@@ -123,7 +128,7 @@ class AdaptiveDetector {
     try {
       const analyserNode = await this._audioInput.start({
         fftSize: this._fftSize,
-        smoothingTimeConstant: 0.3,
+        smoothingTimeConstant: 0,
       });
       const binCount = analyserNode.frequencyBinCount;
       this._frequencyData = new Uint8Array(binCount);
@@ -131,6 +136,10 @@ class AdaptiveDetector {
       this._frequencyData.fill(0);
       this._previousFrequencyData.fill(0);
       this._fluxHistory = [];
+      this._entropyHistory = [];
+      this._warmupFramesRemaining = 12;
+      this._previousFlux = 0;
+      this._isArmed = true;
       this._isRunning = true;
       if (!this._rafId) {
         this._rafId = requestAnimationFrame(() => this._detectLoop());
@@ -217,7 +226,8 @@ class AdaptiveDetector {
 
     // Adaptive threshold
     const thresholdCoefficient = 0.5 + (1 - this._sensitivity) * 4.0;
-    const adaptiveThreshold = this._calculateAdaptiveThreshold(thresholdCoefficient);
+    const adaptiveThreshold =
+      this._calculateAdaptiveThreshold(thresholdCoefficient);
     const thresholdPos = Math.min(1, adaptiveThreshold / 20);
     if (thresholdPos !== this._lastThreshold) {
       this._lastThreshold = thresholdPos;
@@ -247,18 +257,39 @@ class AdaptiveDetector {
       this._entropyHistory.shift();
     }
 
-    const refractoryMs = (this._baseRefractoryMs * this._baseRefractionBpm) / this._bpm;
+    const refractoryMs =
+      (this._baseRefractoryMs * this._baseRefractionBpm) / this._bpm;
+    const fluxResetThreshold = adaptiveThreshold * 0.6;
+    const risingEdge = flux > this._previousFlux;
+    const fluxGate = flux >= adaptiveThreshold && risingEdge;
+    const entropyGate = entropy < this._entropyThreshold;
+    const historyReady =
+      this._fluxHistory.length >= Math.min(12, this._historyWindowSize);
+
+    if (!this._isArmed && flux <= fluxResetThreshold) {
+      this._isArmed = true;
+    }
 
     let hit = false;
     if (
-      flux >= adaptiveThreshold &&
-      entropy < this._entropyThreshold &&
+      this._warmupFramesRemaining === 0 &&
+      historyReady &&
+      this._isArmed &&
+      fluxGate &&
+      entropyGate &&
       now - this._lastHitTime > refractoryMs
     ) {
       this._lastHitTime = now;
+      this._isArmed = false;
       hit = true;
       this._handleHit(options.audioTimeSeconds);
     }
+
+    if (this._warmupFramesRemaining > 0) {
+      this._warmupFramesRemaining -= 1;
+    }
+
+    this._previousFlux = flux;
 
     return {
       level,
@@ -341,10 +372,10 @@ class AdaptiveDetector {
    * @returns {number}
    */
   _calculateAdaptiveThreshold(coefficient) {
-    if (this._fluxHistory.length < 5) return 5;
+    if (this._fluxHistory.length < 8) return 7;
     const med = this._median(this._fluxHistory);
     const madValue = this._mad(this._fluxHistory);
-    return med + coefficient * madValue;
+    return Math.max(3, med + coefficient * madValue);
   }
 
   /** @private */

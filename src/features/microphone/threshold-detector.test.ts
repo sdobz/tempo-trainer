@@ -1,7 +1,6 @@
-import { assertEquals, assert } from "../base/assert.ts";
 import ThresholdDetector from "./threshold-detector.js";
 import {
-  compareHits,
+  assertHits,
   createMockAudioSourceFromWav,
   runDetectorLoop,
 } from "./detector-test-harness.ts";
@@ -40,10 +39,11 @@ Deno.test("ThresholdDetector: matches hand-labeled mic taps", async () => {
     endSeconds: audioSource.durationSeconds,
   });
 
-  const comparison = compareHits(hits, expectedTaps, {
+  assertHits({
+    label: "ThresholdDetector",
+    metadata: { rafHz: RAF_HZ },
+    hits,
+    expectedHits: expectedTaps,
     toleranceMs: MATCH_TOLERANCE_MS,
   });
-
-  assertEquals(comparison.countsMatch, true);
-  assert(comparison.allWithinTolerance);
 });

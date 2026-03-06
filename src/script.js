@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Components call Services.get("detectorManager") in their onMount() hooks, which
   // run after template fetches complete — always after this synchronous registration.
   const detectorManager = new DetectorManager(StorageManager);
+  detectorManager.setSessionBpm(sessionState.bpm);
 
   // Provide SessionStateContext and DetectorManagerContext at document root.
   // Synchronous registration; runs before any component's async onMount().
@@ -380,6 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
         metronome.setBPM(bpm);
         scorer.setBeatDuration(60.0 / bpm);
         if (calibration) calibration.setBeatDuration(60.0 / bpm);
+        detectorManager.setSessionBpm(bpm);
       },
       onBeatsPerMeasureChange: (n) => {
         metronome.setTimeSignature(n);

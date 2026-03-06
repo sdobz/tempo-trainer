@@ -64,6 +64,9 @@ class DetectorManager {
     /** @type {import("./detector-params.js").DetectorParams} */
     this._params = this._loadParams("default");
 
+    /** @type {number} Session-scoped BPM source of truth for adaptive refractory */
+    this._sessionBpm = 120;
+
     /**
      * UI delegate — receives forwarded callbacks.
      * Set by MicrophoneControl via setDelegate().
@@ -161,6 +164,23 @@ class DetectorManager {
     this._detector?.setSensitivity?.(clamped);
   }
 
+  /**
+   * Update session BPM for adaptive refractory scaling.
+   * This value is driven by SessionState and treated as runtime truth.
+   * @param {number} bpm
+   */
+  setSessionBpm(bpm) {
+    const clamped = Math.max(40, Math.min(240, bpm));
+    this._sessionBpm = clamped;
+
+    if (this._params.type === DETECTOR_TYPES.ADAPTIVE) {
+      this._params = { ...this._params, bpm: clamped };
+      this._saveParams(this._params);
+    }
+
+    this._detector?.setBpm?.(clamped);
+  }
+
   // ---------------------------------------------------------------------------
   // Public API — Hit timing callback
   // ---------------------------------------------------------------------------
@@ -225,7 +245,12 @@ class DetectorManager {
     const wasRunning = this.isRunning;
     this.stop();
 
-    this._params = { ...this._params, ...paramsOverride };
+    const nextParams = { ...this._params, ...paramsOverride };
+    if (nextParams.type === DETECTOR_TYPES.ADAPTIVE) {
+      nextParams.bpm = this._sessionBpm;
+    }
+
+    this._params = nextParams;
     this._saveParams(this._params);
     this._rebuildDetector();
 
@@ -294,7 +319,7 @@ class DetectorManager {
       case DETECTOR_TYPES.ADAPTIVE:
         this._detector = new AdaptiveDetector(
           this._audioInput,
-          params,
+          { ...params, bpm: this._sessionBpm },
           delegate,
         );
         break;

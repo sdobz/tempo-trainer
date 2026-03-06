@@ -221,6 +221,25 @@ All application state is reflected in the URL hash:
   - MAD threshold: 26ms (relaxed: 36ms)
   - 4 stable windows required
 
+### Detector Regression Fixtures
+
+- Sample under test: `src/features/microphone/__samples__/mic-taps.wav`
+- Golden outputs: `src/features/microphone/__samples__/mic-taps.expected-hits.json`
+
+The detector regression tests extract deterministic threshold/adaptive frame streams
+directly from the WAV file at runtime, run parameter presets (`params -> expected hit list`),
+and compare detector hit timestamps to fixed golden results with a small tolerance
+window (currently `±15ms`).
+
+Current extractor input format is WAV. If recordings arrive in another format (e.g. mp3),
+convert once to WAV and keep the WAV fixture as the canonical test input.
+
+When detector algorithms are intentionally changed:
+
+1. Keep `mic-taps.wav` unchanged (or replace intentionally with review).
+2. Recompute expected hits for each preset.
+3. Update `mic-taps.expected-hits.json` in one commit with a short rationale.
+
 ## Browser Compatibility
 
 Requires a modern browser with support for:
