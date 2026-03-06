@@ -1,286 +1,185 @@
-/**
- * Delegate interface for UI updates from threshold detector.
- * Extends base BeatDetectorDelegate with threshold-specific callbacks.
- * @typedef {BeatDetectorDelegate & {
- *   onThresholdChanged?: (threshold: number) => void,
- *   onDevicesChanged?: (devices: Array, selectedDeviceId: string) => void
- * }} ThresholdDetectorDelegate
- */
+import AudioInputSource from "./audio-input-source.js";
 
 /**
- * ThresholdDetector — RMS-based hit detection using amplitude threshold.
+ * ThresholdDetector — RMS amplitude onset detection.
  *
- * Simple, responsive detection: hit is triggered when the maximum absolute deviation
- * from center (128) exceeds a user-set threshold. Suitable for single-hit clarity
- * (drum kit context) with predictable false-positive rate on high-amplitude instruments.
+ * Triggers a hit when the peak amplitude in a time-domain frame exceeds the
+ * sensitivity-derived threshold. Simple and responsive; suitable for clear
+ * single-hit instruments (drum pads, rimshots).
  *
- * Implements BeatDetector contract: onHit(), start(), stop(), isRunning getter.
- * Emits delegate callbacks for level, peak, and hit visualization.
+ * Receives an AudioInputSource for hardware access and a DetectorParams object
+ * for configuration. All emitted values are normalized to [0, 1].
+ *
+ * Delegate callbacks:
+ *   onLevelChanged(level: 0–1)       — current signal level (bar width)
+ *   onPeakChanged(peak: 0–1)         — peak-hold indicator position
+ *   onThresholdChanged(pos: 0–1)     — threshold line position (= sensitivity)
+ *   onHit()                          — hit detected
  */
 class ThresholdDetector {
   /**
-   * @param {Object} storageManager - Storage instance for persisting settings
-   * @param {ThresholdDetectorDelegate} delegate - Delegate for behavioral updates
-   * @param {AudioContext|null} [audioContext] - Optional audio context
+   * @param {AudioInputSource} audioInputSource
+   * @param {import("./detector-params.js").DetectorParams} params
+   * @param {Object} delegate
    */
-  constructor(storageManager, delegate, audioContext = null) {
-    this.storageManager = storageManager;
+  constructor(audioInputSource, params, delegate) {
+    this._audioInput = audioInputSource;
     this.delegate = delegate;
-    this.audioContext = audioContext;
 
-    // Configuration
-    this.hitCooldown = 100; // ms
-    this.peakHoldMs = 180;
-    this.peakFallPerSecond = 140;
-    this.storageKeys = {
-      threshold: "tempoTrainer.hitThreshold",
-      device: "tempoTrainer.micDeviceId",
-    };
+    // --- Timing constants ---
+    /** @private */ this._hitCooldownMs = 100;
+    /** @private */ this._peakHoldMs = 180;
+    /** @private */ this._peakFallPerSecond = 140;
 
-    // State
-    this._isRunning = false;
-    this.stream = null;
-    this.analyserNode = null;
-    this.dataArray = null;
-    this.lastHitTime = 0;
-    this.rafId = null;
-    this.threshold = 52;
-    this.peakHoldValue = 0;
-    this.peakHoldUntil = 0;
-    this.lastDetectTime = 0;
-    this.lastLevel = 0;
-    this.lastPeak = 0;
-    this.lastOverThreshold = false;
-    this.selectedDeviceId = "";
+    // --- Sensitivity (0–1); maps inversely to internal threshold ---
+    // Higher sensitivity = lower threshold = triggers more easily
+    this._sensitivity =
+      typeof params.sensitivity === "number"
+        ? Math.max(0, Math.min(1, params.sensitivity))
+        : 0.594;
 
-    // Callbacks
+    // --- Runtime state ---
+    /** @private */ this._isRunning = false;
+    /** @private */ this._bufferData = null;
+    /** @private */ this._lastHitTime = 0;
+    /** @private */ this._rafId = null;
+    /** @private */ this._peakHoldValue = 0;
+    /** @private */ this._peakHoldUntil = 0;
+    /** @private */ this._lastDetectTime = 0;
+    /** @private */ this._lastLevel = -1;
+    /** @private */ this._lastPeak = -1;
+
     /** @type {((hitAudioTime: number) => void)|null} */
     this.onHitCallback = null;
-
-    this._loadSettings();
   }
 
-  /** @type {boolean} */
+  /** @returns {boolean} */
   get isRunning() {
     return this._isRunning;
   }
 
-  /** @param {(hitAudioTime: number) => void} callback */
+  /** @returns {number} Current sensitivity (0–1) */
+  get sensitivity() {
+    return this._sensitivity;
+  }
+
+  /**
+   * Update sensitivity and notify the delegate so the threshold line repositions.
+   * @param {number} value 0–1
+   */
+  setSensitivity(value) {
+    this._sensitivity = Math.max(0, Math.min(1, value));
+    this.delegate?.onThresholdChanged?.(this._sensitivity);
+  }
+
+  /**
+   * Register a timing callback invoked on every hit with the audio clock timestamp.
+   * @param {(hitAudioTime: number) => void} callback
+   */
   onHit(callback) {
     this.onHitCallback = callback;
   }
 
-  _loadSettings() {
-    this.threshold = this.storageManager.getInt(this.storageKeys.threshold, 52);
-    this.threshold = Math.max(0, Math.min(128, this.threshold));
-
-    this.selectedDeviceId =
-      this.storageManager.get(this.storageKeys.device, "") || "";
-  }
-
   /**
-   * Set threshold value and notify delegate
-   * @param {number} value Threshold 0-128
+   * Open the microphone stream and begin detection.
+   * @returns {Promise<boolean>} false if audio is unavailable
    */
-  setThreshold(value) {
-    this.threshold = Math.max(0, Math.min(128, value));
-    this.storageManager.set(this.storageKeys.threshold, this.threshold);
-    if (this.delegate?.onThresholdChanged) {
-      this.delegate.onThresholdChanged(this.threshold);
-    }
-  }
-
   async start() {
     try {
-      const audioContext = this.audioContext;
-      if (!audioContext) {
-        return false;
-      }
-
-      this._stopCurrentStream();
-
-      const audioConstraints = this.selectedDeviceId
-        ? { deviceId: { exact: this.selectedDeviceId } }
-        : true;
-
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-        video: false,
+      const analyserNode = await this._audioInput.start({
+        fftSize: 256,
+        smoothingTimeConstant: 0,
       });
-
+      this._bufferData = new Uint8Array(analyserNode.frequencyBinCount);
       this._isRunning = true;
-
-      const source = audioContext.createMediaStreamSource(this.stream);
-      this.analyserNode = audioContext.createAnalyser();
-      this.analyserNode.fftSize = 256;
-      this.analyserNode.smoothingTimeConstant = 0;
-
-      this.dataArray = new Uint8Array(this.analyserNode.frequencyBinCount);
-
-      source.connect(this.analyserNode);
-
-      // Populate devices and update selected device
-      const devices = await this._enumerateDevices();
-      if (devices.length > 0) {
-        const activeTrack = this.stream.getAudioTracks()[0];
-        if (activeTrack && activeTrack.getSettings) {
-          const settings = activeTrack.getSettings();
-          if (settings.deviceId) {
-            this.selectedDeviceId = settings.deviceId;
-            this.storageManager.set(
-              this.storageKeys.device,
-              this.selectedDeviceId,
-            );
-          }
-        }
+      if (!this._rafId) {
+        this._rafId = requestAnimationFrame(() => this._detectLoop());
       }
-
-      if (this.delegate?.onDevicesChanged) {
-        this.delegate.onDevicesChanged(devices, this.selectedDeviceId);
-      }
-
-      if (!this.rafId) {
-        this.rafId = requestAnimationFrame(() => this._detectLoop());
-      }
-
       return true;
-    } catch (err) {
+    } catch {
       return false;
     }
   }
 
+  /**
+   * Stop detection and release the microphone stream.
+   */
   stop() {
-    this._stopCurrentStream();
+    this._audioInput.stop();
     this._isRunning = false;
-
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
+    if (this._rafId) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
     }
   }
 
-  _stopCurrentStream() {
-    if (this.stream) {
-      this.stream.getTracks().forEach((track) => track.stop());
-      this.stream = null;
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Private
+  // ---------------------------------------------------------------------------
 
-  /**
-   * Get available audio input devices
-   * @returns {Promise<Array<{deviceId: string, label: string}>>}
-   */
-  async getAvailableDevices() {
-    try {
-      if (!navigator.mediaDevices?.enumerateDevices) return [];
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices
-        .filter((device) => device.kind === "audioinput")
-        .map((device, index) => ({
-          deviceId: device.deviceId,
-          label: device.label || `Microphone ${index + 1}`,
-        }));
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Enumerate and return devices (internal - no DOM side effects)
-   * @private
-   * @returns {Promise<Array<{deviceId: string, label: string}>>}
-   */
-  async _enumerateDevices() {
-    return this.getAvailableDevices();
-  }
-
-  /**
-   * Set selected device by ID
-   * @param {string} deviceId Device ID to select
-   */
-  selectDevice(deviceId) {
-    this.selectedDeviceId = deviceId;
-    this.storageManager.set(this.storageKeys.device, deviceId);
-  }
-
+  /** @private */
   _detectLoop() {
-    if (!this.analyserNode || !this.dataArray) {
-      this.rafId = requestAnimationFrame(() => this._detectLoop());
+    const analyserNode = this._audioInput.analyserNode;
+    if (!analyserNode || !this._bufferData) {
+      this._rafId = requestAnimationFrame(() => this._detectLoop());
       return;
     }
 
     const now = performance.now();
-    if (!this.lastDetectTime) {
-      this.lastDetectTime = now;
-    }
-    const deltaSeconds = (now - this.lastDetectTime) / 1000;
-    this.lastDetectTime = now;
+    if (!this._lastDetectTime) this._lastDetectTime = now;
+    const deltaSeconds = (now - this._lastDetectTime) / 1000;
+    this._lastDetectTime = now;
 
-    this.analyserNode.getByteTimeDomainData(this.dataArray);
+    analyserNode.getByteTimeDomainData(this._bufferData);
 
+    // Peak absolute deviation from center (128)
     let maxVal = 0;
-    for (let i = 0; i < this.dataArray.length; i++) {
-      const val = Math.abs(this.dataArray[i] - 128);
-      if (val > maxVal) {
-        maxVal = val;
-      }
+    for (let i = 0; i < this._bufferData.length; i++) {
+      const val = Math.abs(this._bufferData[i] - 128);
+      if (val > maxVal) maxVal = val;
     }
 
-    // Convert to 0-100 scale for level
-    const level = (maxVal / 128) * 100;
-    if (level !== this.lastLevel) {
-      this.lastLevel = level;
-      if (this.delegate?.onLevelChanged) {
-        this.delegate.onLevelChanged(level);
-      }
+    // Emit level: 0–1
+    const level = maxVal / 128;
+    if (level !== this._lastLevel) {
+      this._lastLevel = level;
+      this.delegate?.onLevelChanged?.(level);
     }
 
-    // Update peak hold
-    const wasOverThreshold = this.lastOverThreshold;
-    const isOverThreshold = maxVal >= this.threshold;
-    if (isOverThreshold !== wasOverThreshold) {
-      this.lastOverThreshold = isOverThreshold;
-      if (this.delegate?.onOverThreshold) {
-        this.delegate.onOverThreshold(isOverThreshold);
-      }
-    }
+    // Internal threshold derived from sensitivity (inverted: more sensitive = lower threshold)
+    const threshold = (1 - this._sensitivity) * 128;
 
-    if (maxVal >= this.peakHoldValue) {
-      this.peakHoldValue = maxVal;
-      this.peakHoldUntil = now + this.peakHoldMs;
-    } else if (now > this.peakHoldUntil) {
-      this.peakHoldValue = Math.max(
+    // Peak hold
+    if (maxVal >= this._peakHoldValue) {
+      this._peakHoldValue = maxVal;
+      this._peakHoldUntil = now + this._peakHoldMs;
+    } else if (now > this._peakHoldUntil) {
+      this._peakHoldValue = Math.max(
         maxVal,
-        this.peakHoldValue - this.peakFallPerSecond * deltaSeconds,
+        this._peakHoldValue - this._peakFallPerSecond * deltaSeconds,
       );
     }
 
-    const peak = (this.peakHoldValue / 128) * 100;
-    if (peak !== this.lastPeak) {
-      this.lastPeak = peak;
-      if (this.delegate?.onPeakChanged) {
-        this.delegate.onPeakChanged(peak);
-      }
+    const peak = this._peakHoldValue / 128;
+    if (peak !== this._lastPeak) {
+      this._lastPeak = peak;
+      this.delegate?.onPeakChanged?.(peak);
     }
 
-    // Detect hit
-    if (maxVal >= this.threshold && now - this.lastHitTime > this.hitCooldown) {
-      this.lastHitTime = now;
+    // Hit detection
+    if (maxVal >= threshold && now - this._lastHitTime > this._hitCooldownMs) {
+      this._lastHitTime = now;
       this._handleHit();
     }
 
-    this.rafId = requestAnimationFrame(() => this._detectLoop());
+    this._rafId = requestAnimationFrame(() => this._detectLoop());
   }
 
+  /** @private */
   _handleHit() {
-    // Notify delegate of hit
-    if (this.delegate?.onHit) {
-      this.delegate.onHit();
-    }
-
-    // Callback for hit audio time
-    if (this.onHitCallback && this.audioContext) {
-      this.onHitCallback(this.audioContext.currentTime);
+    this.delegate?.onHit?.();
+    if (this.onHitCallback && this._audioInput.audioContext) {
+      this.onHitCallback(this._audioInput.audioContext.currentTime);
     }
   }
 }

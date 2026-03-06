@@ -1,5 +1,7 @@
 // --- ESM Module Imports ---
 import StorageManager from "./features/base/storage-manager.js";
+import Services from "./features/base/services.js";
+import DetectorManager from "./features/microphone/detector-manager.js";
 import Metronome from "./features/plan-play/metronome.js";
 import Scorer from "./features/plan-play/scorer.js";
 import PlanLibrary from "./features/plan-edit/plan-library.js";
@@ -35,19 +37,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const audioContextManager = new AudioContextManager();
   const paneManager = new PaneManager();
 
+  // Create DetectorManager and register as a global service before components mount.
+  // Components call Services.get("detectorManager") in their onMount() hooks, which
+  // run after template fetches complete — always after this synchronous registration.
+  const detectorManager = new DetectorManager(StorageManager);
+  Services.register("detectorManager", detectorManager);
+
   // Wait for components to be ready
-  let micDetector;
   let calibration;
   let drillPlan; // Will be initialized after plan-edit-pane is ready
   let timeline; // Will be initialized after plan-play-pane is ready
   let drillSessionManager; // Will be initialized after all components ready
 
   const onboardingReady = onboardingPane.componentReady.then(() => {
-    // Get microphone detector from microphone-control sub-component
-    if (onboardingPane.microphoneControl) {
-      micDetector = onboardingPane.microphoneControl.micDetector;
-    }
-
     // Get calibration instance from calibration-control sub-component
     if (onboardingPane.calibrationControl) {
       calibration = onboardingPane.calibrationControl.calibration;
@@ -87,7 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Ensure AudioContext exists
       try {
         const audioContext = await audioContextManager.ensureContext();
-        audioContextManager.setContextForComponents(metronome, micDetector, calibration);
+        audioContextManager.setContextForComponents(metronome, detectorManager, calibration);
 
         // Reset scorer before starting a new session
         scorer.reset();
@@ -165,8 +167,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateOnboardingStatus() {
     if (!calibration) return;
 
-    // Check if microphone threshold has been adjusted (not default 52)
-    const hasAdjustedThreshold = micDetector ? micDetector.threshold !== 52 : false;
+    // Check whether the user has explicitly adjusted sensitivity from the type-appropriate default
+    // threshold detector default: 0.594 (= 1 - 52/128), adaptive default: 0.5
+    const defaultSensitivity = detectorManager.getParams().type === "adaptive" ? 0.5 : 0.594;
+    const hasAdjustedThreshold = Math.abs(detectorManager.sensitivity - defaultSensitivity) > 0.01;
 
     // Check if calibration data exists in storage (offset can be legitimately 0 ms)
     const hasCalibrated =
@@ -218,15 +222,15 @@ document.addEventListener("DOMContentLoaded", () => {
       // Ensure AudioContext exists for microphone access
       try {
         await audioContextManager.ensureContext();
-        audioContextManager.setContextForComponents(metronome, micDetector, calibration);
+        audioContextManager.setContextForComponents(metronome, detectorManager, calibration);
       } catch (e) {
         console.error("Web Audio API not available:", e);
       }
 
       // Start microphone detector to show levels and enumerate devices
-      if (micDetector && !micDetector.isRunning) {
+      if (!detectorManager.isRunning) {
         try {
-          await micDetector.start();
+          await detectorManager.start();
         } catch (err) {
           console.error("Failed to start microphone detector:", err);
         }
@@ -249,14 +253,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } else if (
       pane !== "plan-play" &&
-      micDetector &&
-      micDetector.isRunning &&
+      detectorManager.isRunning &&
       calibration &&
       !calibration.isCalibrating
     ) {
       // Stop microphone detector when leaving onboarding (but not when going to play)
-      // Keep it running during play
-      micDetector.stop();
+      detectorManager.stop();
     }
   };
 
@@ -289,11 +291,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Event Listeners ---
 
-  // Listen for microphone threshold adjustments
+  // Listen for microphone sensitivity adjustments
   onboardingPane.componentReady.then(() => {
     if (onboardingPane.microphoneControl && onboardingPane.microphoneControl.level) {
       onboardingPane.microphoneControl.level.addEventListener("pointerup", () => {
-        // Update onboarding status after threshold adjustment
+        // Update onboarding status after sensitivity adjustment
         setTimeout(() => updateOnboardingStatus(), 100);
       });
     }
@@ -308,10 +310,10 @@ document.addEventListener("DOMContentLoaded", () => {
           if (calibration && !calibration.isCalibrating) {
             try {
               await audioContextManager.ensureContext();
-              audioContextManager.setContextForComponents(metronome, micDetector, calibration);
+              audioContextManager.setContextForComponents(metronome, detectorManager, calibration);
 
-              if (micDetector && !micDetector.isRunning) {
-                await micDetector.start();
+              if (!detectorManager.isRunning) {
+                await detectorManager.start();
               }
             } catch {
               alert("Web Audio API is not supported in this browser");
@@ -357,7 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
       timeline,
       drillPlan,
       calibration,
-      micDetector
+      detectorManager,
     );
 
     // Wire DrillSessionManager callbacks to UI

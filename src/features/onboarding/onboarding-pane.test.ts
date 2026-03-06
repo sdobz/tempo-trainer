@@ -1,6 +1,26 @@
 /// <reference lib="dom" />
 import "../base/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals } from "../base/assert.ts";
+import Services from "../base/services.js";
+
+// Register a minimal DetectorManager mock before any component mounts.
+// MicrophoneControl.onMount() calls Services.get("detectorManager").
+const mockDetectorManager = {
+  delegate: null as any,
+  sensitivity: 0.594,
+  isRunning: false,
+  _audioInput: { selectedDeviceId: "" },
+  _params: { type: "threshold", sensitivity: 0.594, id: "default" },
+  setDelegate(d: any) { this.delegate = d; d?.onThresholdChanged?.(this.sensitivity); },
+  setSensitivity(v: number) { this.sensitivity = v; },
+  getParams() { return { ...this._params }; },
+  async start() { return true; },
+  stop() {},
+  async getAvailableDevices() { return []; },
+  selectDevice(_id: string) {},
+  onHit(_cb: Function) {},
+};
+Services.register("detectorManager", mockDetectorManager);
 
 // Dynamic import after mocks are set up
 const { default: OnboardingPane } = await import("./onboarding-pane.js");

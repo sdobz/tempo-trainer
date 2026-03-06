@@ -1,333 +1,318 @@
-/**
- * Delegate interface for UI updates from adaptive detector.
- * Extends base BeatDetectorDelegate with adaptive-specific callbacks.
- * @typedef {BeatDetectorDelegate & {
- *   onDevicesChanged?: (devices: Array, selectedDeviceId: string) => void,
- *   onFluxChanged?: (fluxMagnitude: number) => void
- * }} AdaptiveDetectorDelegate
- */
+import AudioInputSource from "./audio-input-source.js";
 
 /**
- * AdaptiveDetector — Spectral flux + entropy onset detection using FFT analysis.
+ * AdaptiveDetector — Spectral flux + entropy onset detection.
  *
- * Phase 1 implementation: Detects hits by requiring BOTH:
- * 1. Positive spectral flux (magnitude spectrum frame-to-frame change)
- * 2. Low spectral entropy (concentrated frequency content, not broadband noise)
+ * Detects hits by requiring BOTH:
+ *   1. Positive spectral flux above an adaptive threshold (median + k×MAD)
+ *   2. Low spectral entropy (concentrated frequency content, not broadband noise)
  *
- * Adaptive threshold (median + k×MAD) responds to changing noise floor.
- * Tempo-scaled refractory period prevents double-triggering.
+ * The adaptive threshold tracks the noise floor, so the refractory period and
+ * sensitivity all self-adjust to the acoustic environment.
  *
- * Suitable for:
- * - Sustained hi-hat wash rejection (high entropy = noise)
- * - Cymbal hits (concentrated high-frequency content = low entropy)
- * - Ghost notes (transient with defined pitch)
+ * Suitable for: cymbal hits, ghost notes, hi-hat edges.
+ * Not suitable for: kick isolation without multi-band analysis (future Phase 2).
  *
- * Not suitable for:
- * - Phase 1 AudioWorklet migration (runs on main thread)
- * - Kick drum isolation without multi-band analysis (Phase 2)
+ * Sensitivity (0–1) maps to the threshold coefficient k:
+ *   sensitivity → k = 0.5 + (1 − sensitivity) × 4.0
+ *   (high sensitivity = low k = triggers easily; low sensitivity = high k = hard to trigger)
  *
- * Implements BeatDetector contract: onHit(), start(), stop(), isRunning getter.
+ * Delegate callbacks:
+ *   onLevelChanged(level: 0–1)       — spectral flux (primary signal for this detector)
+ *   onPeakChanged(peak: 0–1)         — flux peak-hold indicator
+ *   onThresholdChanged(pos: 0–1)     — adaptive threshold line position
+ *   onHit()                          — hit detected
  */
 class AdaptiveDetector {
   /**
-   * @param {Object} storageManager - Storage instance for persisting settings
-   * @param {AdaptiveDetectorDelegate} delegate - Delegate for behavioral updates
-   * @param {AudioContext|null} [audioContext] - Optional audio context
+   * @param {AudioInputSource} audioInputSource
+   * @param {import("./detector-params.js").DetectorParams} params
+   * @param {Object} delegate
    */
-  constructor(storageManager, delegate, audioContext = null) {
-    this.storageManager = storageManager;
+  constructor(audioInputSource, params, delegate) {
+    this._audioInput = audioInputSource;
     this.delegate = delegate;
-    this.audioContext = audioContext;
 
-    // Configuration
-    this.fftSize = 1024;
-    this.historyWindowSize = 60; // Rolling median window size
-    this.peakHoldMs = 180;
-    this.peakFallPerSecond = 140;
-    this.storageKeys = {
-      device: "tempoTrainer.micDeviceId",
-    };
+    // --- Algorithm config (from params, with defaults) ---
+    this._fftSize = 1024;
+    this._historyWindowSize =
+      typeof params.historyWindowSize === "number"
+        ? params.historyWindowSize
+        : 60;
+    this._entropyThreshold =
+      typeof params.entropyThreshold === "number"
+        ? params.entropyThreshold
+        : 0.65;
 
-    // Adaptive threshold coefficient (k * MAD)
-    // Higher = less sensitive; typically 1.5–2.5
-    this.thresholdCoefficient = 2.0;
+    // Refractory: base period scales inversely with BPM
+    this._baseRefractoryMs = 250;
+    this._baseRefractionBpm = 60;
+    this._bpm =
+      typeof params.bpm === "number" ? Math.max(40, Math.min(240, params.bpm)) : 120;
 
-    // Spectral entropy threshold for noise rejection
-    // Entropy > this = broadband noise (reject)
-    // Entropy < this = concentrated/tonal (accept)
-    // Range: 0.0 (pure tone) to 1.0 (white noise)
-    // 0.65 = good balance for cymbal hits (low entropy) vs. random mic noise (high entropy)
-    this.entropyThreshold = 0.65;
+    // Timing constants (shared with ThresholdDetector)
+    /** @private */ this._peakHoldMs = 180;
+    /** @private */ this._peakFallPerSecond = 140;
 
-    // Base refractory period (ms) when BPM is 60
-    this.baseRefractoryMs = 250;
-    this.baseRefractionBpm = 60;
+    // --- Sensitivity (0–1) → coefficient (0.5–4.5) ---
+    this._sensitivity =
+      typeof params.sensitivity === "number"
+        ? Math.max(0, Math.min(1, params.sensitivity))
+        : 0.5;
 
-    // State
-    this._isRunning = false;
-    this.stream = null;
-    this.analyserNode = null;
-    this.frequencyData = null;
-    this.previousFrequencyData = null;
-    this.rafId = null;
-    this.lastHitTime = 0;
-    this.lastDetectTime = 0;
-    this.lastLevel = 0;
-    this.lastPeak = 0;
-    this.lastFlux = 0;
-    this.peakHoldValue = 0;
-    this.peakHoldUntil = 0;
-    this.selectedDeviceId = "";
+    // --- Runtime state ---
+    /** @private */ this._isRunning = false;
+    /** @private */ this._frequencyData = null;
+    /** @private */ this._previousFrequencyData = null;
+    /** @private */ this._rafId = null;
+    /** @private */ this._lastHitTime = 0;
+    /** @private */ this._lastDetectTime = 0;
+    /** @private */ this._lastLevel = -1;
+    /** @private */ this._lastPeak = -1;
+    /** @private */ this._lastThreshold = -1;
+    /** @private */ this._peakHoldValue = 0;
+    /** @private */ this._peakHoldUntil = 0;
+    /** @private */ this._fluxHistory = [];
+    /** @private */ this._entropyHistory = [];
 
-    // Flux history for adaptive threshold
-    this.fluxHistory = [];
-
-    // Entropy history for dynamic threshold
-    this.entropyHistory = [];
-
-    // Callbacks
     /** @type {((hitAudioTime: number) => void)|null} */
     this.onHitCallback = null;
-
-    // For demo/visualization: current target BPM (used for refractory period)
-    this.bpm = 120;
-
-    this._loadSettings();
   }
 
-  /** @type {boolean} */
+  /** @returns {boolean} */
   get isRunning() {
     return this._isRunning;
   }
 
-  /** @param {(hitAudioTime: number) => void} callback */
+  /** @returns {number} Current sensitivity (0–1) */
+  get sensitivity() {
+    return this._sensitivity;
+  }
+
+  /**
+   * Update sensitivity. The next frame's adaptive threshold calculation will
+   * use the new coefficient, visually repositioning the threshold line.
+   * @param {number} value 0–1
+   */
+  setSensitivity(value) {
+    this._sensitivity = Math.max(0, Math.min(1, value));
+  }
+
+  /**
+   * Update the current BPM for refractory period scaling.
+   * @param {number} bpm
+   */
+  setBpm(bpm) {
+    this._bpm = Math.max(40, Math.min(240, bpm));
+  }
+
+  /**
+   * Register a timing callback invoked on every hit with the audio clock timestamp.
+   * @param {(hitAudioTime: number) => void} callback
+   */
   onHit(callback) {
     this.onHitCallback = callback;
   }
 
-  _loadSettings() {
-    this.selectedDeviceId =
-      this.storageManager.get(this.storageKeys.device, "") || "";
-  }
-
   /**
-   * Set BPM (affects refractory period).
-   * @param {number} bpm
+   * Open the microphone stream and begin detection.
+   * @returns {Promise<boolean>} false if audio is unavailable
    */
-  setBpm(bpm) {
-    this.bpm = Math.max(40, Math.min(240, bpm));
-  }
-
   async start() {
     try {
-      const audioContext = this.audioContext;
-      if (!audioContext) {
-        return false;
-      }
-
-      this._stopCurrentStream();
-
-      const audioConstraints = this.selectedDeviceId
-        ? { deviceId: { exact: this.selectedDeviceId } }
-        : true;
-
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-        video: false,
+      const analyserNode = await this._audioInput.start({
+        fftSize: this._fftSize,
+        smoothingTimeConstant: 0.3,
       });
-
+      const binCount = analyserNode.frequencyBinCount;
+      this._frequencyData = new Uint8Array(binCount);
+      this._previousFrequencyData = new Uint8Array(binCount);
+      this._frequencyData.fill(0);
+      this._previousFrequencyData.fill(0);
+      this._fluxHistory = [];
       this._isRunning = true;
-
-      const source = audioContext.createMediaStreamSource(this.stream);
-      this.analyserNode = audioContext.createAnalyser();
-      this.analyserNode.fftSize = this.fftSize;
-      this.analyserNode.smoothingTimeConstant = 0.3;
-
-      this.frequencyData = new Uint8Array(this.analyserNode.frequencyBinCount);
-      this.previousFrequencyData = new Uint8Array(
-        this.analyserNode.frequencyBinCount,
-      );
-      this.frequencyData.fill(0);
-      this.previousFrequencyData.fill(0);
-
-      source.connect(this.analyserNode);
-
-      // Enumerate devices and update selected
-      const devices = await this._enumerateDevices();
-      if (devices.length > 0) {
-        const activeTrack = this.stream.getAudioTracks()[0];
-        if (activeTrack && activeTrack.getSettings) {
-          const settings = activeTrack.getSettings();
-          if (settings.deviceId) {
-            this.selectedDeviceId = settings.deviceId;
-            this.storageManager.set(
-              this.storageKeys.device,
-              this.selectedDeviceId,
-            );
-          }
-        }
+      if (!this._rafId) {
+        this._rafId = requestAnimationFrame(() => this._detectLoop());
       }
-
-      if (this.delegate?.onDevicesChanged) {
-        this.delegate.onDevicesChanged(devices, this.selectedDeviceId);
-      }
-
-      // Initialize flux history
-      this.fluxHistory = [];
-
-      if (!this.rafId) {
-        this.rafId = requestAnimationFrame(() => this._detectLoop());
-      }
-
       return true;
-    } catch (err) {
+    } catch {
       return false;
     }
   }
 
+  /**
+   * Stop detection and release the microphone stream.
+   */
   stop() {
-    this._stopCurrentStream();
+    this._audioInput.stop();
     this._isRunning = false;
-
-    if (this.rafId) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
+    if (this._rafId) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
     }
   }
 
-  _stopCurrentStream() {
-    if (this.stream) {
-      this.stream.getTracks().forEach((track) => track.stop());
-      this.stream = null;
+  // ---------------------------------------------------------------------------
+  // Private — detection loop
+  // ---------------------------------------------------------------------------
+
+  /** @private */
+  _detectLoop() {
+    const analyserNode = this._audioInput.analyserNode;
+    if (!analyserNode || !this._frequencyData) {
+      this._rafId = requestAnimationFrame(() => this._detectLoop());
+      return;
     }
-  }
 
-  /**
-   * Get available audio input devices
-   * @returns {Promise<Array<{deviceId: string, label: string}>>}
-   */
-  async getAvailableDevices() {
-    try {
-      if (!navigator.mediaDevices?.enumerateDevices) return [];
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      return devices
-        .filter((device) => device.kind === "audioinput")
-        .map((device, index) => ({
-          deviceId: device.deviceId,
-          label: device.label || `Microphone ${index + 1}`,
-        }));
-    } catch {
-      return [];
-    }
-  }
+    const now = performance.now();
+    if (!this._lastDetectTime) this._lastDetectTime = now;
+    const deltaSeconds = (now - this._lastDetectTime) / 1000;
+    this._lastDetectTime = now;
 
-  /**
-   * Enumerate devices (internal)
-   * @private
-   * @returns {Promise<Array<{deviceId: string, label: string}>>}
-   */
-  async _enumerateDevices() {
-    return this.getAvailableDevices();
-  }
+    analyserNode.getByteFrequencyData(this._frequencyData);
 
-  /**
-   * Set selected device by ID
-   * @param {string} deviceId
-   */
-  selectDevice(deviceId) {
-    this.selectedDeviceId = deviceId;
-    this.storageManager.set(this.storageKeys.device, deviceId);
-  }
-
-  /**
-   * Calculate spectral entropy: measures concentration of frequency content.
-   * High entropy = broadband noise (bad)
-   * Low entropy = concentrated/tonal content (good)
-   *
-   * Shannon entropy: H = -sum(p(i) * log2(p(i)))
-   * where p(i) = magnitude[i] / sum(magnitudes)
-   *
-   * @private
-   * @param {Uint8Array} magnitudes
-   * @returns {number} entropy in range [0.0, 1.0]
-   */
-  _calculateSpectralEntropy(magnitudes) {
-    // Only analyze mid-to-high frequencies (where hits occur)
-    const startBin = Math.max(1, Math.floor(23 * (this.fftSize / 1024)));
-    const endBin = Math.min(
-      magnitudes.length,
-      Math.floor(280 * (this.fftSize / 1024)),
+    const flux = this._calculateSpectralFlux(
+      this._frequencyData,
+      this._previousFrequencyData,
     );
 
-    // Sum magnitudes in the frequency range
-    let sum = 0;
-    for (let i = startBin; i < endBin; i++) {
-      sum += magnitudes[i];
+    // Rolling flux history for adaptive threshold
+    this._fluxHistory.push(flux);
+    if (this._fluxHistory.length > this._historyWindowSize) {
+      this._fluxHistory.shift();
     }
 
-    if (sum === 0) return 0;
+    this._previousFrequencyData.set(this._frequencyData);
 
-    // Calculate normalized probabilities and entropy
-    let entropy = 0;
-    for (let i = startBin; i < endBin; i++) {
-      const p = magnitudes[i] / sum;
-      if (p > 0) {
-        entropy -= p * Math.log2(p);
-      }
+    // Spectral flux as the "level" signal (0–1); flux range is typically 0–20
+    const level = Math.min(1, flux / 20);
+    if (level !== this._lastLevel) {
+      this._lastLevel = level;
+      this.delegate?.onLevelChanged?.(level);
     }
 
-    // Normalize to [0, 1] range
-    // Maximum entropy occurs with uniform distribution
-    const numBins = endBin - startBin;
-    const maxEntropy = Math.log2(numBins);
-    return maxEntropy > 0 ? entropy / maxEntropy : 0;
+    // Adaptive threshold
+    const thresholdCoefficient = 0.5 + (1 - this._sensitivity) * 4.0;
+    const adaptiveThreshold = this._calculateAdaptiveThreshold(thresholdCoefficient);
+    const thresholdPos = Math.min(1, adaptiveThreshold / 20);
+    if (thresholdPos !== this._lastThreshold) {
+      this._lastThreshold = thresholdPos;
+      this.delegate?.onThresholdChanged?.(thresholdPos);
+    }
+
+    // Peak hold on flux
+    if (flux >= this._peakHoldValue) {
+      this._peakHoldValue = flux;
+      this._peakHoldUntil = now + this._peakHoldMs;
+    } else if (now > this._peakHoldUntil) {
+      this._peakHoldValue = Math.max(
+        0,
+        this._peakHoldValue - this._peakFallPerSecond * deltaSeconds,
+      );
+    }
+
+    const peak = Math.min(1, this._peakHoldValue / 20);
+    if (peak !== this._lastPeak) {
+      this._lastPeak = peak;
+      this.delegate?.onPeakChanged?.(peak);
+    }
+
+    // Spectral entropy for noise rejection
+    const entropy = this._calculateSpectralEntropy(this._frequencyData);
+    this._entropyHistory.push(entropy);
+    if (this._entropyHistory.length > this._historyWindowSize) {
+      this._entropyHistory.shift();
+    }
+
+    const refractoryMs = (this._baseRefractoryMs * this._baseRefractionBpm) / this._bpm;
+
+    if (
+      flux >= adaptiveThreshold &&
+      entropy < this._entropyThreshold &&
+      now - this._lastHitTime > refractoryMs
+    ) {
+      this._lastHitTime = now;
+      this._handleHit();
+    }
+
+    this._rafId = requestAnimationFrame(() => this._detectLoop());
   }
 
+  /** @private */
+  _handleHit() {
+    this.delegate?.onHit?.();
+    if (this.onHitCallback && this._audioInput.audioContext) {
+      this.onHitCallback(this._audioInput.audioContext.currentTime);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private — spectral analysis
+  // ---------------------------------------------------------------------------
+
   /**
-   * Calculate positive spectral flux between two magnitude spectra.
-   * Focus on mid-to-high frequencies (1kHz+) where hits occur.
-   * Ignore low rumble (below ~200Hz) and ultrasonic noise.
-   *
-   * Normalized by bin count to reduce bias from FFT size.
-   * Flux = mean(max(0, magnitude[i] - previousMagnitude[i]))
-   *
-   * For a 1024-point FFT at 44.1kHz:
-   * - bin i corresponds to i * (44100 / 1024) ≈ 43 Hz per bin
-   * - 200 Hz ≈ bin 5, 1000 Hz ≈ bin 23, 5000 Hz ≈ bin 116
-   *
+   * Positive spectral flux across the 1kHz–12kHz range, normalized by bin count.
+   * Typical steady-state range: 0–20; transients may reach higher.
    * @private
    * @param {Uint8Array} current
    * @param {Uint8Array} previous
    * @returns {number}
    */
   _calculateSpectralFlux(current, previous) {
-    let flux = 0;
-    // Skip low frequencies (rumble) and very high frequencies (sensor noise)
-    // Start at ~1kHz (bin 23), stop at ~12kHz (bin 280)
-    const startBin = Math.max(1, Math.floor(23 * (this.fftSize / 1024)));
+    const startBin = Math.max(1, Math.floor(23 * (this._fftSize / 1024)));
     const endBin = Math.min(
       current.length,
-      Math.floor(280 * (this.fftSize / 1024)),
+      Math.floor(280 * (this._fftSize / 1024)),
     );
-
+    let flux = 0;
     for (let i = startBin; i < endBin; i++) {
       const diff = current[i] - previous[i];
-      if (diff > 0) {
-        flux += diff;
-      }
+      if (diff > 0) flux += diff;
     }
-
-    // Normalize by bin count to handle different FFT sizes
-    const binCount = Math.max(1, endBin - startBin);
-    return flux / binCount;
+    return flux / Math.max(1, endBin - startBin);
   }
 
   /**
-   * Calculate median of an array.
+   * Shannon entropy of the frequency distribution in the 1kHz–12kHz range.
+   * 0.0 = pure tone (accept), 1.0 = white noise (reject).
    * @private
-   * @param {number[]} arr
+   * @param {Uint8Array} magnitudes
    * @returns {number}
    */
+  _calculateSpectralEntropy(magnitudes) {
+    const startBin = Math.max(1, Math.floor(23 * (this._fftSize / 1024)));
+    const endBin = Math.min(
+      magnitudes.length,
+      Math.floor(280 * (this._fftSize / 1024)),
+    );
+    let sum = 0;
+    for (let i = startBin; i < endBin; i++) sum += magnitudes[i];
+    if (sum === 0) return 0;
+
+    let entropy = 0;
+    for (let i = startBin; i < endBin; i++) {
+      const p = magnitudes[i] / sum;
+      if (p > 0) entropy -= p * Math.log2(p);
+    }
+    const maxEntropy = Math.log2(endBin - startBin);
+    return maxEntropy > 0 ? entropy / maxEntropy : 0;
+  }
+
+  /**
+   * Adaptive threshold: median(history) + coefficient × MAD(history).
+   * Returns a conservative default before enough history is collected.
+   * @private
+   * @param {number} coefficient
+   * @returns {number}
+   */
+  _calculateAdaptiveThreshold(coefficient) {
+    if (this._fluxHistory.length < 5) return 5;
+    const med = this._median(this._fluxHistory);
+    const madValue = this._mad(this._fluxHistory);
+    return med + coefficient * madValue;
+  }
+
+  /** @private */
   _median(arr) {
     if (arr.length === 0) return 0;
     const sorted = [...arr].sort((a, b) => a - b);
@@ -337,157 +322,11 @@ class AdaptiveDetector {
       : sorted[mid];
   }
 
-  /**
-   * Calculate Median Absolute Deviation (MAD).
-   * MAD = median(|x - median(x)|)
-   * @private
-   * @param {number[]} arr
-   * @returns {number}
-   */
+  /** @private */
   _mad(arr) {
     if (arr.length === 0) return 0;
     const med = this._median(arr);
-    const deviations = arr.map((x) => Math.abs(x - med));
-    return this._median(deviations);
-  }
-
-  /**
-   * Calculate adaptive threshold: median + k * MAD
-   * @private
-   * @returns {number}
-   */
-  _calculateAdaptiveThreshold() {
-    if (this.fluxHistory.length < 5) {
-      // Not enough samples yet — use a conservative default
-      return 5;
-    }
-    const med = this._median(this.fluxHistory);
-    const madValue = this._mad(this.fluxHistory);
-    return med + this.thresholdCoefficient * madValue;
-  }
-
-  /**
-   * Calculate refractory period based on current BPM.
-   * @private
-   * @returns {number} ms
-   */
-  _getRefractoryPeriodMs() {
-    // Tempo-scale: at 120 BPM, use base refractory; scale inversely with BPM
-    const ratio = this.baseRefractionBpm / this.bpm;
-    return this.baseRefractoryMs * ratio;
-  }
-
-  _detectLoop() {
-    if (!this.analyserNode || !this.frequencyData) {
-      this.rafId = requestAnimationFrame(() => this._detectLoop());
-      return;
-    }
-
-    const now = performance.now();
-    if (!this.lastDetectTime) {
-      this.lastDetectTime = now;
-    }
-    const deltaSeconds = (now - this.lastDetectTime) / 1000;
-    this.lastDetectTime = now;
-
-    // Get frequency data
-    this.analyserNode.getByteFrequencyData(this.frequencyData);
-
-    // Calculate spectral flux
-    const flux = this._calculateSpectralFlux(
-      this.frequencyData,
-      this.previousFrequencyData,
-    );
-
-    // Add to history (keep rolling window)
-    this.fluxHistory.push(flux);
-    if (this.fluxHistory.length > this.historyWindowSize) {
-      this.fluxHistory.shift();
-    }
-
-    // Copy current to previous for next frame
-    this.previousFrequencyData.set(this.frequencyData);
-
-    // Calculate level (RMS of frequency data for visualization)
-    let sum = 0;
-    for (let i = 0; i < this.frequencyData.length; i++) {
-      sum += this.frequencyData[i] * this.frequencyData[i];
-    }
-    const rms = Math.sqrt(sum / this.frequencyData.length);
-    const level = (rms / 128) * 100; // Scale to 0-100
-
-    if (level !== this.lastLevel) {
-      this.lastLevel = level;
-      if (this.delegate?.onLevelChanged) {
-        this.delegate.onLevelChanged(level);
-      }
-    }
-
-    // Update flux visualization (0-100 scale)
-    // Normalized flux uses mean across bins, so 0-20 is typical range
-    const fluxScaled = Math.min(100, flux * 5); // Scale for visualization
-    if (fluxScaled !== this.lastFlux) {
-      this.lastFlux = fluxScaled;
-      if (this.delegate?.onFluxChanged) {
-        this.delegate.onFluxChanged(fluxScaled);
-      }
-    }
-
-    // Update peak hold
-    if (fluxScaled >= this.peakHoldValue) {
-      this.peakHoldValue = fluxScaled;
-      this.peakHoldUntil = now + this.peakHoldMs;
-    } else if (now > this.peakHoldUntil) {
-      this.peakHoldValue = Math.max(
-        0,
-        this.peakHoldValue - this.peakFallPerSecond * deltaSeconds,
-      );
-    }
-
-    const peak = this.peakHoldValue;
-    if (peak !== this.lastPeak) {
-      this.lastPeak = peak;
-      if (this.delegate?.onPeakChanged) {
-        this.delegate.onPeakChanged(peak);
-      }
-    }
-
-    // Detect hit based on BOTH flux AND entropy criteria
-    // Flux must exceed threshold AND entropy must be below threshold
-    // This rejects broadband noise while accepting instrument hits
-    const adaptiveThreshold = this._calculateAdaptiveThreshold();
-
-    // Calculate spectral entropy (measure of noise vs. tonal content)
-    const entropy = this._calculateSpectralEntropy(this.frequencyData);
-    this.entropyHistory.push(entropy);
-    if (this.entropyHistory.length > this.historyWindowSize) {
-      this.entropyHistory.shift();
-    }
-
-    const refractoryMs = this._getRefractoryPeriodMs();
-
-    if (
-      flux >= adaptiveThreshold &&
-      entropy < this.entropyThreshold &&
-      now - this.lastHitTime > refractoryMs
-    ) {
-      this.lastHitTime = now;
-      this._handleHit();
-    }
-
-    this.rafId = requestAnimationFrame(() => this._detectLoop());
-  }
-
-  _handleHit() {
-    // Notify delegate of hit
-    if (this.delegate?.onHit) {
-      this.delegate.onHit();
-    }
-
-    // Callback for hit audio time
-    if (this.onHitCallback && this.audioContext) {
-      this.onHitCallback(this.audioContext.currentTime);
-    }
+    return this._median(arr.map((x) => Math.abs(x - med)));
   }
 }
 

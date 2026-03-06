@@ -1,38 +1,33 @@
 /**
- * MicrophoneControl - Web component for microphone device selection and level display
+ * MicrophoneControl — Web component for microphone setup and level display.
  *
- * Integrates the pure domain MicrophoneDetector with UI controls and DOM manipulation.
- * Handles all user interactions and visual feedback.
+ * Acts as the UI delegate for DetectorManager. Renders signal level, peak hold,
+ * sensitivity threshold line, hit feedback, and device selection.
+ *
+ * All visualization values received from DetectorManager are normalized to [0, 1].
+ * The component multiplies by 100 for CSS percentage positioning.
  */
 
 import BaseComponent from "../base/base-component.js";
+import Services from "../base/services.js";
 import { bindEvent, querySelector } from "../base/component-utils.js";
-import DetectorFactory from "./detector-factory.js";
-import StorageManager from "../base/storage-manager.js";
 
 /**
  * @typedef {Object} MicrophoneControlState
- * @property {boolean} isConfigured - Whether microphone threshold has been adjusted
+ * @property {boolean} isConfigured - Whether sensitivity has been adjusted from default
  */
 
-/**
- * MicrophoneControl component - microphone device selection and level display
- *
- * Events emitted:
- * - 'microphone-configured': When threshold is adjusted
- *
- * @extends BaseComponent
- */
 export default class MicrophoneControl extends BaseComponent {
   constructor() {
     super();
     /** @type {MicrophoneControlState} */
-    this.state = {
-      isConfigured: false,
-    };
+    this.state = { isConfigured: false };
 
     /** @type {Array<() => void>} */
     this._cleanups = [];
+
+    /** @type {number[]} — setTimeout IDs for hit dot removal */
+    this._hitTimers = [];
 
     // Element references (set in onMount)
     this.statusIndicator = null;
@@ -40,18 +35,11 @@ export default class MicrophoneControl extends BaseComponent {
     this.level = null;
     this.levelBar = null;
     this.peakHold = null;
-    this.thresholdLine = null;
-    this.thresholdLabel = null;
+    this.sensitivityLine = null;
+    this.sensitivityLabel = null;
     this.hitsList = null;
 
-    // Audio context for detector - shared across detector switches
-    this.audioContext = null;
-
-    // Domain instance
-    this.micDetector = null;
-
-    // Threshold adjustment state
-    this._isAdjustingThreshold = false;
+    this._isAdjustingSensitivity = false;
   }
 
   getTemplateUrl() {
@@ -63,191 +51,93 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   async onMount() {
-    // Query element references
-    this.statusIndicator = querySelector(
-      this,
-      "[data-microphone-status-indicator]",
-    );
+    this.statusIndicator = querySelector(this, "[data-microphone-status-indicator]");
     this.select = querySelector(this, "[data-microphone-select]");
     this.level = querySelector(this, "[data-microphone-level]");
     this.levelBar = querySelector(this, "[data-microphone-level-bar]");
     this.peakHold = querySelector(this, "[data-microphone-peak-hold]");
-    this.thresholdLine = querySelector(
-      this,
-      "[data-microphone-threshold-line]",
-    );
-    this.thresholdLabel = querySelector(
-      this,
-      "[data-microphone-threshold-label]",
-    );
+    this.sensitivityLine = querySelector(this, "[data-microphone-threshold-line]");
+    this.sensitivityLabel = querySelector(this, "[data-microphone-threshold-label]");
     this.hitsList = querySelector(this, "[data-microphone-hits-list]");
 
-    // Get or create an AudioContext for this component
-    // (may be unavailable in test environment)
-    if (!this.audioContext) {
-      try {
-        this.audioContext = new (window.AudioContext ||
-          window.webkitAudioContext)();
-      } catch (e) {
-        // AudioContext not available (test environment, etc.)
-        // Detectors will handle null audioContext gracefully
-      }
-    }
+    // Register as the UI delegate — DetectorManager pushes initial state immediately
+    const detectorManager = Services.get("detectorManager");
+    detectorManager.setDelegate(this);
 
-    // Create domain instance with injected dependencies via factory
-    // - StorageManager: stateless utility, safe to reference directly
-    // - this: component acts as the delegate for callbacks
-    // - audioContext: shared Web Audio API context for all detectors
-    // - DetectorFactory reads persisted type preference ("threshold" or "adaptive")
-    this.micDetector = DetectorFactory.createPreferred(
-      StorageManager,
-      this,
-      this.audioContext,
-    );
-
-    // Hydrate persisted detector values into UI on first render
-    this._hydrateFromDetector();
-
-    // Setup UI event listeners
-    this._setupUIEventListeners();
-
-    // Populate device select
-    await this._populateDevices();
-  }
-
-  /**
-   * Set the microphone detector instance (dependency injection)
-   * Called when detector is switched at runtime
-   * Preserves audioContext and reinjects current state
-   * @param {MicrophoneDetector} detector - The detector instance to use
-   */
-  setDetector(detector) {
-    this.micDetector = detector;
-
-    // Rehydrate UI when detector is injected/replaced
-    this._hydrateFromDetector();
-    if (this.select) {
-      void this._populateDevices();
-    }
-  }
-
-  /**
-   * Apply current detector values to UI.
-   * Ensures persisted localStorage-backed state is reflected on initial render.
-   * @private
-   */
-  _hydrateFromDetector() {
-    if (!this.micDetector) return;
-
-    if (this.thresholdLine && this.thresholdLabel) {
-      this.onThresholdChanged(this.micDetector.threshold);
-    }
-
-    // Keep visual meters in a known initial state on load
-    if (this.levelBar) {
-      this.onLevelChanged(0);
-    }
-    if (this.peakHold) {
-      this.onPeakChanged(0);
-    }
-
-    // Reflect persisted threshold adjustment in status badge
-    if (this.statusIndicator) {
-      this.updateStatus(this.micDetector.threshold !== 52);
-    }
+    this._setupUIEventListeners(detectorManager);
+    await this._populateDevices(detectorManager);
   }
 
   onUnmount() {
-    if (this.micDetector && this.micDetector.isRunning) {
-      this.micDetector.stop();
+    // Remove self as delegate to stop receiving callbacks after unmount
+    if (Services.has("detectorManager")) {
+      Services.get("detectorManager").setDelegate(null);
     }
-
-    this._cleanups.forEach((cleanup) => cleanup());
+    // Cancel any pending hit-dot removal timers
+    this._hitTimers.forEach((id) => clearTimeout(id));
+    this._hitTimers = [];
+    this._cleanups.forEach((fn) => fn());
     this._cleanups = [];
   }
 
+  // ---------------------------------------------------------------------------
+  // Delegate callbacks — all values are 0–1
+  // ---------------------------------------------------------------------------
+
   /**
-   * Delegate method: Handle level changes from detector
-   * Updates level bar width based on audio level
-   * @param {number} level Audio level 0-100
+   * Current signal level (bar width).
+   * @param {number} level 0–1
    */
   onLevelChanged(level) {
-    this.levelBar.style.width = `${level}%`;
+    this.levelBar.style.width = `${Math.round(level * 1000) / 10}%`;
   }
 
   /**
-   * Delegate method: Handle peak changes from detector
-   * Updates peak hold indicator position
-   * @param {number} peak Peak level 0-100
+   * Peak-hold indicator position.
+   * @param {number} peak 0–1
    */
   onPeakChanged(peak) {
-    this.peakHold.style.left = `${peak}%`;
+    this.peakHold.style.left = `${Math.round(peak * 1000) / 10}%`;
   }
 
   /**
-   * Delegate method: Handle threshold state changes from detector
-   * Updates over-threshold visual state
-   * @param {boolean} isOver Whether level is over threshold
+   * Sensitivity / threshold line position.
+   * Emitted by ThresholdDetector when user drags (= sensitivity value directly),
+   * and by AdaptiveDetector each frame (= normalized adaptive threshold position).
+   * @param {number} pos 0–1
    */
-  onOverThreshold(isOver) {
-    this.level.classList.toggle("over-threshold", isOver);
+  onThresholdChanged(pos) {
+    if (!this.sensitivityLine || !this.sensitivityLabel) return;
+    // Round to 1 decimal place to avoid floating-point noise in CSS values
+    const pct = Math.round(pos * 1000) / 10;
+    this.sensitivityLine.style.left = `${pct}%`;
+    this.sensitivityLabel.textContent = `Sensitivity: ${Math.round(pct)}%`;
   }
 
   /**
-   * Delegate method: Handle hit detection from detector
-   * Adds visual feedback for hit (brief dot in hits list)
+   * Hit detected — add transient visual dot in the hits list.
    */
   onHit() {
-    const hitElement = document.createElement("div");
-    hitElement.className = "hit-entry";
-    hitElement.setAttribute("aria-label", "Hit detected");
-    hitElement.title = "Hit detected";
-    this.hitsList.appendChild(hitElement);
+    const dot = document.createElement("div");
+    dot.className = "hit-entry";
+    dot.setAttribute("aria-label", "Hit detected");
+    dot.title = "Hit detected";
+    this.hitsList.appendChild(dot);
 
-    // Keep only last 6 hits visible
+    // Keep only last 6 hits
     while (this.hitsList.children.length > 6) {
-      const firstChild = this.hitsList.firstElementChild;
-      if (firstChild) {
-        this.hitsList.removeChild(firstChild);
-      }
+      this.hitsList.firstElementChild?.remove();
     }
 
-    // Auto-remove after animation
-    setTimeout(() => {
-      hitElement.remove();
+    const timerId = setTimeout(() => {
+      dot.remove();
+      this._hitTimers = this._hitTimers.filter((id) => id !== timerId);
     }, 2400);
+    this._hitTimers.push(timerId);
   }
 
   /**
-   * Delegate method: Handle threshold changes from detector
-   * Updates threshold display values (threshold detector only)
-   * @param {number} threshold Threshold value
-   */
-  onThresholdChanged(threshold) {
-    if (this.thresholdLine && this.thresholdLabel) {
-      const percent = (threshold / 128) * 100;
-      this.thresholdLine.style.left = `${percent}%`;
-      this.thresholdLabel.textContent = `Threshold: ${threshold}`;
-    }
-  }
-
-  /**
-   * Delegate method: Handle flux magnitude changes from detector
-   * Updates flux visualization (adaptive detector only)
-   * @param {number} fluxMagnitude Flux magnitude 0-100
-   */
-  onFluxChanged(fluxMagnitude) {
-    // Reuse thresholdLine to show the current flux value position for adaptive detector
-    if (this.thresholdLine && this.thresholdLabel) {
-      this.thresholdLine.style.left = `${fluxMagnitude}%`;
-      this.thresholdLine.classList.add("flux-indicator");
-      this.thresholdLabel.textContent = `Flux: ${Math.round(fluxMagnitude)}`;
-    }
-  }
-
-  /**
-   * Delegate method: Handle device list updates from detector.
-   * Refreshes the microphone select with latest labels (typically available after permission).
+   * Device list updated (hardware event after getUserMedia).
    * @param {Array<{deviceId: string, label: string}>} devices
    * @param {string} selectedDeviceId
    */
@@ -255,50 +145,49 @@ export default class MicrophoneControl extends BaseComponent {
     this._renderDeviceOptions(devices, selectedDeviceId);
   }
 
+  // ---------------------------------------------------------------------------
+  // Status
+  // ---------------------------------------------------------------------------
+
   /**
-   * Setup UI event listeners for user interactions
-   * @private
+   * @param {boolean} isConfigured
    */
-  _setupUIEventListeners() {
-    // Threshold adjustment via pointer (only for threshold-based detectors)
-    const isThreshold = typeof this.micDetector.setThreshold === "function";
-
-    if (isThreshold) {
-      this._cleanups.push(
-        bindEvent(this.level, "pointerdown", (e) =>
-          this._onThresholdPointerDown(e),
-        ),
-        bindEvent(this.level, "pointermove", (e) =>
-          this._onThresholdPointerMove(e),
-        ),
-      );
+  updateStatus(isConfigured) {
+    this.setState({ isConfigured });
+    if (isConfigured) {
+      this.statusIndicator.textContent = "✓ Configured";
+      this.statusIndicator.classList.add("complete");
+    } else {
+      this.statusIndicator.textContent = "⚠️ Not configured";
+      this.statusIndicator.classList.remove("complete");
     }
+  }
 
+  // ---------------------------------------------------------------------------
+  // Private
+  // ---------------------------------------------------------------------------
+
+  /** @private */
+  _setupUIEventListeners(detectorManager) {
+    // Sensitivity adjustment via pointer drag on the level bar
     this._cleanups.push(
-      bindEvent(window, "pointerup", () => this._onThresholdPointerUp()),
-      bindEvent(this.select, "change", () => this._onDeviceSelected()),
+      bindEvent(this.level, "pointerdown", (e) => this._onSensitivityPointerDown(e, detectorManager)),
+      bindEvent(this.level, "pointermove", (e) => this._onSensitivityPointerMove(e, detectorManager)),
+      bindEvent(window, "pointerup", () => { this._isAdjustingSensitivity = false; }),
+      bindEvent(this.select, "change", () => this._onDeviceSelected(detectorManager)),
     );
   }
 
-  /**
-   * Populate device select with available microphones
-   * @private
-   */
-  async _populateDevices() {
-    const devices = await this.micDetector.getAvailableDevices();
-    const selected = this.micDetector.selectedDeviceId;
-    this._renderDeviceOptions(devices, selected);
+  /** @private */
+  async _populateDevices(detectorManager) {
+    const devices = await detectorManager.getAvailableDevices();
+    const selectedId = detectorManager._audioInput?.selectedDeviceId ?? "";
+    this._renderDeviceOptions(devices, selectedId);
   }
 
-  /**
-   * Render microphone device options in the select control.
-   * @param {Array<{deviceId: string, label: string}>} devices
-   * @param {string} selectedDeviceId
-   * @private
-   */
+  /** @private */
   _renderDeviceOptions(devices, selectedDeviceId) {
     this.select.innerHTML = "";
-
     if (devices.length === 0) {
       const option = document.createElement("option");
       option.value = "";
@@ -307,7 +196,6 @@ export default class MicrophoneControl extends BaseComponent {
       this.select.disabled = true;
       return;
     }
-
     this.select.disabled = false;
     devices.forEach((device) => {
       const option = document.createElement("option");
@@ -315,83 +203,33 @@ export default class MicrophoneControl extends BaseComponent {
       option.textContent = device.label;
       this.select.appendChild(option);
     });
-
     this.select.value = selectedDeviceId || devices[0]?.deviceId || "";
   }
 
-  /**
-   * Handle device selection change
-   * @private
-   */
-  _onDeviceSelected() {
+  /** @private */
+  _onDeviceSelected(detectorManager) {
     const deviceId = this.select.value;
-    if (deviceId) {
-      this.micDetector.selectDevice(deviceId);
-      if (this.micDetector.isRunning) {
-        this.micDetector.start();
-      }
-    }
+    if (deviceId) detectorManager.selectDevice(deviceId);
   }
 
-  /**
-   * Handle threshold pointer down
-   * @private
-   */
-  _onThresholdPointerDown(event) {
-    this._isAdjustingThreshold = true;
-    this._setThresholdFromPointer(event.clientX);
-    if (this.level.setPointerCapture) {
-      this.level.setPointerCapture(event.pointerId);
-    }
+  /** @private */
+  _onSensitivityPointerDown(event, detectorManager) {
+    this._isAdjustingSensitivity = true;
+    this._setSensitivityFromPointer(event.clientX, detectorManager);
+    this.level.setPointerCapture?.(event.pointerId);
   }
 
-  /**
-   * Handle threshold pointer move
-   * @private
-   */
-  _onThresholdPointerMove(event) {
-    if (!this._isAdjustingThreshold) return;
-    this._setThresholdFromPointer(event.clientX);
+  /** @private */
+  _onSensitivityPointerMove(event, detectorManager) {
+    if (!this._isAdjustingSensitivity) return;
+    this._setSensitivityFromPointer(event.clientX, detectorManager);
   }
 
-  /**
-   * Handle threshold pointer up
-   * @private
-   */
-  _onThresholdPointerUp() {
-    this._isAdjustingThreshold = false;
-  }
-
-  /**
-   * Calculate and set threshold from pointer position
-   * Only available on threshold detector; no-op for adaptive detector
-   * @private
-   */
-  _setThresholdFromPointer(clientX) {
+  /** @private */
+  _setSensitivityFromPointer(clientX, detectorManager) {
     const rect = this.level.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const threshold = Math.round(ratio * 128);
-
-    // Only call setThreshold if detector supports it (threshold-based detectors)
-    if (typeof this.micDetector.setThreshold === "function") {
-      this.micDetector.setThreshold(threshold);
-    }
-  }
-
-  /**
-   * Update microphone status indicator
-   * @param {boolean} isConfigured - Whether microphone threshold has been adjusted
-   */
-  updateStatus(isConfigured) {
-    this.setState({ isConfigured });
-
-    if (isConfigured) {
-      this.statusIndicator.textContent = "✓ Configured";
-      this.statusIndicator.classList.add("complete");
-    } else {
-      this.statusIndicator.textContent = "⚠️ Not configured";
-      this.statusIndicator.classList.remove("complete");
-    }
+    const sensitivity = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    detectorManager.setSensitivity(sensitivity);
   }
 }
 

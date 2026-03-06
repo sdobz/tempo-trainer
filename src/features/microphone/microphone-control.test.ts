@@ -1,55 +1,63 @@
 /// <reference lib="dom" />
-import "../base/setup-dom.ts"; // Setup DOM environment first
+import "../base/setup-dom.ts";
 import { assertEquals } from "../base/assert.ts";
+import Services from "../base/services.js";
 
-// Import after setup
+// Must import after DOM setup
 const { default: MicrophoneControl } = await import("./microphone-control.js");
 
-/**
- * MockMicrophoneDetector for testing without real audio processing
- */
-class MockMicrophoneDetector {
+// ---------------------------------------------------------------------------
+// MockDetectorManager — minimal interface expected by MicrophoneControl
+// ---------------------------------------------------------------------------
+
+class MockDetectorManager {
   delegate: any = null;
+  sensitivity = 0.594;
   isRunning = false;
-  threshold = 52;
-  selectedDeviceId = "";
+  _audioInput = { selectedDeviceId: "" };
+  _params = { type: "threshold", sensitivity: 0.594, id: "default" };
 
-  constructor(delegate: any = null) {
-    this.delegate = delegate;
+  setDelegate(d: any) {
+    this.delegate = d;
+    // Push initial sensitivity to the delegate (mirrors real DetectorManager)
+    d?.onThresholdChanged?.(this.sensitivity);
   }
 
-  setThreshold(value: number): void {}
-  selectDevice(deviceId: string): void {}
-  onHit(callback: Function): void {}
-  async getAvailableDevices(): Promise<any[]> {
-    return [];
+  setSensitivity(v: number) {
+    this.sensitivity = v;
+    this.delegate?.onThresholdChanged?.(v);
   }
-  async start(): Promise<boolean> {
-    return false;
-  }
-  stop(): void {
-    this.isRunning = false;
-  }
+
+  getParams() { return { ...this._params }; }
+
+  async start(): Promise<boolean> { this.isRunning = true; return true; }
+  stop() { this.isRunning = false; }
+
+  async getAvailableDevices(): Promise<any[]> { return []; }
+  selectDevice(_id: string) {}
+  onHit(_cb: Function) {}
 }
 
-/**
- * Test suite for MicrophoneControl - UI integration tests.
- * Tests DOM manipulation, user interactions, and component lifecycle.
- */
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+let mockManager: MockDetectorManager;
 
 async function createComponent() {
+  mockManager = new MockDetectorManager();
+  Services.register("detectorManager", mockManager);
+
   const element = document.createElement("microphone-control") as InstanceType<
     typeof MicrophoneControl
   >;
-
-  // Wait for component to be ready
   await element.componentReady;
-
-  const detector = new MockMicrophoneDetector(element);
-  element.setDetector(detector as any);
-
   return element;
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 Deno.test("MicrophoneControl: should initialize with default state", async () => {
   const component = await createComponent();
@@ -58,158 +66,117 @@ Deno.test("MicrophoneControl: should initialize with default state", async () =>
 
 Deno.test("MicrophoneControl: should have required template and style URLs", async () => {
   const component = await createComponent();
-  assertEquals(typeof component.getTemplateUrl(), "string");
-  assertEquals(typeof component.getStyleUrl(), "string");
   assertEquals(component.getTemplateUrl().includes("html"), true);
   assertEquals(component.getStyleUrl().includes("css"), true);
 });
 
-Deno.test("MicrophoneControl: should initialize detector with delegate", async () => {
+Deno.test("MicrophoneControl: should register delegate with DetectorManager on mount", async () => {
   const component = await createComponent();
-  assertEquals(component.micDetector !== null, true);
-  if (component.micDetector) {
-    assertEquals(component.micDetector.delegate !== null, true);
-  }
+  assertEquals(mockManager.delegate, component);
 });
 
 Deno.test("MicrophoneControl: should have state management", async () => {
   const component = await createComponent();
-  let onStateChangeCallCount = 0;
-
-  const original = component.onStateChange;
-  component.onStateChange = function (old, neu) {
-    onStateChangeCallCount++;
-    original.call(this, old, neu);
-  };
-
+  let callCount = 0;
+  const original = component.onStateChange.bind(component);
+  component.onStateChange = function (o: any, n: any) { callCount++; original(o, n); };
   component.setState({ isConfigured: true });
-
-  assertEquals(onStateChangeCallCount, 1);
+  assertEquals(callCount, 1);
   assertEquals(component.state.isConfigured, true);
 });
 
 Deno.test("MicrophoneControl: should register as custom element", async () => {
-  const element = await createComponent();
-  assertEquals(element.constructor.name, "MicrophoneControl");
+  const component = await createComponent();
+  assertEquals(component.constructor.name, "MicrophoneControl");
 });
 
-Deno.test("MicrophoneControl: updateStatus should set configured state and update UI", async () => {
+Deno.test("MicrophoneControl: updateStatus should update UI", async () => {
   const component = await createComponent();
 
   component.updateStatus(true);
   assertEquals(component.state.isConfigured, true);
-  if (component.statusIndicator) {
-    assertEquals(component.statusIndicator.textContent, "✓ Configured");
-    assertEquals(
-      component.statusIndicator.classList.contains("complete"),
-      true,
-    );
-  }
+  assertEquals(component.statusIndicator?.textContent, "✓ Configured");
+  assertEquals(component.statusIndicator?.classList.contains("complete"), true);
 
   component.updateStatus(false);
   assertEquals(component.state.isConfigured, false);
-  if (component.statusIndicator) {
-    assertEquals(component.statusIndicator.textContent, "⚠️ Not configured");
-    assertEquals(
-      component.statusIndicator.classList.contains("complete"),
-      false,
-    );
-  }
+  assertEquals(component.statusIndicator?.textContent, "⚠️ Not configured");
+  assertEquals(component.statusIndicator?.classList.contains("complete"), false);
 });
 
-Deno.test("MicrophoneControl: should accept delegate callbacks from detector", async () => {
+Deno.test("MicrophoneControl: delegate should handle level updates (0–1 → 0–100%)", async () => {
   const component = await createComponent();
-  if (!component.micDetector) return;
+  if (!component.levelBar) return;
 
-  const delegate = component.micDetector.delegate;
-
-  assertEquals(typeof delegate?.onLevelChanged, "function");
-  assertEquals(typeof delegate?.onPeakChanged, "function");
-  assertEquals(typeof delegate?.onOverThreshold, "function");
-  assertEquals(typeof delegate?.onHit, "function");
-  assertEquals(typeof delegate?.onThresholdChanged, "function");
+  mockManager.delegate.onLevelChanged(0.5);
+  assertEquals((component.levelBar as HTMLElement).style.width, "50%");
 });
 
-Deno.test("MicrophoneControl: delegate should handle level updates", async () => {
+Deno.test("MicrophoneControl: delegate should handle peak updates (0–1 → 0–100%)", async () => {
   const component = await createComponent();
-  if (!component.micDetector || !component.levelBar) return;
+  if (!component.peakHold) return;
 
-  const delegate = component.micDetector.delegate;
-  if (!delegate?.onLevelChanged) return;
-
-  // Call delegate callback
-  delegate.onLevelChanged(50);
-
-  // Check that level bar width was updated
-  const levelBar = component.levelBar as HTMLElement;
-  assertEquals(levelBar.style.width, "50%");
+  mockManager.delegate.onPeakChanged(0.75);
+  assertEquals((component.peakHold as HTMLElement).style.left, "75%");
 });
 
-Deno.test("MicrophoneControl: delegate should handle peak updates", async () => {
+Deno.test("MicrophoneControl: delegate should handle threshold/sensitivity updates", async () => {
   const component = await createComponent();
-  if (!component.micDetector || !component.peakHold) return;
+  if (!component.sensitivityLine || !component.sensitivityLabel) return;
 
-  const delegate = component.micDetector.delegate;
-  if (!delegate?.onPeakChanged) return;
-
-  delegate.onPeakChanged(75);
-
-  const peakHold = component.peakHold as HTMLElement;
-  assertEquals(peakHold.style.left, "75%");
+  mockManager.delegate.onThresholdChanged(0.64);
+  assertEquals((component.sensitivityLine as HTMLElement).style.left, "64%");
+  assertEquals((component.sensitivityLabel as HTMLElement).textContent, "Sensitivity: 64%");
 });
 
-Deno.test("MicrophoneControl: delegate should handle threshold state changes", async () => {
+Deno.test("MicrophoneControl: initial sensitivity pushed by setDelegate", async () => {
   const component = await createComponent();
-  if (!component.micDetector || !component.level) return;
-
-  const delegate = component.micDetector.delegate;
-  if (!delegate?.onOverThreshold) return;
-
-  delegate.onOverThreshold(true);
-  assertEquals(component.level.classList.contains("over-threshold"), true);
-
-  delegate.onOverThreshold(false);
-  assertEquals(component.level.classList.contains("over-threshold"), false);
+  if (!component.sensitivityLine) return;
+  // MockDetectorManager pushes 0.594 on setDelegate → 59% position
+  assertEquals((component.sensitivityLine as HTMLElement).style.left, "59.4%");
 });
 
-Deno.test("MicrophoneControl: delegate should handle threshold display updates", async () => {
+Deno.test("MicrophoneControl: delegate onHit should add hit entry", async () => {
   const component = await createComponent();
-  if (
-    !component.micDetector || !component.thresholdLine ||
-    !component.thresholdLabel
-  ) return;
+  if (!component.hitsList) return;
 
-  const delegate = component.micDetector.delegate;
-  if (!delegate?.onThresholdChanged) return;
+  const before = component.hitsList.children.length;
+  mockManager.delegate.onHit();
+  assertEquals(component.hitsList.children.length, before + 1);
 
-  delegate.onThresholdChanged(64);
+  // Clear pending removal timers to avoid leak detection
+  component.onUnmount();
+});
 
-  const thresholdLine = component.thresholdLine as HTMLElement;
-  const thresholdLabel = component.thresholdLabel as HTMLElement;
-  assertEquals(thresholdLine.style.left, "50%");
-  assertEquals(thresholdLabel.textContent, "Threshold: 64");
+Deno.test("MicrophoneControl: delegate onDevicesChanged should render options", async () => {
+  const component = await createComponent();
+  if (!component.select) return;
+
+  mockManager.delegate.onDevicesChanged(
+    [{ deviceId: "dev1", label: "Mic A" }, { deviceId: "dev2", label: "Mic B" }],
+    "dev1"
+  );
+
+  const select = component.select as HTMLSelectElement;
+  assertEquals(select.options.length, 2);
+  assertEquals(select.value, "dev1");
 });
 
 Deno.test("MicrophoneControl: should have element references after mount", async () => {
   const component = await createComponent();
-
   assertEquals(component.statusIndicator !== null, true);
   assertEquals(component.select !== null, true);
   assertEquals(component.level !== null, true);
   assertEquals(component.levelBar !== null, true);
   assertEquals(component.peakHold !== null, true);
-  assertEquals(component.thresholdLine !== null, true);
-  assertEquals(component.thresholdLabel !== null, true);
+  assertEquals(component.sensitivityLine !== null, true);
+  assertEquals(component.sensitivityLabel !== null, true);
   assertEquals(component.hitsList !== null, true);
 });
 
-Deno.test("MicrophoneControl: should stop detector on unmount", async () => {
+Deno.test("MicrophoneControl: onUnmount should clear delegate from DetectorManager", async () => {
   const component = await createComponent();
-  if (!component.micDetector) return;
-
-  component.micDetector.isRunning = true;
-
+  assertEquals(mockManager.delegate, component);
   component.onUnmount();
-
-  assertEquals(component.micDetector.isRunning, false);
+  assertEquals(mockManager.delegate, null);
 });
