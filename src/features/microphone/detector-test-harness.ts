@@ -310,45 +310,23 @@ export function compareHits(
   expectedSeconds: number[],
   options: {
     toleranceMs: number;
-    warmupSeconds?: number;
-    startSeconds?: number;
-    endSeconds?: number;
   },
 ) {
   const tol = options.toleranceMs / 1000;
-  const warmup = options.warmupSeconds ?? 0;
-  const start = options.startSeconds ?? Number.NEGATIVE_INFINITY;
-  const end = options.endSeconds ?? Number.POSITIVE_INFINITY;
+  const actual = [...actualSeconds].sort((a, b) => a - b);
+  const expected = [...expectedSeconds].sort((a, b) => a - b);
+  const countsMatch = actual.length === expected.length;
+  const comparedCount = Math.min(actual.length, expected.length);
+  const deltasMs: number[] = [];
 
-  const actual = actualSeconds
-    .filter((t) => t >= warmup && t >= start && t <= end)
-    .sort((a, b) => a - b);
-  const expected = expectedSeconds
-    .filter((t) => t >= start && t <= end)
-    .sort((a, b) => a - b);
-
-  const usedActual = new Set<number>();
-  let matched = 0;
-
-  for (const expectedTime of expected) {
-    let bestIndex = -1;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (let i = 0; i < actual.length; i++) {
-      if (usedActual.has(i)) continue;
-      const distance = Math.abs(actual[i] - expectedTime);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = i;
-      }
-    }
-
-    if (bestIndex >= 0 && bestDistance <= tol) {
-      usedActual.add(bestIndex);
-      matched += 1;
-    }
+  for (let i = 0; i < comparedCount; i++) {
+    deltasMs.push(Math.abs(actual[i] - expected[i]) * 1000);
   }
 
+  const maxDeltaMs = deltasMs.length > 0 ? Math.max(...deltasMs) : 0;
+  const allWithinTolerance =
+    countsMatch && deltasMs.every((deltaMs) => deltaMs <= options.toleranceMs);
+  const matched = allWithinTolerance ? expected.length : 0;
   const falsePositives = actual.length - matched;
   const falseNegatives = expected.length - matched;
   const precision = actual.length > 0 ? matched / actual.length : 0;
@@ -357,6 +335,11 @@ export function compareHits(
   return {
     actual,
     expected,
+    countsMatch,
+    comparedCount,
+    deltasMs,
+    maxDeltaMs,
+    allWithinTolerance,
     matched,
     falsePositives,
     falseNegatives,
