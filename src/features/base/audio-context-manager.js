@@ -37,6 +37,13 @@ class AudioContextManager {
       }
 
       this.audioContext = new AudioContextClass();
+      // Fire one-time onContextCreated listeners
+      if (this._contextCreatedCallbacks) {
+        for (const cb of this._contextCreatedCallbacks) {
+          cb(this.audioContext);
+        }
+        this._contextCreatedCallbacks = [];
+      }
       return this.audioContext;
     } catch (e) {
       console.error("Failed to create AudioContext:", e);
@@ -73,6 +80,24 @@ class AudioContextManager {
     if (calibration) {
       calibration.audioContext = this.audioContext;
     }
+  }
+
+  /**
+   * Register a callback that fires once when the AudioContext is first created.
+   * If the context already exists the callback is invoked immediately.
+   * Use this instead of calling setContextForComponents() in multiple places.
+   *
+   * @param {(ctx: AudioContext) => void} callback
+   */
+  onContextCreated(callback) {
+    if (this.audioContext) {
+      callback(this.audioContext);
+      return;
+    }
+    if (!this._contextCreatedCallbacks) {
+      this._contextCreatedCallbacks = [];
+    }
+    this._contextCreatedCallbacks.push(callback);
   }
 
   /**

@@ -44,6 +44,15 @@ export default class OnboardingPane extends BaseComponent {
     this.calibrationControl = null;
   }
 
+  /**
+   * Convenience getter so script.js can access the calibration domain object
+   * without reaching through three levels of nesting.
+   * @returns {import('../calibration/calibration-detector.js').default|null}
+   */
+  get calibration() {
+    return this.calibrationControl?.calibration ?? null;
+  }
+
   getTemplateUrl() {
     return "/src/features/onboarding/onboarding-pane.html";
   }

@@ -6,6 +6,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { bindEvent, dispatchEvent, querySelector } from "../base/component-utils.js";
+import Services from "../base/services.js";
 import "../visualizers/plan-visualizer.js";
 
 /**
@@ -39,8 +40,8 @@ export default class PlanEditPane extends BaseComponent {
 
     // Injected dependencies (set externally)
     this.planLibrary = null;
-    this.bpmInput = null;
-    this.timeSignatureSelect = null;
+    /** @type {import('../base/session-state.js').default|null} */
+    this.sessionState = null;
 
     // Component references (set in onMount)
     this.drillPlanViz = null;
@@ -133,15 +134,12 @@ export default class PlanEditPane extends BaseComponent {
   }
 
   /**
-   * Initialize the component with dependencies
+   * Initialize the component with dependencies.
    * @param {PlanLibrary} planLibrary
-   * @param {HTMLInputElement} bpmInput
-   * @param {HTMLSelectElement} timeSignatureSelect
    */
-  init(planLibrary, bpmInput, timeSignatureSelect) {
+  init(planLibrary) {
     this.planLibrary = planLibrary;
-    this.bpmInput = bpmInput;
-    this.timeSignatureSelect = timeSignatureSelect;
+    this.sessionState = Services.get("sessionState");
 
     this._populatePlanLibrary();
   }
@@ -498,7 +496,7 @@ export default class PlanEditPane extends BaseComponent {
       description: this.planDescriptionInput.value,
       difficulty: this.planDifficultyInput.value || undefined,
       segments: this.editingSegments,
-      bpm: this.bpmInput?.value ? parseInt(this.bpmInput.value) : 120,
+      bpm: this.sessionState?.bpm ?? 120,
     };
 
     // Validate

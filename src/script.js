@@ -1,6 +1,7 @@
 // --- ESM Module Imports ---
 import StorageManager from "./features/base/storage-manager.js";
 import Services from "./features/base/services.js";
+import SessionState from "./features/base/session-state.js";
 import DetectorManager from "./features/microphone/detector-manager.js";
 import Metronome from "./features/plan-play/metronome.js";
 import Scorer from "./features/plan-play/scorer.js";
@@ -36,12 +37,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const practiceSessionManager = new PracticeSessionManager();
   const audioContextManager = new AudioContextManager();
   const paneManager = new PaneManager();
+  const sessionState = new SessionState(); // owns BPM, beatsPerMeasure, drill plan
 
   // Create DetectorManager and register as a global service before components mount.
   // Components call Services.get("detectorManager") in their onMount() hooks, which
   // run after template fetches complete — always after this synchronous registration.
   const detectorManager = new DetectorManager(StorageManager);
   Services.register("detectorManager", detectorManager);
+  Services.register("sessionState", sessionState);
+  Services.register("audioContextManager", audioContextManager);
+
+  // Register audioContextManager once. Wire it to dependent objects when the
+  // AudioContext is first created — one call site instead of three.
+  audioContextManager.onContextCreated((ctx) => {
+    metronome.audioContext = ctx;
+    detectorManager.audioContext = ctx;
+  });
 
   // Wait for components to be ready
   let calibration;
@@ -52,11 +63,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const onboardingReady = onboardingPane.componentReady.then(() => {
     // Get calibration instance from calibration-control sub-component
     if (onboardingPane.calibrationControl) {
-      calibration = onboardingPane.calibrationControl.calibration;
+      calibration = onboardingPane.calibration;
 
       // Setup calibration callback
       calibration.onStop(() => {
         updateOnboardingStatus();
+      });
+
+      // AudioContext must reach calibration once created.
+      // Done here (after onboardingReady) so the reference is valid.
+      audioContextManager.onContextCreated((ctx) => {
+        calibration.audioContext = ctx;
       });
     }
   });
@@ -81,34 +98,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Use the component directly
     timeline = timelineVizComponent;
-
-    // Handle session start
-    planPlayPane.addEventListener("session-start", async (/** @type {CustomEvent} */ event) => {
-      const { bpm, beatsPerMeasure } = event.detail;
-
-      // Ensure AudioContext exists
-      try {
-        const audioContext = await audioContextManager.ensureContext();
-        audioContextManager.setContextForComponents(metronome, detectorManager, calibration);
-
-        // Reset scorer before starting a new session
-        scorer.reset();
-
-        // Start the drill session
-        await drillSessionManager.startSession(bpm, beatsPerMeasure, audioContext);
-        planPlayPane.setPlaying(true);
-      } catch (error) {
-        console.error("Failed to start session:", error);
-        alert("Web Audio API is not supported in this browser");
-      }
-    });
-
-    // Handle session stop
-    planPlayPane.addEventListener("session-stop", () => {
-      drillSessionManager.stopSession();
-      planPlayPane.setPlaying(false);
-      planPlayPane.clearBeatIndicator();
-    });
 
     // Handle navigation
     planPlayPane.addEventListener("navigate", (/** @type {CustomEvent} */ event) => {
@@ -197,17 +186,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Ensure play pane timeline and visualizer are populated when switching to play tab
     if (pane === "plan-play") {
-      const currentPlanData = typeof drillPlan.getPlan === "function" ? drillPlan.getPlan() : null;
-      if (currentPlanData) {
-        const currentMeasures = Array.isArray(currentPlanData)
-          ? currentPlanData
-          : currentPlanData.plan || [];
-        scorer.setDrillPlan(currentMeasures);
-        timeline.setDrillPlan(currentMeasures);
-        if (planPlayPane && planPlayPane.planVisualizer) {
-          planPlayPane.planVisualizer.setDrillPlan(currentPlanData);
-        }
-      }
       timeline.centerAt(0);
     }
 
@@ -222,7 +200,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // Ensure AudioContext exists for microphone access
       try {
         await audioContextManager.ensureContext();
-        audioContextManager.setContextForComponents(metronome, detectorManager, calibration);
       } catch (e) {
         console.error("Web Audio API not available:", e);
       }
@@ -310,7 +287,6 @@ document.addEventListener("DOMContentLoaded", () => {
           if (calibration && !calibration.isCalibrating) {
             try {
               await audioContextManager.ensureContext();
-              audioContextManager.setContextForComponents(metronome, detectorManager, calibration);
 
               if (!detectorManager.isRunning) {
                 await detectorManager.start();
@@ -331,18 +307,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Setup BPM and time signature change handlers after plan-play pane is ready
   planPlayPane.componentReady.then(() => {
     planPlayPane.bpmInput.addEventListener("input", () => {
-      const bpm = parseInt(planPlayPane.bpmInput.value, 10);
-      metronome.setBPM(bpm);
-      scorer.setBeatDuration(60.0 / bpm);
-      if (calibration) calibration.setBeatDuration(60.0 / bpm);
+      sessionState.setBPM(parseInt(planPlayPane.bpmInput.value, 10));
     });
 
     planPlayPane.timeSignatureSelect.addEventListener("change", () => {
       const beatsPerMeasure = parseInt(planPlayPane.timeSignatureSelect.value.split("/")[0], 10);
-      metronome.setTimeSignature(beatsPerMeasure);
-      scorer.setBeatsPerMeasure(beatsPerMeasure);
-      timeline.setBeatsPerMeasure(beatsPerMeasure);
-      if (calibration) calibration.setBeatsPerMeasure(beatsPerMeasure);
+      sessionState.setBeatsPerMeasure(beatsPerMeasure);
     });
   });
 
@@ -361,6 +331,48 @@ document.addEventListener("DOMContentLoaded", () => {
       calibration,
       detectorManager,
     );
+
+    // Wire SessionState subscribers — single fan-out for BPM, time signature, and plan.
+    // All future changes go through sessionState; no manual fan-out elsewhere.
+    sessionState.subscribe({
+      onBPMChange: (bpm) => {
+        metronome.setBPM(bpm);
+        scorer.setBeatDuration(60.0 / bpm);
+        if (calibration) calibration.setBeatDuration(60.0 / bpm);
+      },
+      onBeatsPerMeasureChange: (n) => {
+        metronome.setTimeSignature(n);
+        scorer.setBeatsPerMeasure(n);
+        timeline.setBeatsPerMeasure(n);
+        if (calibration) calibration.setBeatsPerMeasure(n);
+      },
+      onPlanChange: (planData) => {
+        const measures = planData?.plan ?? (Array.isArray(planData) ? planData : []);
+        scorer.setDrillPlan(measures);
+        timeline.setDrillPlan(measures);
+        if (planPlayPane?.planVisualizer) planPlayPane.planVisualizer.setDrillPlan(planData);
+      },
+    });
+
+    // Register session-start/stop here — drillSessionManager is guaranteed to be
+    // defined at this point (constructed above), eliminating the late-binding hazard.
+    planPlayPane.addEventListener("session-start", async () => {
+      try {
+        const audioContext = await audioContextManager.ensureContext();
+        scorer.reset();
+        await drillSessionManager.startSession(audioContext);
+        planPlayPane.setPlaying(true);
+      } catch (error) {
+        console.error("Failed to start session:", error);
+        alert("Web Audio API is not supported in this browser");
+      }
+    });
+
+    planPlayPane.addEventListener("session-stop", () => {
+      drillSessionManager.stopSession();
+      planPlayPane.setPlaying(false);
+      planPlayPane.clearBeatIndicator();
+    });
 
     // Wire DrillSessionManager callbacks to UI
     drillSessionManager.onBeatUpdate((beatNum, _measureIndex, shouldShow) => {
@@ -426,24 +438,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initialize plan editor pane — must be after Promise.all so planLibrary is ready
     if (planEditPane) {
-      planEditPane.init(planLibrary, planPlayPane.bpmInput, planPlayPane.timeSignatureSelect);
+      planEditPane.init(planLibrary);
     }
 
     // Wire plan-play pane — must be after Promise.all so drillPlan reference is valid
     planPlayPane.init(drillPlan, scorer);
 
-    // Wire plan-change callback — must be after Promise.all so timeline reference is valid
+    // Wire plan-change callback — routes through SessionState so all subscribers
+    // (scorer, timeline, planVisualizer) are notified via the single subscription above.
     drillPlan.onPlanChange((planData) => {
-      const measures = (planData && planData.plan) ? planData.plan
-        : Array.isArray(planData) ? planData
-        : [];
-
-      scorer.setDrillPlan(measures);
-      timeline.setDrillPlan(measures);
-
-      if (planPlayPane && planPlayPane.planVisualizer) {
-        planPlayPane.planVisualizer.setDrillPlan(planData);
-      }
+      sessionState.setPlan(planData);
     });
 
     // Determine which pane to show
@@ -459,17 +463,11 @@ document.addEventListener("DOMContentLoaded", () => {
       initialPane = hasCalibration ? "plan-play" : "plan-edit";
     }
 
-    // Initialize display
+    // Initialize display — push current plan through SessionState so all subscribers
+    // (scorer, timeline, planVisualizer) receive it via the subscription wired above.
     const currentPlanData = typeof drillPlan.getPlan === "function" ? drillPlan.getPlan() : null;
     if (currentPlanData) {
-      const currentMeasures = Array.isArray(currentPlanData)
-        ? currentPlanData
-        : currentPlanData.plan || [];
-      scorer.setDrillPlan(currentMeasures);
-      timeline.setDrillPlan(currentMeasures);
-      if (planPlayPane.planVisualizer) {
-        planPlayPane.planVisualizer.setDrillPlan(currentPlanData);
-      }
+      sessionState.setPlan(currentPlanData);
     }
 
     timeline.centerAt(0);

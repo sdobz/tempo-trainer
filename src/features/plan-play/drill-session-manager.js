@@ -2,6 +2,8 @@
  * DrillSessionManager manages the drill session lifecycle and coordinates
  * metronome, scorer, timeline, and drill plan during active sessions.
  */
+import Services from "../base/services.js";
+
 class DrillSessionManager {
   /**
    * @param {Object} metronome - Metronome instance
@@ -9,7 +11,7 @@ class DrillSessionManager {
    * @param {Object} timeline - Timeline visualization component
    * @param {Object} drillPlan - DrillPlan visualization component
    * @param {Object} calibration - CalibrationDetector instance
-   * @param {Object} micDetector - MicrophoneDetector instance
+   * @param {Object} micDetector - MicrophoneDetector / DetectorManager instance
    */
   constructor(metronome, scorer, timeline, drillPlan, calibration, micDetector) {
     this.metronome = metronome;
@@ -18,6 +20,7 @@ class DrillSessionManager {
     this.drillPlan = drillPlan;
     this.calibration = calibration;
     this.micDetector = micDetector;
+    this.sessionState = Services.get("sessionState");
 
     // Session state
     this.currentMeasureInTotal = 0;
@@ -170,12 +173,15 @@ class DrillSessionManager {
 
   /**
    * Starts a new drill session.
-   * @param {number} bpm - Beats per minute
-   * @param {number} beatsPerMeasure - Time signature (beats per measure)
+   * Reads current BPM and beatsPerMeasure from the shared SessionState so there
+   * is a single source of truth — no need to pass them as arguments.
    * @param {AudioContext} audioContext - Web Audio API context
    * @returns {Promise<void>}
    */
-  async startSession(bpm, beatsPerMeasure, audioContext) {
+  async startSession(audioContext) {
+    const bpm = this.sessionState.bpm;
+    const beatsPerMeasure = this.sessionState.beatsPerMeasure;
+
     // Stop calibration if running
     if (this.calibration && this.calibration.isCalibrating) {
       this.calibration.stop("Calibration stopped: drill start requested.");
@@ -186,7 +192,7 @@ class DrillSessionManager {
       await this.micDetector.start();
     }
 
-    // Configure all components
+    // Configure all components from session state
     this.metronome.setBPM(bpm);
     this.metronome.setTimeSignature(beatsPerMeasure);
     this.scorer.setBeatsPerMeasure(beatsPerMeasure);
