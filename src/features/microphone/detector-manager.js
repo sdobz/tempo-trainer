@@ -7,6 +7,7 @@ import {
   DEFAULT_ADAPTIVE_PARAMS,
   serializeParams,
   deserializeParams,
+  normalizeDetectorParams,
 } from "./detector-params.js";
 import { createContext } from "../base/context.js";
 
@@ -239,18 +240,39 @@ class DetectorManager {
    * onHit timing callback, and starts the new detector if the previous one
    * was running.
    *
-   * @param {Partial<import("./detector-params.js").DetectorParams>} paramsOverride
+   * @param {import("./detector-params.js").DetectorParamsUpdate} paramsOverride
    */
   setActiveDetector(paramsOverride) {
     const wasRunning = this.isRunning;
     this.stop();
 
-    const nextParams = { ...this._params, ...paramsOverride };
-    if (nextParams.type === DETECTOR_TYPES.ADAPTIVE) {
-      nextParams.bpm = this._sessionBpm;
+    const switchingTo =
+      paramsOverride.type === DETECTOR_TYPES.ADAPTIVE
+        ? DETECTOR_TYPES.ADAPTIVE
+        : paramsOverride.type === DETECTOR_TYPES.THRESHOLD
+          ? DETECTOR_TYPES.THRESHOLD
+          : this._params.type;
+
+    const seeded =
+      switchingTo === DETECTOR_TYPES.ADAPTIVE
+        ? {
+            ...DEFAULT_ADAPTIVE_PARAMS,
+            id: this._params.id,
+            sensitivity: this._params.sensitivity,
+          }
+        : {
+            ...DEFAULT_THRESHOLD_PARAMS,
+            id: this._params.id,
+            sensitivity: this._params.sensitivity,
+          };
+
+    const rawNext = { ...seeded, ...this._params, ...paramsOverride };
+    this._params = normalizeDetectorParams(rawNext, this._params.id);
+
+    if (this._params.type === DETECTOR_TYPES.ADAPTIVE) {
+      this._params = { ...this._params, bpm: this._sessionBpm };
     }
 
-    this._params = nextParams;
     this._saveParams(this._params);
     this._rebuildDetector();
 
@@ -362,13 +384,13 @@ class DetectorManager {
     const raw = this._storage.get(`tempoTrainer.detectorParams.${id}`);
     if (raw) {
       const parsed = deserializeParams(raw);
-      if (parsed && parsed.type) return parsed;
+      if (parsed && parsed.type) return normalizeDetectorParams(parsed, id);
     }
 
     // Migration: read legacy separate keys if present
     const legacyType = this._storage.get("tempoTrainer.detectorType");
     if (legacyType === DETECTOR_TYPES.ADAPTIVE) {
-      return { ...DEFAULT_ADAPTIVE_PARAMS, id };
+      return normalizeDetectorParams({ ...DEFAULT_ADAPTIVE_PARAMS, id }, id);
     }
 
     const legacyThreshold = this._storage.getInt(
@@ -377,10 +399,13 @@ class DetectorManager {
     );
     if (legacyThreshold >= 0) {
       const sensitivity = 1 - legacyThreshold / 128;
-      return { ...DEFAULT_THRESHOLD_PARAMS, id, sensitivity };
+      return normalizeDetectorParams(
+        { ...DEFAULT_THRESHOLD_PARAMS, id, sensitivity },
+        id,
+      );
     }
 
-    return { ...DEFAULT_THRESHOLD_PARAMS, id };
+    return normalizeDetectorParams({ ...DEFAULT_THRESHOLD_PARAMS, id }, id);
   }
 
   /**

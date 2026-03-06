@@ -1,49 +1,74 @@
 import ThresholdDetector from "./threshold-detector.js";
+import { DEFAULT_THRESHOLD_PARAMS } from "./detector-params.js";
 import {
   assertHits,
-  createMockAudioSourceFromWav,
   runDetectorLoop,
+  setupAudioSource,
 } from "./detector-test-harness.ts";
 
-async function loadJson(relativePath: string) {
-  const url = new URL(relativePath, import.meta.url);
-  const text = await Deno.readTextFile(url);
-  return JSON.parse(text);
-}
-
-const WAV_URL = new URL("./__samples__/mic-taps.wav", import.meta.url);
-const TRUTH_URL = "./__samples__/mic-taps.actual.json";
-const MATCH_TOLERANCE_MS = 40;
-const RAF_HZ = 120;
-
-Deno.test("ThresholdDetector: matches hand-labeled mic taps", async () => {
-  const expectedTaps = (await loadJson(TRUTH_URL)) as number[];
-
-  const audioSource = await createMockAudioSourceFromWav(WAV_URL, {
+const thresholdSetup = {
+  toleranceMs: 40,
+  rafHz: 120,
+  analyser: {
     fftSize: 256,
     minDb: -90,
     maxDb: -30,
-  });
+  },
+};
 
-  const detector = new ThresholdDetector(
-    audioSource as never,
-    { sensitivity: 0.594 } as never,
-    {},
+const fixtures = [
+  {
+    name: "mic-taps",
+    wav: "mic-taps.wav",
+    truth: "mic-taps.actual.json",
+    sensitivity: 0.594,
+  },
+  {
+    name: "finger-taps",
+    wav: "finger-taps.wav",
+    truth: "finger-taps.actual.json",
+    sensitivity: 0.7,
+  },
+];
+
+for (const fixture of fixtures) {
+  Deno.test(
+    `ThresholdDetector: matches hand-labeled ${fixture.name}`,
+    async () => {
+      const { audioSource, expectedHits } = await setupAudioSource(
+        fixture.wav,
+        fixture.truth,
+        thresholdSetup.analyser,
+      );
+
+      const detector = new ThresholdDetector(
+        audioSource as never,
+        {
+          ...DEFAULT_THRESHOLD_PARAMS,
+          sensitivity: fixture.sensitivity,
+        } as never,
+        {},
+      );
+
+      const hits = await runDetectorLoop({
+        detector,
+        audioSource,
+        rafHz: thresholdSetup.rafHz,
+        startSeconds: 0,
+        endSeconds: audioSource.durationSeconds,
+      });
+
+      assertHits({
+        label: `ThresholdDetector:${fixture.name}`,
+        metadata: {
+          rafHz: thresholdSetup.rafHz,
+          sensitivity: fixture.sensitivity,
+          runtimeAlignedParams: true,
+        },
+        hits,
+        expectedHits,
+        toleranceMs: thresholdSetup.toleranceMs,
+      });
+    },
   );
-
-  const hits = await runDetectorLoop({
-    detector,
-    audioSource,
-    rafHz: RAF_HZ,
-    startSeconds: 0,
-    endSeconds: audioSource.durationSeconds,
-  });
-
-  assertHits({
-    label: "ThresholdDetector",
-    metadata: { rafHz: RAF_HZ },
-    hits,
-    expectedHits: expectedTaps,
-    toleranceMs: MATCH_TOLERANCE_MS,
-  });
-});
+}

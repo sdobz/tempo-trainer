@@ -19,7 +19,7 @@ import AudioInputSource from "./audio-input-source.js";
 class ThresholdDetector {
   /**
    * @param {AudioInputSource} audioInputSource
-   * @param {import("./detector-params.js").DetectorParams} params
+   * @param {import("./detector-params.js").ThresholdDetectorParams} params
    * @param {Object} delegate
    */
   constructor(audioInputSource, params, delegate) {

@@ -6,15 +6,28 @@
  * (AudioInputSource, delegate). Designed to support future named per-instrument
  * configurations: e.g. { id: "snare", type: "adaptive", sensitivity: 0.7 }.
  *
- * @typedef {Object} DetectorParams
- * @property {string}  id          - Logical name, e.g. "default", "snare", "kick"
- * @property {string}  type        - "threshold" | "adaptive"
- * @property {number}  sensitivity - 0.0–1.0; higher = triggers more easily
+ * @typedef {Object} ThresholdDetectorParams
+ * @property {string} id - Logical name, e.g. "default", "snare", "kick"
+ * @property {typeof DETECTOR_TYPES.THRESHOLD} type
+ * @property {number} sensitivity - 0.0–1.0; higher = triggers more easily
  *
- * Optional algorithm hints (detectors supply internal defaults when absent):
- * @property {number} [historyWindowSize] - Adaptive: rolling window (default 60)
- * @property {number} [entropyThreshold]  - Adaptive: max entropy to accept (default 0.65)
- * @property {number} [bpm]               - Adaptive: BPM for refractory scaling (default 120)
+ * @typedef {Object} AdaptiveDetectorParams
+ * @property {string} id - Logical name, e.g. "default", "snare", "kick"
+ * @property {typeof DETECTOR_TYPES.ADAPTIVE} type
+ * @property {number} sensitivity - 0.0–1.0; higher = triggers more easily
+ * @property {number} historyWindowSize
+ * @property {number} entropyThreshold
+ * @property {number} bpm
+ *
+ * @typedef {ThresholdDetectorParams | AdaptiveDetectorParams} DetectorParams
+ *
+ * @typedef {Object} DetectorParamsUpdate
+ * @property {string=} id
+ * @property {typeof DETECTOR_TYPES.THRESHOLD | typeof DETECTOR_TYPES.ADAPTIVE=} type
+ * @property {number=} sensitivity
+ * @property {number=} historyWindowSize
+ * @property {number=} entropyThreshold
+ * @property {number=} bpm
  */
 
 export const DETECTOR_TYPES = Object.freeze({
@@ -39,15 +52,70 @@ export const DEFAULT_THRESHOLD_PARAMS = Object.freeze(
  * sensitivity = 0.5 maps to thresholdCoefficient = 2.5 (see AdaptiveDetector).
  */
 export const DEFAULT_ADAPTIVE_PARAMS = Object.freeze(
-  /** @type {DetectorParams} */ ({
+  /** @type {AdaptiveDetectorParams} */ ({
     id: "default",
     type: DETECTOR_TYPES.ADAPTIVE,
-    sensitivity: 0.5,
-    historyWindowSize: 60,
-    entropyThreshold: 0.65,
+    sensitivity: 0.2,
+    historyWindowSize: 120,
+    entropyThreshold: 0.992,
     bpm: 120,
   }),
 );
+
+/**
+ * Normalize unknown persisted/override params into a fully-typed DetectorParams union.
+ * @param {unknown} raw
+ * @param {string} [fallbackId="default"]
+ * @returns {DetectorParams}
+ */
+export function normalizeDetectorParams(raw, fallbackId = "default") {
+  const source =
+    raw && typeof raw === "object"
+      ? /** @type {Record<string, unknown>} */ (raw)
+      : {};
+
+  const type =
+    source.type === DETECTOR_TYPES.ADAPTIVE
+      ? DETECTOR_TYPES.ADAPTIVE
+      : source.type === DETECTOR_TYPES.THRESHOLD
+        ? DETECTOR_TYPES.THRESHOLD
+        : DETECTOR_TYPES.THRESHOLD;
+
+  const id =
+    typeof source.id === "string" && source.id.length > 0
+      ? source.id
+      : fallbackId;
+  const sensitivity = clampNumber(source.sensitivity, 0, 1, 0.594);
+
+  if (type === DETECTOR_TYPES.ADAPTIVE) {
+    return {
+      ...DEFAULT_ADAPTIVE_PARAMS,
+      id,
+      type,
+      sensitivity,
+      historyWindowSize: clampInt(
+        source.historyWindowSize,
+        8,
+        512,
+        DEFAULT_ADAPTIVE_PARAMS.historyWindowSize,
+      ),
+      entropyThreshold: clampNumber(
+        source.entropyThreshold,
+        0,
+        1,
+        DEFAULT_ADAPTIVE_PARAMS.entropyThreshold,
+      ),
+      bpm: clampInt(source.bpm, 40, 240, DEFAULT_ADAPTIVE_PARAMS.bpm),
+    };
+  }
+
+  return {
+    ...DEFAULT_THRESHOLD_PARAMS,
+    id,
+    type: DETECTOR_TYPES.THRESHOLD,
+    sensitivity,
+  };
+}
 
 /**
  * Serialize DetectorParams to a JSON string for storage.
@@ -66,8 +134,19 @@ export function serializeParams(params) {
  */
 export function deserializeParams(str) {
   try {
-    return JSON.parse(str);
+    return normalizeDetectorParams(JSON.parse(str));
   } catch {
     return null;
   }
+}
+
+function clampNumber(value, min, max, fallback) {
+  if (typeof value !== "number" || Number.isNaN(value)) return fallback;
+  return Math.max(min, Math.min(max, value));
+}
+
+function clampInt(value, min, max, fallback) {
+  if (typeof value !== "number" || Number.isNaN(value)) return fallback;
+  const intVal = Math.round(value);
+  return Math.max(min, Math.min(max, intVal));
 }

@@ -147,7 +147,9 @@ Deno.test("DetectorManager: setSessionBpm updates adaptive params", () => {
 
   const params = manager.getParams();
   assertEquals(params.type, DETECTOR_TYPES.ADAPTIVE);
-  assertEquals(params.bpm, 132);
+  if (params.type === DETECTOR_TYPES.ADAPTIVE) {
+    assertEquals(params.bpm, 132);
+  }
 });
 
 Deno.test("DetectorManager: setSessionBpm forwards to active detector", () => {

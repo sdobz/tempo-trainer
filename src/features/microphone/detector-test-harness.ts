@@ -16,6 +16,13 @@ export type MockDetectorDelegateSnapshot = {
   hitCount: number;
 };
 
+export type DetectorFixture = {
+  wavFile: string;
+  truthFile: string;
+  audioSource: MockAudioSource;
+  expectedHits: number[];
+};
+
 export class ReplayAnalyserNode {
   private readonly samples: Float32Array;
   private readonly sampleRate: number;
@@ -151,6 +158,48 @@ export async function createMockAudioSourceFromWav(
     },
     stop() {},
   };
+}
+
+export async function setupAudioSource(
+  wavFile: string,
+  truthFile: string,
+  options: { fftSize: number; minDb?: number; maxDb?: number },
+): Promise<DetectorFixture> {
+  const wavUrl = toSampleUrl(wavFile);
+  const truthUrl = toSampleUrl(truthFile);
+  const expectedHits = JSON.parse(
+    await Deno.readTextFile(truthUrl),
+  ) as number[];
+  const audioSource = await createMockAudioSourceFromWav(wavUrl, options);
+
+  return {
+    wavFile,
+    truthFile,
+    audioSource,
+    expectedHits,
+  };
+}
+
+export function deriveFixedSessionBpm(expectedHits: number[]) {
+  const intervals = expectedHits
+    .slice(1)
+    .map((time, index) => time - expectedHits[index])
+    .filter((delta) => delta > 0);
+
+  const beatLikeIntervals = intervals.filter((delta) => delta < 0.8);
+  const source = beatLikeIntervals.length > 0 ? beatLikeIntervals : intervals;
+  if (source.length === 0) return 120;
+
+  const sorted = [...source].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const medianIntervalSeconds =
+    sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+
+  if (!Number.isFinite(medianIntervalSeconds) || medianIntervalSeconds <= 0) {
+    return 120;
+  }
+
+  return Math.round(60 / medianIntervalSeconds);
 }
 
 export function createMockDetectorDelegate() {
@@ -399,6 +448,12 @@ export function assertHits(options: {
 
 function floatToByte(sample: number) {
   return clamp(Math.round((clamp(sample, -1, 1) + 1) * 127.5), 0, 255);
+}
+
+function toSampleUrl(nameOrPath: string) {
+  const value = nameOrPath.trim();
+  const relative = value.includes("/") ? value : `./__samples__/${value}`;
+  return new URL(relative, import.meta.url);
 }
 
 function clamp(value: number, min: number, max: number) {

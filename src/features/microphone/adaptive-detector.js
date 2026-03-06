@@ -1,4 +1,5 @@
 import AudioInputSource from "./audio-input-source.js";
+import { DEFAULT_ADAPTIVE_PARAMS } from "./detector-params.js";
 
 /**
  * AdaptiveDetector — Spectral flux + entropy onset detection.
@@ -26,7 +27,7 @@ import AudioInputSource from "./audio-input-source.js";
 class AdaptiveDetector {
   /**
    * @param {AudioInputSource} audioInputSource
-   * @param {import("./detector-params.js").DetectorParams} params
+   * @param {import("./detector-params.js").AdaptiveDetectorParams} params
    * @param {Object} delegate
    */
   constructor(audioInputSource, params, delegate) {
@@ -36,25 +37,36 @@ class AdaptiveDetector {
     // --- Algorithm config (from params, with defaults) ---
     this._fftSize = 1024;
     this._historyWindowSize =
-      typeof params.historyWindowSize === "number"
-        ? params.historyWindowSize
-        : 60;
+      params.historyWindowSize ?? DEFAULT_ADAPTIVE_PARAMS.historyWindowSize;
     this._entropyThreshold =
-      typeof params.entropyThreshold === "number"
-        ? params.entropyThreshold
-        : 0.65;
+      params.entropyThreshold ?? DEFAULT_ADAPTIVE_PARAMS.entropyThreshold;
 
     // Refractory: base period scales inversely with BPM
-    this._baseRefractoryMs = 250;
+    this._baseRefractoryMs = 360;
     this._baseRefractionBpm = 60;
-    this._bpm =
-      typeof params.bpm === "number"
-        ? Math.max(40, Math.min(240, params.bpm))
-        : 120;
+    this._minRefractoryMs = 170;
+    this._bpm = params.bpm ?? DEFAULT_ADAPTIVE_PARAMS.bpm;
+
+    // Threshold and hit-gating tuning
+    this._thresholdBootstrap = 7;
+    this._thresholdFloor = 3;
+    this._thresholdWarmupFrames = 12;
+    this._thresholdRiseAttack = 1;
+    this._thresholdFallRelease = 0.005;
+    this._fluxResetFactor = 0.4;
+    this._requiredProminenceMin = 0.4;
+    this._requiredProminenceScale = 0.1;
+    this._absoluteFluxFloor = 4.5;
+    this._amplitudeGateThreshold = 12;
+    this._longGapMs = 700;
+    this._longGapProminence = 2.5;
+    this._veryLongGapMs = 1500;
+    this._veryLongGapProminence = 5;
 
     // Timing constants (shared with ThresholdDetector)
     /** @private */ this._peakHoldMs = 180;
     /** @private */ this._peakFallPerSecond = 140;
+    /** @private */ this._hitTimeCompensationSeconds = 0.02;
 
     // --- Sensitivity (0–1) → coefficient (0.5–4.5) ---
     this._sensitivity =
@@ -62,10 +74,13 @@ class AdaptiveDetector {
         ? Math.max(0, Math.min(1, params.sensitivity))
         : 0.5;
 
+    this._applySensitivityProfile();
+
     // --- Runtime state ---
     /** @private */ this._isRunning = false;
     /** @private */ this._frequencyData = null;
     /** @private */ this._previousFrequencyData = null;
+    /** @private */ this._timeDomainData = null;
     /** @private */ this._rafId = null;
     /** @private */ this._lastHitTime = 0;
     /** @private */ this._lastDetectTime = 0;
@@ -78,6 +93,7 @@ class AdaptiveDetector {
     /** @private */ this._entropyHistory = [];
     /** @private */ this._warmupFramesRemaining = 0;
     /** @private */ this._previousFlux = 0;
+    /** @private */ this._smoothedThreshold = 7;
     /** @private */ this._isArmed = true;
     /** @private */ this._now = () => performance.now();
 
@@ -102,6 +118,8 @@ class AdaptiveDetector {
    */
   setSensitivity(value) {
     this._sensitivity = Math.max(0, Math.min(1, value));
+    this._applySensitivityProfile();
+    this.delegate?.onThresholdChanged?.(this._sensitivity);
   }
 
   /**
@@ -133,12 +151,15 @@ class AdaptiveDetector {
       const binCount = analyserNode.frequencyBinCount;
       this._frequencyData = new Uint8Array(binCount);
       this._previousFrequencyData = new Uint8Array(binCount);
+      this._timeDomainData = new Uint8Array(analyserNode.fftSize);
       this._frequencyData.fill(0);
       this._previousFrequencyData.fill(0);
+      this._timeDomainData.fill(128);
       this._fluxHistory = [];
       this._entropyHistory = [];
-      this._warmupFramesRemaining = 12;
+      this._warmupFramesRemaining = this._thresholdWarmupFrames;
       this._previousFlux = 0;
+      this._smoothedThreshold = this._thresholdBootstrap;
       this._isArmed = true;
       this._isRunning = true;
       if (!this._rafId) {
@@ -169,7 +190,7 @@ class AdaptiveDetector {
   /** @private */
   _detectLoop() {
     const analyserNode = this._audioInput.analyserNode;
-    if (!analyserNode || !this._frequencyData) {
+    if (!analyserNode || !this._frequencyData || !this._timeDomainData) {
       this._rafId = requestAnimationFrame(() => this._detectLoop());
       return;
     }
@@ -183,12 +204,15 @@ class AdaptiveDetector {
       this._previousFrequencyData,
     );
     const entropy = this._calculateSpectralEntropy(this._frequencyData);
+    analyserNode.getByteTimeDomainData(this._timeDomainData);
+    const maxAmplitude = this._calculateTimeDomainPeak(this._timeDomainData);
 
     this._previousFrequencyData.set(this._frequencyData);
 
     this.processFeatureFrame(flux, entropy, {
       nowMs: now,
       audioTimeSeconds: this._audioInput.audioContext?.currentTime,
+      maxAmplitude,
     });
 
     this._rafId = requestAnimationFrame(() => this._detectLoop());
@@ -200,7 +224,7 @@ class AdaptiveDetector {
    * This is used by the live analyser loop and by deterministic offline tests.
    * @param {number} flux
    * @param {number} entropy
-   * @param {{ nowMs?: number, audioTimeSeconds?: number }} [options]
+   * @param {{ nowMs?: number, audioTimeSeconds?: number, maxAmplitude?: number }} [options]
    * @returns {{ level: number, peak: number, threshold: number, hit: boolean }}
    */
   processFeatureFrame(flux, entropy, options = {}) {
@@ -226,8 +250,18 @@ class AdaptiveDetector {
 
     // Adaptive threshold
     const thresholdCoefficient = 0.5 + (1 - this._sensitivity) * 4.0;
-    const adaptiveThreshold =
+    const rawAdaptiveThreshold =
       this._calculateAdaptiveThreshold(thresholdCoefficient);
+    if (rawAdaptiveThreshold >= this._smoothedThreshold) {
+      this._smoothedThreshold =
+        this._smoothedThreshold * (1 - this._thresholdRiseAttack) +
+        rawAdaptiveThreshold * this._thresholdRiseAttack;
+    } else {
+      this._smoothedThreshold =
+        this._smoothedThreshold * (1 - this._thresholdFallRelease) +
+        rawAdaptiveThreshold * this._thresholdFallRelease;
+    }
+    const adaptiveThreshold = this._smoothedThreshold;
     const thresholdPos = Math.min(1, adaptiveThreshold / 20);
     if (thresholdPos !== this._lastThreshold) {
       this._lastThreshold = thresholdPos;
@@ -257,14 +291,39 @@ class AdaptiveDetector {
       this._entropyHistory.shift();
     }
 
-    const refractoryMs =
-      (this._baseRefractoryMs * this._baseRefractionBpm) / this._bpm;
-    const fluxResetThreshold = adaptiveThreshold * 0.6;
+    const refractoryMs = Math.max(
+      this._minRefractoryMs,
+      (this._baseRefractoryMs * this._baseRefractionBpm) / this._bpm,
+    );
+    const amplitudeGate =
+      (options.maxAmplitude ?? 0) >= this._amplitudeGateThreshold;
+    const fluxResetThreshold = adaptiveThreshold * this._fluxResetFactor;
     const risingEdge = flux > this._previousFlux;
-    const fluxGate = flux >= adaptiveThreshold && risingEdge;
+    const requiredProminence = Math.max(
+      this._requiredProminenceMin,
+      adaptiveThreshold * this._requiredProminenceScale,
+    );
+    const absoluteFluxFloor = this._absoluteFluxFloor;
+    const fluxGate =
+      flux >= adaptiveThreshold &&
+      flux >= absoluteFluxFloor &&
+      flux - adaptiveThreshold >= requiredProminence &&
+      risingEdge;
     const entropyGate = entropy < this._entropyThreshold;
     const historyReady =
       this._fluxHistory.length >= Math.min(12, this._historyWindowSize);
+    const timeSinceLastHit = now - this._lastHitTime;
+    const longGapMs = this._longGapMs;
+    const veryLongGapMs = this._veryLongGapMs;
+    const longGapProminence = this._longGapProminence;
+    const veryLongGapProminence = this._veryLongGapProminence;
+    const prominence = flux - adaptiveThreshold;
+    const longGapGate =
+      timeSinceLastHit > veryLongGapMs
+        ? prominence >= veryLongGapProminence
+        : timeSinceLastHit > longGapMs
+          ? prominence >= longGapProminence
+          : true;
 
     if (!this._isArmed && flux <= fluxResetThreshold) {
       this._isArmed = true;
@@ -275,14 +334,23 @@ class AdaptiveDetector {
       this._warmupFramesRemaining === 0 &&
       historyReady &&
       this._isArmed &&
+      amplitudeGate &&
       fluxGate &&
       entropyGate &&
+      longGapGate &&
       now - this._lastHitTime > refractoryMs
     ) {
       this._lastHitTime = now;
       this._isArmed = false;
       hit = true;
-      this._handleHit(options.audioTimeSeconds);
+      const compensatedHitTime =
+        typeof options.audioTimeSeconds === "number"
+          ? Math.max(
+              0,
+              options.audioTimeSeconds - this._hitTimeCompensationSeconds,
+            )
+          : undefined;
+      this._handleHit(compensatedHitTime);
     }
 
     if (this._warmupFramesRemaining > 0) {
@@ -372,10 +440,35 @@ class AdaptiveDetector {
    * @returns {number}
    */
   _calculateAdaptiveThreshold(coefficient) {
-    if (this._fluxHistory.length < 8) return 7;
+    if (this._fluxHistory.length < 8) return this._thresholdBootstrap;
     const med = this._median(this._fluxHistory);
     const madValue = this._mad(this._fluxHistory);
-    return Math.max(3, med + coefficient * madValue);
+    return Math.max(this._thresholdFloor, med + coefficient * madValue);
+  }
+
+  /** @private */
+  _applySensitivityProfile() {
+    const strictness = 1 - this._sensitivity;
+
+    this._requiredProminenceMin = lerp(0.25, 0.7, strictness);
+    this._requiredProminenceScale = lerp(0.06, 0.16, strictness);
+    this._absoluteFluxFloor = lerp(2.5, 5.5, strictness);
+    this._amplitudeGateThreshold = lerp(8, 18, strictness);
+    this._fluxResetFactor = lerp(0.3, 0.5, strictness);
+    this._longGapProminence = lerp(1.2, 3.2, strictness);
+    this._veryLongGapProminence = lerp(3.2, 6.2, strictness);
+    this._hitTimeCompensationSeconds = lerp(0.012, 0.028, strictness);
+    this._thresholdWarmupFrames = Math.round(lerp(4, 12, strictness));
+  }
+
+  /** @private */
+  _calculateTimeDomainPeak(buffer) {
+    let maxVal = 0;
+    for (let i = 0; i < buffer.length; i++) {
+      const val = Math.abs(buffer[i] - 128);
+      if (val > maxVal) maxVal = val;
+    }
+    return maxVal;
   }
 
   /** @private */
@@ -394,6 +487,10 @@ class AdaptiveDetector {
     const med = this._median(arr);
     return this._median(arr.map((x) => Math.abs(x - med)));
   }
+}
+
+function lerp(min, max, t) {
+  return min + (max - min) * t;
 }
 
 export default AdaptiveDetector;
