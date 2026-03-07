@@ -458,7 +458,7 @@ class AdaptiveDetector {
     this._requiredProminenceScale = lerp(0.06, 0.16, strictness);
     this._absoluteFluxFloor = lerp(2.5, 5.5, strictness);
     this._amplitudeGateThreshold = lerp(8, 18, strictness);
-    this._fluxResetFactor = lerp(0.3, 0.5, strictness);
+    this._fluxResetFactor = lerp(0.5, 0.3, strictness);
     this._longGapProminence = lerp(1.2, 3.2, strictness);
     this._veryLongGapProminence = lerp(3.2, 6.2, strictness);
     this._hitTimeCompensationSeconds = lerp(0.012, 0.028, strictness);

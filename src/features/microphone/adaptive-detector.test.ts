@@ -145,3 +145,80 @@ Deno.test("AdaptiveDetector: keeps long-gap prominence after first hit", () => {
 
   assertEquals(frame.hit, false);
 });
+
+Deno.test(
+  "AdaptiveDetector: higher sensitivity has easier re-arm profile",
+  () => {
+    const highSensitivity = new AdaptiveDetector(
+      { audioContext: { currentTime: 0 } } as never,
+      { ...DEFAULT_ADAPTIVE_PARAMS, sensitivity: 1.0 } as never,
+      {},
+    );
+
+    const lowSensitivity = new AdaptiveDetector(
+      { audioContext: { currentTime: 0 } } as never,
+      { ...DEFAULT_ADAPTIVE_PARAMS, sensitivity: 0.0 } as never,
+      {},
+    );
+
+    assertEquals(
+      (highSensitivity as any)._fluxResetFactor >
+        (lowSensitivity as any)._fluxResetFactor,
+      true,
+    );
+  },
+);
+
+Deno.test(
+  "AdaptiveDetector: higher sensitivity should not be harder for same frame",
+  () => {
+    const highSensitivity = new AdaptiveDetector(
+      { audioContext: { currentTime: 0 } } as never,
+      { ...DEFAULT_ADAPTIVE_PARAMS, sensitivity: 1.0 } as never,
+      {},
+    );
+
+    const lowSensitivity = new AdaptiveDetector(
+      { audioContext: { currentTime: 0 } } as never,
+      { ...DEFAULT_ADAPTIVE_PARAMS, sensitivity: 0.0 } as never,
+      {},
+    );
+
+    const highInternal = highSensitivity as any;
+    highInternal._calculateAdaptiveThreshold = () => 4;
+    highInternal._smoothedThreshold = 4;
+    highInternal._warmupFramesRemaining = 0;
+    highInternal._minHistoryFramesForDetection = 1;
+    highInternal._isArmed = true;
+    highInternal._previousFlux = 4.2;
+    highInternal._hitsDetected = 0;
+    highInternal._lastHitTime = 0;
+    highInternal._lastDetectTime = 0;
+
+    const lowInternal = lowSensitivity as any;
+    lowInternal._calculateAdaptiveThreshold = () => 4;
+    lowInternal._smoothedThreshold = 4;
+    lowInternal._warmupFramesRemaining = 0;
+    lowInternal._minHistoryFramesForDetection = 1;
+    lowInternal._isArmed = true;
+    lowInternal._previousFlux = 4.2;
+    lowInternal._hitsDetected = 0;
+    lowInternal._lastHitTime = 0;
+    lowInternal._lastDetectTime = 0;
+
+    const highFrame = highSensitivity.processFeatureFrame(4.8, 0.2, {
+      nowMs: 5000,
+      maxAmplitude: 40,
+      audioTimeSeconds: 5,
+    });
+
+    const lowFrame = lowSensitivity.processFeatureFrame(4.8, 0.2, {
+      nowMs: 5000,
+      maxAmplitude: 40,
+      audioTimeSeconds: 5,
+    });
+
+    assertEquals(highFrame.hit, true);
+    assertEquals(lowFrame.hit, false);
+  },
+);

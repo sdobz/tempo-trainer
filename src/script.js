@@ -83,6 +83,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let timeline; // Direct ref for imperative playback: centerAt, addDetection, clearDetections
   let calibrationTimeline;
   let drillSessionManager; // Will be initialized after all components ready
+  let playPreviewActivationCleanup = null;
+  let playPreviewActivationInFlight = false;
 
   const CALIBRATION_TIMELINE_WINDOW_MEASURES = 64;
   const CALIBRATION_TIMELINE_REBASE_MARGIN_MEASURES = 8;
@@ -205,6 +207,46 @@ document.addEventListener("DOMContentLoaded", () => {
     activeCalibrationTimeline.addDetection(beatPosition);
   });
 
+  async function ensurePlayPreviewMonitoring() {
+    if (playPreviewActivationInFlight) return;
+    if (detectorManager.isRunning) return;
+
+    playPreviewActivationInFlight = true;
+    try {
+      await audioContextManager.ensureContext();
+      if (!detectorManager.isRunning) {
+        await detectorManager.start();
+      }
+      if (detectorManager.isRunning) {
+        playPreviewActivationCleanup?.();
+      }
+    } catch {
+      // Ignore startup failures here; session-start will surface actionable errors.
+    } finally {
+      playPreviewActivationInFlight = false;
+    }
+  }
+
+  function bindPlayPreviewActivation() {
+    if (playPreviewActivationCleanup || !planPlayPane) return;
+
+    const onUserGesture = () => {
+      ensurePlayPreviewMonitoring();
+    };
+
+    const eventTypes = ["pointerdown", "keydown", "touchstart"];
+    eventTypes.forEach((type) => {
+      planPlayPane.addEventListener(type, onUserGesture, { passive: true });
+    });
+
+    playPreviewActivationCleanup = () => {
+      eventTypes.forEach((type) => {
+        planPlayPane.removeEventListener(type, onUserGesture);
+      });
+      playPreviewActivationCleanup = null;
+    };
+  }
+
   onboardingPane.addEventListener(
     "calibration-start-request",
     async (/** @type {CustomEvent} */ event) => {
@@ -261,10 +303,24 @@ document.addEventListener("DOMContentLoaded", () => {
     // Ensure play pane timeline and visualizer are populated when switching to play tab
     if (pane === "plan-play") {
       timeline.centerAt(0);
+
+      if (audioContextManager.getContext()) {
+        if (!detectorManager.isRunning) {
+          try {
+            await detectorManager.start();
+          } catch {
+            // Defer to explicit user gesture activation when auto-start fails.
+          }
+        }
+      } else {
+        bindPlayPreviewActivation();
+      }
     }
 
     // Handle pane-specific setup
     if (pane === "onboarding") {
+      playPreviewActivationCleanup?.();
+
       // Wait for onboarding component to be ready before accessing detectors
       await onboardingReady;
       onboardingPane.refreshSetupStatus();
@@ -324,6 +380,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       stopCalibrationTimeline();
       stopCalibrationMetronome();
+      playPreviewActivationCleanup?.();
     }
   };
 

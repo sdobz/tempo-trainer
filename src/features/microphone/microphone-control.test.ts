@@ -161,7 +161,7 @@ Deno.test(
     if (!component.sensitivityLine || !component.sensitivityLabel) return;
 
     mockManager.delegate.onThresholdChanged(0.64);
-    assertEquals((component.sensitivityLine as HTMLElement).style.left, "64%");
+    assertEquals((component.sensitivityLine as HTMLElement).style.left, "36%");
     assertEquals(
       (component.sensitivityLabel as HTMLElement).textContent,
       "Sensitivity: 64%",
@@ -174,10 +174,10 @@ Deno.test(
   async () => {
     const component = await createComponent();
     if (!component.sensitivityLine) return;
-    // MockDetectorManager pushes 0.594 on setDelegate → 59% position
+    // MockDetectorManager pushes 0.594 on setDelegate → 40.6% position (left=more sensitive)
     assertEquals(
       (component.sensitivityLine as HTMLElement).style.left,
-      "59.4%",
+      "40.6%",
     );
   },
 );

@@ -117,10 +117,11 @@ export default class MicrophoneControl extends BaseComponent {
    */
   onThresholdChanged(pos) {
     if (!this.sensitivityLine || !this.sensitivityLabel) return;
+    const visualPos = 1 - pos;
     // Round to 1 decimal place to avoid floating-point noise in CSS values
-    const pct = Math.round(pos * 1000) / 10;
+    const pct = Math.round(visualPos * 1000) / 10;
     this.sensitivityLine.style.left = `${pct}%`;
-    this.sensitivityLabel.textContent = `Sensitivity: ${Math.round(pct)}%`;
+    this.sensitivityLabel.textContent = `Sensitivity: ${Math.round(pos * 100)}%`;
   }
 
   /**
@@ -230,10 +231,8 @@ export default class MicrophoneControl extends BaseComponent {
   /** @private */
   _setSensitivityFromPointer(clientX, detectorManager) {
     const rect = this.level.getBoundingClientRect();
-    const sensitivity = Math.max(
-      0,
-      Math.min(1, (clientX - rect.left) / rect.width),
-    );
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const sensitivity = 1 - ratio;
     detectorManager.setSensitivity(sensitivity);
   }
 }

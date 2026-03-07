@@ -74,9 +74,15 @@ class AudioInputSource {
     // Stop any existing stream before acquiring a new one
     this._releaseStream();
 
-    const audioConstraints = this.selectedDeviceId
-      ? { deviceId: { exact: this.selectedDeviceId } }
-      : true;
+    const audioConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    };
+
+    if (this.selectedDeviceId) {
+      audioConstraints.deviceId = { exact: this.selectedDeviceId };
+    }
 
     this._stream = await navigator.mediaDevices.getUserMedia({
       audio: audioConstraints,
