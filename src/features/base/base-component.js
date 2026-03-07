@@ -77,6 +77,29 @@ export default class BaseComponent extends HTMLElement {
   }
 
   /**
+   * Resolve component asset URL in a GitHub Pages-safe way.
+   *
+   * Supports:
+   * - absolute URLs (`https://...`)
+   * - root-like paths (`/src/...`) resolved against document base path
+   * - relative paths (`./file.css`) resolved against document base path
+   *
+   * @param {string} rawUrl
+   * @returns {string}
+   */
+  _resolveAssetUrl(rawUrl) {
+    if (!rawUrl) return rawUrl;
+
+    // Keep absolute URLs unchanged
+    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(rawUrl)) {
+      return rawUrl;
+    }
+
+    const normalized = rawUrl.startsWith("/") ? rawUrl.slice(1) : rawUrl;
+    return new URL(normalized, document.baseURI).href;
+  }
+
+  /**
    * Lifecycle hook: called once after template + styles are loaded and DOM is ready.
    * Override to query DOM elements, bind event listeners via this.listen(), etc.
    * @virtual
@@ -291,10 +314,7 @@ export default class BaseComponent extends HTMLElement {
     const signal = this._initAbortController.signal;
     try {
       // Load template
-      const templateUrl = new URL(
-        this.getTemplateUrl(),
-        globalThis.location.origin,
-      ).href;
+      const templateUrl = this._resolveAssetUrl(this.getTemplateUrl());
       const templateHtml = await fetch(templateUrl, { signal }).then((r) =>
         r.text(),
       );
@@ -310,8 +330,7 @@ export default class BaseComponent extends HTMLElement {
         : tempDiv.cloneNode(true);
 
       // Load and insert styles
-      const styleUrl = new URL(this.getStyleUrl(), globalThis.location.origin)
-        .href;
+      const styleUrl = this._resolveAssetUrl(this.getStyleUrl());
       const styleCss = await fetch(styleUrl, { signal }).then((r) => r.text());
       const style = document.createElement("style");
       style.textContent = styleCss;
