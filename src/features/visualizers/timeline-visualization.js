@@ -23,6 +23,9 @@ export default class TimelineVisualization extends BaseComponent {
     /** @type {HTMLElement|null} */
     this.track = null;
 
+    /** @type {HTMLElement|null} */
+    this.nowLine = null;
+
     // Configuration
     this.pxPerBeat = 18;
     this.tailBeats = 1;
@@ -31,6 +34,7 @@ export default class TimelineVisualization extends BaseComponent {
     /** @type {Measure[]} */
     this.drillPlan = [];
     this.beatsPerMeasure = 4;
+    this.displayStartBeat = 0;
     /** @type {(() => void)|null} */
     this._cleanupSession = null;
   }
@@ -47,6 +51,12 @@ export default class TimelineVisualization extends BaseComponent {
     // Get the viewport and track elements
     this.viewport = querySelector(this, "[data-timeline-viewport]");
     this.track = querySelector(this, "[data-timeline-track]");
+    this.nowLine = querySelector(this, "[data-timeline-now-line]");
+
+    if (this.hasAttribute("data-local-plan-only")) {
+      this.build();
+      return;
+    }
 
     // Consume SessionStateContext for plan and beatsPerMeasure
     this.consumeContext(SessionStateContext, (ss) => {
@@ -93,6 +103,27 @@ export default class TimelineVisualization extends BaseComponent {
   setDrillPlan(plan) {
     this.drillPlan = plan;
     this.build();
+  }
+
+  /**
+   * Set the absolute beat offset represented by local beat 0 in this timeline.
+   * @param {number} beat
+   */
+  setDisplayStartBeat(beat) {
+    const next = Math.max(0, Math.floor(beat));
+    if (next === this.displayStartBeat) return;
+    this.displayStartBeat = next;
+    this.build();
+  }
+
+  /**
+   * Flash the center "now" line to indicate an incoming hit.
+   */
+  flashNowLine() {
+    if (!this.nowLine) return;
+    this.nowLine.classList.remove("timeline-now-line-flash");
+    this.nowLine.getBoundingClientRect();
+    this.nowLine.classList.add("timeline-now-line-flash");
   }
 
   /**
@@ -180,17 +211,27 @@ export default class TimelineVisualization extends BaseComponent {
   /**
    * Adds a detection dot to the timeline visualization.
    * @param {number} beatPosition - Beat position for the detection marker
+   * @returns {boolean} True when a dot was appended
    */
   addDetection(beatPosition) {
-    if (!this.track) return;
+    if (!this.track) return false;
 
-    const detectionsLayer = this.track.querySelector(".timeline-detections");
-    if (!detectionsLayer) return;
+    /** @type {HTMLElement|null} */
+    let detectionsLayer = this.track.querySelector(".timeline-detections");
+    if (!detectionsLayer) {
+      this.build();
+      detectionsLayer = this.track.querySelector(".timeline-detections");
+    }
+    if (!detectionsLayer) return false;
+
+    const x = this._beatToX(beatPosition);
+    if (!Number.isFinite(x)) return false;
 
     const dot = document.createElement("div");
     dot.className = "timeline-detection";
-    dot.style.left = `${this._beatToX(beatPosition)}px`;
+    dot.style.left = `${x}px`;
     detectionsLayer.appendChild(dot);
+    return true;
   }
 
   /**
@@ -246,7 +287,8 @@ export default class TimelineVisualization extends BaseComponent {
 
     const viewportWidth = this.viewport.clientWidth;
     const offsetX = viewportWidth;
-    return offsetX + beatPosition * this.pxPerBeat;
+    const localBeat = beatPosition - this.displayStartBeat;
+    return offsetX + localBeat * this.pxPerBeat;
   }
 
   /**

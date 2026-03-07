@@ -77,6 +77,9 @@ class DetectorManager {
 
     /** @type {((hitAudioTime: number) => void)|null} */
     this._onHitTimingCallback = null;
+
+    /** @type {Set<(hitAudioTime: number) => void>} */
+    this._hitListeners = new Set();
   }
 
   // ---------------------------------------------------------------------------
@@ -196,6 +199,16 @@ class DetectorManager {
     this._detector?.onHit(callback);
   }
 
+  /**
+   * Subscribe to detector hit events without replacing the primary timing callback.
+   * @param {(hitAudioTime: number) => void} listener
+   * @returns {() => void}
+   */
+  addHitListener(listener) {
+    this._hitListeners.add(listener);
+    return () => this._hitListeners.delete(listener);
+  }
+
   // ---------------------------------------------------------------------------
   // Public API — Device management
   // ---------------------------------------------------------------------------
@@ -303,8 +316,24 @@ class DetectorManager {
     this._delegate?.onThresholdChanged?.(pos);
   }
 
-  onHitFromDetector() {
+  /**
+   * @param {number=} hitAudioTime
+   */
+  onHitFromDetector(hitAudioTime) {
     this._delegate?.onHit?.();
+
+    const resolvedHitTime =
+      typeof hitAudioTime === "number"
+        ? hitAudioTime
+        : (this._audioContext?.currentTime ?? 0);
+
+    this._hitListeners.forEach((listener) => {
+      try {
+        listener(resolvedHitTime);
+      } catch {
+        // Ignore listener errors to avoid disrupting detection loop
+      }
+    });
   }
 
   /**
@@ -370,7 +399,7 @@ class DetectorManager {
       onLevelChanged: (v) => this.onLevelChanged(v),
       onPeakChanged: (v) => this.onPeakChanged(v),
       onThresholdChanged: (v) => this.onThresholdChanged(v),
-      onHit: () => this.onHitFromDetector(),
+      onHit: (hitAudioTime) => this.onHitFromDetector(hitAudioTime),
     };
   }
 

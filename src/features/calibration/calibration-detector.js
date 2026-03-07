@@ -4,6 +4,7 @@
  * @property {(message: string) => void} [onStatusChanged] - Status message changed
  * @property {(offsetMs: number) => void} [onOffsetChanged] - Offset value changed
  * @property {(started: boolean) => void} [onCalibrationStateChanged] - Calibration started/stopped
+ * @property {(progress: {hits:number, minHits:number, confidence:number, progressPercent:number}) => void} [onProgressChanged] - Calibration progress changed
  */
 
 /**
@@ -24,21 +25,17 @@ class CalibrationDetector {
     this.audioContext = audioContext;
 
     // Configuration
-    this.lookahead = 25.0; // ms
-    this.scheduleAheadTime = 0.1; // seconds
     this.minHits = 10;
     this.windowSize = 12;
-    this.requiredStableWindows = 4;
-    this.minHitsRelaxed = 18;
+    this.requiredStableWindows = 3;
     this.confidenceTarget = 100;
-    this.confidenceRelaxedTarget = 65;
     this.maxDurationMs = 120000;
     this.earlyWindowMs = 180;
     this.lateWindowMs = 420;
-    this.madThresholdMs = 26;
-    this.driftThresholdMs = 10;
-    this.madRelaxedThresholdMs = 36;
-    this.driftRelaxedThresholdMs = 18;
+    this.madThresholdMs = 30;
+    this.driftThresholdMs = 12;
+    this.madRelaxedThresholdMs = 40;
+    this.driftRelaxedThresholdMs = 20;
     this.storageKey = "tempoTrainer.calibrationOffsetMs";
     this.legacyStorageKeys = [
       "tempoTrainer.calibrationOffset",
@@ -47,8 +44,6 @@ class CalibrationDetector {
 
     // State
     this.isCalibrating = false;
-    this.schedulerIntervalID = null;
-    this.nextNoteTime = 0;
     this.beatInMeasure = 0;
     /** @type {ExpectedBeat[]} */
     this.expectedBeats = [];
@@ -160,8 +155,6 @@ class CalibrationDetector {
       this.confidence = 0;
       this.offsetsMs = [];
       this.expectedBeats = [];
-      this.beatInMeasure = 0;
-      this.nextNoteTime = this.audioContext.currentTime + 0.1;
       this.startedAt = Date.now();
 
       if (this.delegate?.onCalibrationStateChanged) {
@@ -170,14 +163,11 @@ class CalibrationDetector {
 
       if (this.delegate?.onStatusChanged) {
         this.delegate.onStatusChanged(
-          "Calibration running: play along with clicks. Needs ≥10 hits, then confidence builds until stable.",
+          "Calibration running. Needs ≥10 hits, then confidence builds until stable.",
         );
       }
 
-      this.schedulerIntervalID = setInterval(
-        () => this._scheduler(),
-        this.lookahead,
-      );
+      this._emitProgress();
 
       return true;
     } catch {
@@ -195,12 +185,8 @@ class CalibrationDetector {
    * @param {string} message - Status message to display
    */
   stop(message) {
-    if (this.schedulerIntervalID) {
-      clearInterval(this.schedulerIntervalID);
-      this.schedulerIntervalID = null;
-    }
-
     this.isCalibrating = false;
+    this._clearSessionBuffers();
 
     if (this.delegate?.onCalibrationStateChanged) {
       this.delegate.onCalibrationStateChanged(false);
@@ -214,6 +200,8 @@ class CalibrationDetector {
       this.delegate.onOffsetChanged(this.offsetMs);
     }
 
+    this._emitProgress();
+
     if (this.onStopCallback) {
       this.onStopCallback();
     }
@@ -225,6 +213,9 @@ class CalibrationDetector {
    */
   registerHit(hitAudioTime) {
     if (!this.isCalibrating) return;
+
+    this._pruneExpectedBeats();
+    this._checkTimeout();
 
     let bestIndex = -1;
     let bestDistanceMs = Number.POSITIVE_INFINITY;
@@ -252,7 +243,20 @@ class CalibrationDetector {
     this.expectedBeats[bestIndex].matched = true;
     this.offsetsMs.push(bestOffsetMs);
     this.goodHits++;
+    this._updateLiveOffsetEstimate();
     this._maybeFinish();
+  }
+
+  /**
+   * Register an expected metronome beat time while calibration is active.
+   * @param {number} expectedAudioTime
+   */
+  registerExpectedBeat(expectedAudioTime) {
+    if (!this.isCalibrating) return;
+
+    this.expectedBeats.push({ time: expectedAudioTime, matched: false });
+    this._pruneExpectedBeats();
+    this._checkTimeout();
   }
 
   /**
@@ -261,6 +265,17 @@ class CalibrationDetector {
    */
   getOffsetMs() {
     return this.offsetMs;
+  }
+
+  /**
+   * Set calibration offset manually and persist.
+   * @param {number} offsetMs
+   */
+  setOffsetMs(offsetMs) {
+    this.offsetMs = Math.max(-300, Math.min(300, offsetMs));
+    this.storageManager.set(this.storageKey, this.offsetMs);
+    this.hasSavedCalibration = true;
+    this.delegate?.onOffsetChanged?.(this.offsetMs);
   }
 
   /**
@@ -284,19 +299,7 @@ class CalibrationDetector {
     return Math.max(0, rawBeatPosition - offsetBeats);
   }
 
-  _scheduler() {
-    while (
-      this.nextNoteTime < this.audioContext.currentTime + this.scheduleAheadTime
-    ) {
-      this._scheduleClick(this.nextNoteTime);
-      this.nextNoteTime += this.beatDuration;
-    }
-
-    const staleBefore = this.audioContext.currentTime - 1.5;
-    this.expectedBeats = this.expectedBeats.filter(
-      (entry) => entry.time >= staleBefore || !entry.matched,
-    );
-
+  _checkTimeout() {
     if (Date.now() - this.startedAt > this.maxDurationMs) {
       this.stop(
         this.goodHits >= this.minHits
@@ -306,37 +309,42 @@ class CalibrationDetector {
     }
   }
 
-  /**
-   * @param {number} time - AudioContext currentTime
-   */
-  _scheduleClick(time) {
-    const isDownbeat = this.beatInMeasure === 0;
-    const freq = isDownbeat ? 880.0 : 440.0;
-    const osc = this.audioContext.createOscillator();
-    const gain = this.audioContext.createGain();
+  _pruneExpectedBeats() {
+    if (!this.audioContext) return;
+    const staleBefore = this.audioContext.currentTime - 1.5;
+    this.expectedBeats = this.expectedBeats.filter(
+      (entry) => entry.time >= staleBefore || !entry.matched,
+    );
+  }
 
-    osc.frequency.setValueAtTime(freq, time);
-    gain.gain.setValueAtTime(1, time);
-    gain.gain.exponentialRampToValueAtTime(0.00001, time + 0.05);
-    osc.connect(gain);
-    gain.connect(this.audioContext.destination);
+  _clearSessionBuffers() {
+    this.expectedBeats = [];
+    this.beatInMeasure = 0;
+    this.startedAt = 0;
+  }
 
-    osc.start(time);
-    osc.stop(time + 0.05);
+  _updateLiveOffsetEstimate() {
+    if (this.offsetsMs.length < 3) {
+      return;
+    }
 
-    this.expectedBeats.push({ time, matched: false });
-    this.beatInMeasure = (this.beatInMeasure + 1) % this.beatsPerMeasure;
+    const recentWindow = this.offsetsMs.slice(-Math.min(this.windowSize, 8));
+    const liveMedian = this._median(recentWindow);
+    this.offsetMs = liveMedian;
+    this.storageManager.set(this.storageKey, this.offsetMs);
+    this.hasSavedCalibration = true;
+    this.delegate?.onOffsetChanged?.(this.offsetMs);
   }
 
   _maybeFinish() {
     let message = "";
 
     if (this.goodHits < this.minHits) {
-      message =
-        `Calibration: hits ${this.goodHits}/${this.minHits} | learning timing pattern...`;
+      message = `Calibration: hits ${this.goodHits}/${this.minHits} | learning timing pattern...`;
       if (this.delegate?.onStatusChanged) {
         this.delegate.onStatusChanged(message);
       }
+      this._emitProgress();
       return;
     }
 
@@ -351,14 +359,14 @@ class CalibrationDetector {
       -this.windowSize * 2,
       -this.windowSize,
     );
-    const previousMean = previousOffsets.length > 0
-      ? this._mean(previousOffsets)
-      : recentMedian;
+    const previousMean =
+      previousOffsets.length > 0 ? this._mean(previousOffsets) : recentMedian;
     const driftMs = Math.abs(recentMedian - previousMean);
 
-    const strictStable = recentMad <= this.madThresholdMs &&
-      driftMs <= this.driftThresholdMs;
-    const relaxedStable = recentMad <= this.madRelaxedThresholdMs &&
+    const strictStable =
+      recentMad <= this.madThresholdMs && driftMs <= this.driftThresholdMs;
+    const relaxedStable =
+      recentMad <= this.madRelaxedThresholdMs &&
       driftMs <= this.driftRelaxedThresholdMs;
 
     if (strictStable) {
@@ -366,35 +374,57 @@ class CalibrationDetector {
       this.confidence = Math.min(this.confidenceTarget, this.confidence + 14);
     } else if (relaxedStable) {
       this.stableWindows = Math.max(0, this.stableWindows - 1);
-      this.confidence = Math.min(this.confidenceTarget, this.confidence + 7);
+      this.confidence = Math.min(this.confidenceTarget, this.confidence + 10);
     } else {
       this.stableWindows = Math.max(0, this.stableWindows - 1);
-      this.confidence = Math.max(0, this.confidence - 4);
+      this.confidence = Math.max(0, this.confidence - 3);
     }
 
     this.offsetMs = recentMedian;
     this.storageManager.set(this.storageKey, this.offsetMs);
     this.hasSavedCalibration = true;
+    this.delegate?.onOffsetChanged?.(this.offsetMs);
 
     const stabilityPercent = Math.round(this.confidence);
 
-    message = `Calibration: hits ${this.goodHits}/${this.minHits}+ | median ${
-      Math.round(recentMedian)
-    } ms | spread ${
-      Math.round(recentMad)
-    } ms | confidence ${stabilityPercent}%`;
+    message = `Calibration: hits ${this.goodHits}/${this.minHits}+ | median ${Math.round(
+      recentMedian,
+    )} ms | spread ${Math.round(
+      recentMad,
+    )} ms | confidence ${stabilityPercent}%`;
     if (this.delegate?.onStatusChanged) {
       this.delegate.onStatusChanged(message);
     }
 
-    const strictDone = this.stableWindows >= this.requiredStableWindows &&
-      this.confidence >= this.confidenceTarget;
-    const relaxedDone = this.goodHits >= this.minHitsRelaxed &&
-      this.confidence >= this.confidenceRelaxedTarget;
+    this._emitProgress();
 
-    if (strictDone || relaxedDone) {
+    const strictDone =
+      this.stableWindows >= this.requiredStableWindows &&
+      this.confidence >= this.confidenceTarget;
+
+    if (strictDone) {
       this.stop("Calibration complete: stable offset acquired.");
     }
+  }
+
+  _emitProgress() {
+    if (!this.delegate?.onProgressChanged) return;
+
+    const hitsProgress = Math.min(1, this.goodHits / this.minHits);
+    const confidenceProgress = Math.min(
+      1,
+      this.confidence / this.confidenceTarget,
+    );
+    const progressPercent = Math.round(
+      (hitsProgress * 0.55 + confidenceProgress * 0.45) * 100,
+    );
+
+    this.delegate.onProgressChanged({
+      hits: this.goodHits,
+      minHits: this.minHits,
+      confidence: this.confidence,
+      progressPercent,
+    });
   }
 
   /**
@@ -421,8 +451,7 @@ class CalibrationDetector {
       values.reduce(
         (/** @type {number} */ sum, /** @type {number} */ value) => sum + value,
         0,
-      ) /
-      values.length
+      ) / values.length
     );
   }
 
@@ -434,7 +463,7 @@ class CalibrationDetector {
   _computeMad(values, medianValue) {
     if (values.length === 0) return 0;
     const absDeviations = values.map((/** @type {number} */ value) =>
-      Math.abs(value - medianValue)
+      Math.abs(value - medianValue),
     );
     return this._median(absDeviations);
   }

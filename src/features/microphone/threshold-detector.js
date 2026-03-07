@@ -189,8 +189,10 @@ class ThresholdDetector {
     }
 
     // Hit detection
+    const msSinceLastHit = now - this._lastHitTime;
+
     let hit = false;
-    if (maxVal >= threshold && now - this._lastHitTime > this._hitCooldownMs) {
+    if (maxVal >= threshold && msSinceLastHit > this._hitCooldownMs) {
       this._lastHitTime = now;
       hit = true;
       this._handleHit(options.audioTimeSeconds);
@@ -206,14 +208,14 @@ class ThresholdDetector {
 
   /** @private */
   _handleHit(hitAudioTime) {
-    this.delegate?.onHit?.();
+    const resolvedHitAudioTime =
+      typeof hitAudioTime === "number"
+        ? hitAudioTime
+        : this._audioInput.audioContext?.currentTime;
+    this.delegate?.onHit?.(resolvedHitAudioTime);
     if (!this.onHitCallback) return;
-    if (typeof hitAudioTime === "number") {
-      this.onHitCallback(hitAudioTime);
-      return;
-    }
-    if (this._audioInput.audioContext) {
-      this.onHitCallback(this._audioInput.audioContext.currentTime);
+    if (typeof resolvedHitAudioTime === "number") {
+      this.onHitCallback(resolvedHitAudioTime);
     }
   }
 }

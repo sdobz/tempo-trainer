@@ -4,7 +4,14 @@
     <div class="session-info">
       <div class="control-group-inline">
         <label for="play-bpm">BPM:</label>
-        <input type="number" id="play-bpm" data-bpm-input value="120" min="40" max="300" />
+        <input
+          type="number"
+          id="play-bpm"
+          data-bpm-input
+          value="120"
+          min="40"
+          max="300"
+        />
       </div>
       <div class="control-group-inline">
         <label for="play-time-signature">Time Signature:</label>
@@ -30,7 +37,9 @@
     <button class="secondary-btn" data-stop-btn disabled>Stop</button>
   </div>
 
-  <timeline-visualization id="timeline-visualization-component"></timeline-visualization>
+  <timeline-visualization
+    id="timeline-visualization-component"
+  ></timeline-visualization>
 
   <plan-visualizer id="plan-visualizer-play-component"></plan-visualizer>
 

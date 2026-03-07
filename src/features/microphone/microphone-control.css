@@ -9,6 +9,15 @@
   gap: 1em;
 }
 
+:host([data-compact]) .microphone-control h3,
+:host([data-compact]) .microphone-control h3 {
+  display: none;
+}
+
+:host([data-compact]) .microphone-level {
+  margin-bottom: 0.35em;
+}
+
 .microphone-title {
   flex: 1;
 }
@@ -118,33 +127,4 @@
 
 .microphone-level.over-threshold .microphone-level-bar {
   background-color: #ff6b6b;
-}
-
-.microphone-hits-list {
-  margin-top: 0.5em;
-  font-size: 0.8em;
-  display: flex;
-  gap: 0.3em;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.hit-entry {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background-color: #4caf50;
-  box-shadow: 0 0 6px rgba(76, 175, 80, 0.8);
-  animation: hit-pulse 2.4s ease-out forwards;
-}
-
-@keyframes hit-pulse {
-  0% {
-    opacity: 1;
-    box-shadow: 0 0 6px rgba(76, 175, 80, 0.8);
-  }
-  100% {
-    opacity: 0;
-    box-shadow: 0 0 20px rgba(76, 175, 80, 0);
-  }
 }

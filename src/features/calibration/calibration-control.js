@@ -13,6 +13,7 @@ import {
 } from "../base/component-utils.js";
 import CalibrationDetector from "./calibration-detector.js";
 import StorageManager from "../base/storage-manager.js";
+import "../visualizers/timeline-visualization.js";
 
 /** @typedef {import("./calibration-detector.js").CalibrationDetectorDelegate} CalibrationDetectorDelegate */
 
@@ -46,8 +47,14 @@ export default class CalibrationControl extends BaseComponent {
     // UI element references
     this.statusIndicator = null;
     this.button = null;
-    this.statusEl = null;
-    this.resultEl = null;
+    this.timelineEl = null;
+    this.progressContainer = null;
+    this.progressTrack = null;
+    this.progressFill = null;
+    this.progressStatus = null;
+    this.offsetInput = null;
+    this.offsetDecBtn = null;
+    this.offsetIncBtn = null;
   }
 
   getTemplateUrl() {
@@ -60,17 +67,30 @@ export default class CalibrationControl extends BaseComponent {
 
   async onMount() {
     // Query element references
-    this.statusIndicator = querySelector(
-      this,
-      "[data-calibration-status-indicator]",
-    );
     this.button = querySelector(this, "[data-calibration-btn]");
-    this.statusEl = querySelector(this, "[data-calibration-status]");
-    this.resultEl = querySelector(this, "[data-calibration-result]");
+    this.timelineEl = querySelector(this, "[data-calibration-timeline]");
+    this.progressContainer = querySelector(this, "[data-calibration-progress]");
+    this.progressTrack = querySelector(
+      this,
+      "[data-calibration-progress-track]",
+    );
+    this.progressFill = querySelector(this, "[data-calibration-progress-fill]");
+    this.progressStatus = querySelector(
+      this,
+      "[data-calibration-progress-status]",
+    );
+    this.offsetInput = querySelector(this, "[data-calibration-offset-input]");
+    this.offsetDecBtn = querySelector(this, "[data-offset-dec]");
+    this.offsetIncBtn = querySelector(this, "[data-offset-inc]");
 
     // Setup button click handler
     this._cleanups.push(
-      bindEvent(this.button, "click", () => this.calibration?.toggle()),
+      bindEvent(this.button, "click", (event) =>
+        this._onCalibrationButtonClick(event),
+      ),
+      bindEvent(this.offsetInput, "change", () => this._applyOffsetInput()),
+      bindEvent(this.offsetIncBtn, "click", () => this._nudgeOffset(1)),
+      bindEvent(this.offsetDecBtn, "click", () => this._nudgeOffset(-1)),
     );
 
     // Create domain instance with injected dependencies
@@ -81,12 +101,15 @@ export default class CalibrationControl extends BaseComponent {
 
     // Hydrate UI from persisted calibration state
     this.onOffsetChanged(this.calibration.getOffsetMs());
+    this.onProgressChanged({
+      hits: 0,
+      minHits: this.calibration.minHits,
+      confidence: 0,
+      progressPercent: 0,
+    });
+    this.onCalibrationStateChanged(false);
     const hasCalibrationData = this._hasCalibrationData(this.calibration);
     this.updateStatus(hasCalibrationData);
-    if (hasCalibrationData) {
-      this.onStatusChanged("Calibration loaded from saved settings.");
-    }
-
     // Listen for calibration completion
     this.calibration.onStop(() => {
       dispatchEvent(this, "calibration-complete", {});
@@ -102,6 +125,12 @@ export default class CalibrationControl extends BaseComponent {
     if (this.calibration) {
       this.onOffsetChanged(this.calibration.getOffsetMs());
       this.updateStatus(this._hasCalibrationData(this.calibration));
+      this.onProgressChanged({
+        hits: 0,
+        minHits: this.calibration.minHits ?? 10,
+        confidence: 0,
+        progressPercent: 0,
+      });
       this.calibration.onStop(() => {
         dispatchEvent(this, "calibration-complete", {});
       });
@@ -120,8 +149,9 @@ export default class CalibrationControl extends BaseComponent {
       return detector.hasCalibrationData();
     }
     return Boolean(
-      detector && typeof detector.getOffsetMs === "function" &&
-        detector.getOffsetMs() !== 0,
+      detector &&
+      typeof detector.getOffsetMs === "function" &&
+      detector.getOffsetMs() !== 0,
     );
   }
 
@@ -140,9 +170,7 @@ export default class CalibrationControl extends BaseComponent {
    * @param {string} message - Status message to display
    */
   onStatusChanged(message) {
-    if (this.statusEl) {
-      this.statusEl.textContent = message;
-    }
+    // Text status intentionally suppressed in compact onboarding calibration UI.
   }
 
   /**
@@ -150,9 +178,8 @@ export default class CalibrationControl extends BaseComponent {
    * @param {number} offsetMs - Offset value in milliseconds
    */
   onOffsetChanged(offsetMs) {
-    if (this.resultEl) {
-      const roundedOffset = Math.round(offsetMs);
-      this.resultEl.textContent = `Offset compensation: ${roundedOffset} ms`;
+    if (this.offsetInput) {
+      this.offsetInput.value = String(Math.round(offsetMs));
     }
   }
 
@@ -163,9 +190,47 @@ export default class CalibrationControl extends BaseComponent {
   onCalibrationStateChanged(isStarted) {
     if (this.button) {
       this.button.textContent = isStarted
-        ? "Stop Calibration"
-        : "Start Calibration";
+        ? "Cancel Calibration"
+        : "Auto Calibrate";
     }
+    if (this.progressContainer) {
+      this.progressContainer.hidden = !isStarted;
+    }
+
+    dispatchEvent(this, "calibration-state-changed", { isStarted });
+  }
+
+  /**
+   * Delegate method: Handle calibration progress updates.
+   * @param {{ hits: number, minHits: number, confidence: number, progressPercent: number }} progress
+   */
+  onProgressChanged(progress) {
+    const clamped = Math.max(0, Math.min(100, progress.progressPercent));
+    if (this.progressFill) {
+      this.progressFill.style.width = `${clamped}%`;
+    }
+    if (this.progressTrack) {
+      this.progressTrack.setAttribute(
+        "aria-valuenow",
+        String(Math.round(clamped)),
+      );
+    }
+    if (this.progressStatus) {
+      const hits = Number.isFinite(progress.hits) ? progress.hits : 0;
+      const minHits = Number.isFinite(progress.minHits)
+        ? Math.max(1, progress.minHits)
+        : 10;
+      const confidence = Number.isFinite(progress.confidence)
+        ? Math.max(0, Math.min(100, progress.confidence))
+        : 0;
+
+      this.progressStatus.textContent =
+        hits < minHits
+          ? `Hits ${hits}/${minHits}`
+          : `Confidence ${Math.round(confidence)}%`;
+    }
+
+    dispatchEvent(this, "calibration-progress", progress);
   }
 
   /**
@@ -174,14 +239,57 @@ export default class CalibrationControl extends BaseComponent {
    */
   updateStatus(isCalibrated) {
     this.setState({ isCalibrated });
+  }
 
-    if (isCalibrated) {
-      this.statusIndicator.textContent = "✓ Calibrated";
-      this.statusIndicator.classList.add("complete");
-    } else {
-      this.statusIndicator.textContent = "⚠️ Not calibrated";
-      this.statusIndicator.classList.remove("complete");
+  /**
+   * Handle calibration button click and emit a cancellable start request.
+   * @param {MouseEvent} event
+   * @private
+   */
+  _onCalibrationButtonClick(event) {
+    if (!this.calibration) return;
+
+    if (!this.calibration.isCalibrating) {
+      const shouldStart = this.dispatchEvent(
+        new CustomEvent("calibration-start-request", {
+          detail: {
+            sourceEvent: event,
+          },
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+        }),
+      );
+
+      if (!shouldStart) {
+        return;
+      }
     }
+
+    this.calibration.toggle();
+  }
+
+  /** @private */
+  _applyOffsetInput() {
+    if (!this.calibration || !this.offsetInput) return;
+    const parsed = Number.parseFloat(this.offsetInput.value);
+    if (Number.isNaN(parsed)) return;
+    const nextOffset = Math.max(-300, Math.min(300, parsed));
+    this.calibration.setOffsetMs(nextOffset);
+    this.onOffsetChanged(nextOffset);
+    this.updateStatus(true);
+  }
+
+  /**
+   * @param {number} deltaMs
+   * @private
+   */
+  _nudgeOffset(deltaMs) {
+    if (!this.offsetInput) return;
+    const current = Number.parseFloat(this.offsetInput.value || "0");
+    const safeCurrent = Number.isNaN(current) ? 0 : current;
+    this.offsetInput.value = String(Math.round(safeCurrent + deltaMs));
+    this._applyOffsetInput();
   }
 }
 

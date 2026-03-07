@@ -82,3 +82,66 @@ for (const fixture of fixtures) {
     },
   );
 }
+
+Deno.test(
+  "AdaptiveDetector: bypasses long-gap prominence before first hit",
+  () => {
+    let hitCount = 0;
+    const detector = new AdaptiveDetector(
+      { audioContext: { currentTime: 0 } } as never,
+      { ...DEFAULT_ADAPTIVE_PARAMS, sensitivity: 0.5 } as never,
+      {
+        onHit: () => {
+          hitCount += 1;
+        },
+      },
+    );
+
+    const internal = detector as any;
+    internal._calculateAdaptiveThreshold = () => 1;
+    internal._smoothedThreshold = 1;
+    internal._warmupFramesRemaining = 0;
+    internal._minHistoryFramesForDetection = 1;
+    internal._isArmed = true;
+    internal._previousFlux = 0;
+    internal._hitsDetected = 0;
+    internal._lastHitTime = 0;
+    internal._lastDetectTime = 0;
+
+    const frame = detector.processFeatureFrame(4.2, 0.2, {
+      nowMs: 5000,
+      maxAmplitude: 40,
+      audioTimeSeconds: 5,
+    });
+
+    assertEquals(frame.hit, true);
+    assertEquals(hitCount, 1);
+  },
+);
+
+Deno.test("AdaptiveDetector: keeps long-gap prominence after first hit", () => {
+  const detector = new AdaptiveDetector(
+    { audioContext: { currentTime: 0 } } as never,
+    { ...DEFAULT_ADAPTIVE_PARAMS, sensitivity: 0.5 } as never,
+    {},
+  );
+
+  const internal = detector as any;
+  internal._calculateAdaptiveThreshold = () => 1;
+  internal._smoothedThreshold = 1;
+  internal._warmupFramesRemaining = 0;
+  internal._minHistoryFramesForDetection = 1;
+  internal._isArmed = true;
+  internal._previousFlux = 0;
+  internal._hitsDetected = 1;
+  internal._lastHitTime = 0;
+  internal._lastDetectTime = 0;
+
+  const frame = detector.processFeatureFrame(4.2, 0.2, {
+    nowMs: 5000,
+    maxAmplitude: 40,
+    audioTimeSeconds: 5,
+  });
+
+  assertEquals(frame.hit, false);
+});

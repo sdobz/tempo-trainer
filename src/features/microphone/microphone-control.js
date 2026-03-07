@@ -37,7 +37,6 @@ export default class MicrophoneControl extends BaseComponent {
     this.peakHold = null;
     this.sensitivityLine = null;
     this.sensitivityLabel = null;
-    this.hitsList = null;
 
     this._isAdjustingSensitivity = false;
     /** @type {import('./detector-manager.js').default|null} */
@@ -69,7 +68,6 @@ export default class MicrophoneControl extends BaseComponent {
       this,
       "[data-microphone-threshold-label]",
     );
-    this.hitsList = querySelector(this, "[data-microphone-hits-list]");
 
     // Register as the UI delegate — DetectorManager pushes initial state immediately
     this.consumeContext(DetectorManagerContext, (dm) => {
@@ -114,8 +112,7 @@ export default class MicrophoneControl extends BaseComponent {
 
   /**
    * Sensitivity / threshold line position.
-   * Emitted by ThresholdDetector when user drags (= sensitivity value directly),
-   * and by AdaptiveDetector each frame (= normalized adaptive threshold position).
+   * Emitted by both detectors as fixed sensitivity position (0–1).
    * @param {number} pos 0–1
    */
   onThresholdChanged(pos) {
@@ -127,25 +124,10 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   /**
-   * Hit detected — add transient visual dot in the hits list.
+   * Hit detected.
    */
   onHit() {
-    const dot = document.createElement("div");
-    dot.className = "hit-entry";
-    dot.setAttribute("aria-label", "Hit detected");
-    dot.title = "Hit detected";
-    this.hitsList.appendChild(dot);
-
-    // Keep only last 6 hits
-    while (this.hitsList.children.length > 6) {
-      this.hitsList.firstElementChild?.remove();
-    }
-
-    const timerId = setTimeout(() => {
-      dot.remove();
-      this._hitTimers = this._hitTimers.filter((id) => id !== timerId);
-    }, 2400);
-    this._hitTimers.push(timerId);
+    // Hit visualization now lives in timeline components via shared hit events.
   }
 
   /**

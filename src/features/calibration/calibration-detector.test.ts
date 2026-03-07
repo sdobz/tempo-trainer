@@ -3,9 +3,8 @@ import "../base/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals } from "../base/assert.ts";
 
 // Import the pure domain detector
-const { default: CalibrationDetector } = await import(
-  "./calibration-detector.js"
-);
+const { default: CalibrationDetector } =
+  await import("./calibration-detector.js");
 
 /**
  * Test suite for CalibrationDetector behavior (pure domain logic, no UI).
@@ -93,13 +92,16 @@ function createDetector(delegate: any = null) {
   );
 }
 
-Deno.test("CalibrationDetector: should initialize with default settings", () => {
-  const detector = createDetector();
-  assertEquals(detector.isCalibrating, false);
-  assertEquals(detector.lookahead, 25.0);
-  assertEquals(detector.minHits, 10);
-  assertEquals(detector.offsetMs, 0);
-});
+Deno.test(
+  "CalibrationDetector: should initialize with default settings",
+  () => {
+    const detector = createDetector();
+    assertEquals(detector.isCalibrating, false);
+    assertEquals(detector.minHits, 10);
+    assertEquals(detector.maxDurationMs, 120000);
+    assertEquals(detector.offsetMs, 0);
+  },
+);
 
 Deno.test("CalibrationDetector: should support delegate callbacks", () => {
   const delegate = new MockDelegate();
@@ -109,23 +111,32 @@ Deno.test("CalibrationDetector: should support delegate callbacks", () => {
   assertEquals(detector.delegate === delegate, true);
 });
 
-Deno.test("CalibrationDetector: setBeatsPerMeasure should update configuration", () => {
-  const detector = createDetector();
-  detector.setBeatsPerMeasure(3);
-  assertEquals(detector.beatsPerMeasure, 3);
-});
+Deno.test(
+  "CalibrationDetector: setBeatsPerMeasure should update configuration",
+  () => {
+    const detector = createDetector();
+    detector.setBeatsPerMeasure(3);
+    assertEquals(detector.beatsPerMeasure, 3);
+  },
+);
 
-Deno.test("CalibrationDetector: setBeatDuration should update configuration", () => {
-  const detector = createDetector();
-  detector.setBeatDuration(0.25);
-  assertEquals(detector.beatDuration, 0.25);
-});
+Deno.test(
+  "CalibrationDetector: setBeatDuration should update configuration",
+  () => {
+    const detector = createDetector();
+    detector.setBeatDuration(0.25);
+    assertEquals(detector.beatDuration, 0.25);
+  },
+);
 
-Deno.test("CalibrationDetector: getOffsetMs should return current offset", () => {
-  const detector = createDetector();
-  const offset = detector.getOffsetMs();
-  assertEquals(typeof offset, "number");
-});
+Deno.test(
+  "CalibrationDetector: getOffsetMs should return current offset",
+  () => {
+    const detector = createDetector();
+    const offset = detector.getOffsetMs();
+    assertEquals(typeof offset, "number");
+  },
+);
 
 Deno.test("CalibrationDetector: onStop should register callback", () => {
   const detector = createDetector();
@@ -138,30 +149,36 @@ Deno.test("CalibrationDetector: onStop should register callback", () => {
   assertEquals(detector.onStopCallback !== null, true);
 });
 
-Deno.test("CalibrationDetector: getCalibratedBeatPosition should adjust for offset", () => {
-  const detector = createDetector();
-  detector.offsetMs = 50;
+Deno.test(
+  "CalibrationDetector: getCalibratedBeatPosition should adjust for offset",
+  () => {
+    const detector = createDetector();
+    detector.offsetMs = 50;
 
-  const audioTime = 2.0;
-  const runStartTime = 1.0;
-  const beatDuration = 0.5;
+    const audioTime = 2.0;
+    const runStartTime = 1.0;
+    const beatDuration = 0.5;
 
-  const position = detector.getCalibratedBeatPosition(
-    audioTime,
-    runStartTime,
-    beatDuration,
-  );
-  assertEquals(typeof position, "number");
-  assertEquals(position >= 0, true);
-});
+    const position = detector.getCalibratedBeatPosition(
+      audioTime,
+      runStartTime,
+      beatDuration,
+    );
+    assertEquals(typeof position, "number");
+    assertEquals(position >= 0, true);
+  },
+);
 
-Deno.test("CalibrationDetector: registerHit should not process when not calibrating", () => {
-  const delegate = new MockDelegate();
-  const detector = createDetector(delegate);
+Deno.test(
+  "CalibrationDetector: registerHit should not process when not calibrating",
+  () => {
+    const delegate = new MockDelegate();
+    const detector = createDetector(delegate);
 
-  detector.registerHit(1.0);
-  assertEquals(detector.offsetsMs.length, 0);
-});
+    detector.registerHit(1.0);
+    assertEquals(detector.offsetsMs.length, 0);
+  },
+);
 
 Deno.test("CalibrationDetector: should persist offset to storage", () => {
   const storage = new MockStorageManager();
@@ -174,10 +191,60 @@ Deno.test("CalibrationDetector: should persist offset to storage", () => {
   assertEquals(retrieved, 75);
 });
 
-Deno.test("CalibrationDetector: should load settings from storage on init", () => {
-  const storage = new MockStorageManager();
-  storage.set("tempoTrainer.calibrationOffsetMs", "42");
+Deno.test(
+  "CalibrationDetector: should load settings from storage on init",
+  () => {
+    const storage = new MockStorageManager();
+    storage.set("tempoTrainer.calibrationOffsetMs", "42");
 
-  const detector = new CalibrationDetector(storage, new MockDelegate());
-  assertEquals(detector.offsetMs, 42);
-});
+    const detector = new CalibrationDetector(storage, new MockDelegate());
+    assertEquals(detector.offsetMs, 42);
+  },
+);
+
+Deno.test(
+  "CalibrationDetector: should retain live offset when user stops early",
+  async () => {
+    const storage = new MockStorageManager();
+    const detector = new CalibrationDetector(storage, new MockDelegate(), {
+      currentTime: 0,
+      async resume() {},
+    } as AudioContext);
+
+    await detector.start();
+
+    detector.registerExpectedBeat(1.0);
+    detector.registerHit(1.05);
+    detector.registerExpectedBeat(2.0);
+    detector.registerHit(2.05);
+    detector.registerExpectedBeat(3.0);
+    detector.registerHit(3.05);
+
+    detector.stop("Calibration stopped by user.");
+
+    assertEquals(detector.hasCalibrationData(), true);
+    assertEquals(Math.round(storage.getNumber(detector.storageKey, 0)), 50);
+    assertEquals(Math.round(detector.getOffsetMs()), 50);
+  },
+);
+
+Deno.test(
+  "CalibrationDetector: should not auto-complete below 100% confidence",
+  () => {
+    const detector = createDetector();
+
+    detector.isCalibrating = true;
+    detector.goodHits = 18;
+    detector.confidence = 65;
+    detector.stableWindows = 0;
+    detector.offsetsMs = Array.from(
+      { length: detector.windowSize * 2 },
+      () => 50,
+    );
+
+    detector._maybeFinish();
+
+    assertEquals(detector.isCalibrating, true);
+    assertEquals(detector.confidence < detector.confidenceTarget, true);
+  },
+);

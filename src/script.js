@@ -43,6 +43,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const metronome = new Metronome(
     /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
   );
+  const calibrationMetronome = new Metronome(
+    /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
+  );
   const scorer = new Scorer(4, 0.5); // Will be configured when session starts
   const practiceSessionManager = new PracticeSessionManager();
   const audioContextManager = new AudioContextManager();
@@ -71,29 +74,38 @@ document.addEventListener("DOMContentLoaded", () => {
   // AudioContext is first created — one call site instead of three.
   audioContextManager.onContextCreated((ctx) => {
     metronome.audioContext = ctx;
+    calibrationMetronome.audioContext = ctx;
     detectorManager.audioContext = ctx;
   });
 
   // Wait for components to be ready
   let calibration;
   let timeline; // Direct ref for imperative playback: centerAt, addDetection, clearDetections
+  let calibrationTimeline;
   let drillSessionManager; // Will be initialized after all components ready
+
+  const CALIBRATION_TIMELINE_WINDOW_MEASURES = 64;
+  const CALIBRATION_TIMELINE_REBASE_MARGIN_MEASURES = 8;
+  let calibrationTimelineWindowStartMeasure = 0;
+  let calibrationTimelineRunStartAudioTime = 0;
+  let calibrationTimelineActive = false;
+  let calibrationTimelineRafId = null;
 
   const onboardingReady = onboardingPane.componentReady.then(() => {
     // Get calibration instance from calibration-control sub-component
     if (onboardingPane.calibrationControl) {
       calibration = onboardingPane.calibration;
 
-      // Setup calibration callback
-      calibration.onStop(() => {
-        updateOnboardingStatus();
-      });
-
       // AudioContext must reach calibration once created.
       // Done here (after onboardingReady) so the reference is valid.
       audioContextManager.onContextCreated((ctx) => {
         calibration.audioContext = ctx;
       });
+    }
+
+    const timelineEl = resolveCalibrationTimeline();
+    if (timelineEl?.componentReady) {
+      return timelineEl.componentReady;
     }
   });
 
@@ -162,7 +174,65 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle onboarding completion
   onboardingPane.addEventListener("complete", () => {
+    StorageManager.set("tempoTrainer.hasCompletedOnboarding", "true");
     paneManager.navigate("plan-edit");
+  });
+
+  onboardingPane.addEventListener(
+    "setup-status-changed",
+    (/** @type {CustomEvent} */ event) => {
+      const { calibrated } = event.detail;
+      planPlayPane.setCalibrationWarningVisible(!calibrated);
+    },
+  );
+
+  const removeHitListener = detectorManager.addHitListener((hitAudioTime) => {
+    const activeCalibrationTimeline = resolveCalibrationTimeline();
+
+    timeline?.flashNowLine?.();
+    activeCalibrationTimeline?.flashNowLine?.();
+
+    if (!activeCalibrationTimeline) {
+      return;
+    }
+
+    if (!calibrationTimelineActive) {
+      startCalibrationTimeline();
+    }
+
+    const beatPosition = getCalibrationBeatPositionFromAudioTime(hitAudioTime);
+    maybeRebaseCalibrationTimeline(beatPosition);
+    activeCalibrationTimeline.addDetection(beatPosition);
+  });
+
+  onboardingPane.addEventListener(
+    "calibration-start-request",
+    async (/** @type {CustomEvent} */ event) => {
+      if (calibration && calibration.isCalibrating) return;
+
+      try {
+        await audioContextManager.ensureContext();
+
+        if (!detectorManager.isRunning) {
+          await detectorManager.start();
+        }
+      } catch {
+        alert("Web Audio API is not supported in this browser");
+        event.preventDefault();
+      }
+    },
+  );
+
+  onboardingPane.addEventListener("calibration-state-changed", () => {
+    if (calibration?.isCalibrating) {
+      resolveCalibrationTimeline()?.clearDetections?.();
+      startCalibrationMetronome();
+    } else {
+      stopCalibrationMetronome();
+    }
+
+    if (!calibrationTimeline || !calibrationTimelineActive) return;
+    buildCalibrationTimelineWindow(calibrationTimelineWindowStartMeasure);
   });
 
   // Handle navigation from plan-edit-pane
@@ -175,29 +245,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     },
   );
-
-  //--- Onboarding Status Update ---
-
-  function updateOnboardingStatus() {
-    if (!calibration) return;
-
-    // Check whether the user has explicitly adjusted sensitivity from the type-appropriate default
-    // threshold detector default: 0.594 (= 1 - 52/128), adaptive default: 0.5
-    const defaultSensitivity =
-      detectorManager.getParams().type === "adaptive" ? 0.5 : 0.594;
-    const hasAdjustedThreshold =
-      Math.abs(detectorManager.sensitivity - defaultSensitivity) > 0.01;
-
-    // Check if calibration data exists in storage (offset can be legitimately 0 ms)
-    const hasCalibrated =
-      typeof calibration.hasCalibrationData === "function"
-        ? calibration.hasCalibrationData()
-        : calibration.getOffsetMs() !== 0;
-
-    // Update component status
-    onboardingPane.updateStatus(hasAdjustedThreshold, hasCalibrated);
-    planPlayPane.setCalibrationWarningVisible(!hasCalibrated);
-  }
 
   // --- Pane Navigation ---
 
@@ -220,9 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pane === "onboarding") {
       // Wait for onboarding component to be ready before accessing detectors
       await onboardingReady;
-
-      // Update onboarding status indicators
-      updateOnboardingStatus();
+      onboardingPane.refreshSetupStatus();
 
       // Ensure AudioContext exists for microphone access
       try {
@@ -239,6 +284,8 @@ document.addEventListener("DOMContentLoaded", () => {
           console.error("Failed to start microphone detector:", err);
         }
       }
+
+      startCalibrationTimeline();
 
       const params = paneManager.getCurrentParams();
       if (params.target === "calibration") {
@@ -270,8 +317,13 @@ document.addEventListener("DOMContentLoaded", () => {
       calibration &&
       !calibration.isCalibrating
     ) {
+      stopCalibrationTimeline();
+      stopCalibrationMetronome();
       // Stop microphone detector when leaving onboarding (but not when going to play)
       detectorManager.stop();
+    } else {
+      stopCalibrationTimeline();
+      stopCalibrationMetronome();
     }
   };
 
@@ -292,65 +344,146 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Override complete onboarding to set flag
-  onboardingPane.componentReady.then(() => {
-    if (onboardingPane.completeBtn) {
-      onboardingPane.completeBtn.addEventListener("click", () => {
-        StorageManager.set("tempoTrainer.hasCompletedOnboarding", "true");
-        paneManager.navigate("plan-edit");
-      });
-    }
-  });
-
-  // --- Event Listeners ---
-
-  // Listen for microphone sensitivity adjustments
-  onboardingPane.componentReady.then(() => {
-    if (
-      onboardingPane.microphoneControl &&
-      onboardingPane.microphoneControl.level
-    ) {
-      onboardingPane.microphoneControl.level.addEventListener(
-        "pointerup",
-        () => {
-          // Update onboarding status after sensitivity adjustment
-          setTimeout(() => updateOnboardingStatus(), 100);
-        },
-      );
-    }
-  });
-
-  // Intercept calibration button to ensure audioContext exists
-  onboardingPane.componentReady.then(() => {
-    if (
-      onboardingPane.calibrationControl &&
-      onboardingPane.calibrationControl.button
-    ) {
-      onboardingPane.calibrationControl.button.addEventListener(
-        "click",
-        async (e) => {
-          if (calibration && !calibration.isCalibrating) {
-            try {
-              await audioContextManager.ensureContext();
-
-              if (!detectorManager.isRunning) {
-                await detectorManager.start();
-              }
-            } catch {
-              alert("Web Audio API is not supported in this browser");
-              e.stopPropagation();
-              e.preventDefault();
-              return;
-            }
-          }
-        },
-        true,
-      );
-    }
-  });
-
   // Setup BPM and time signature change handlers after plan-play pane is ready
   // NOTE: BPM/time-sig input listeners now live inside plan-play-pane (via consumeContext).
+
+  function getCalibrationBeatPositionFromAudioTime(audioTime) {
+    const beatDuration = sessionState.beatDuration;
+    return Math.max(
+      0,
+      (audioTime - calibrationTimelineRunStartAudioTime) / beatDuration,
+    );
+  }
+
+  function startCalibrationMetronome() {
+    if (!calibrationMetronome.audioContext || !calibration) return;
+
+    calibrationMetronome.stop();
+    calibrationMetronome.setBPM(sessionState.bpm);
+    calibrationMetronome.setTimeSignature(sessionState.beatsPerMeasure);
+    calibrationMetronome.onBeat((beatInMeasure, time) => {
+      if (!calibration.isCalibrating) return false;
+      const freq = beatInMeasure === 0 ? 880.0 : 440.0;
+      calibrationMetronome.scheduleClick(time, freq);
+      calibration.registerExpectedBeat(time);
+      return true;
+    });
+    calibrationMetronome.start();
+    calibrationTimelineRunStartAudioTime = calibrationMetronome.nextNoteTime;
+  }
+
+  function stopCalibrationMetronome() {
+    if (!calibrationMetronome.isRunning) return;
+    calibrationMetronome.stop();
+  }
+
+  function buildCalibrationTimelineWindow(startMeasure) {
+    const activeCalibrationTimeline = resolveCalibrationTimeline();
+    if (!activeCalibrationTimeline) return;
+
+    const beatsPerMeasure = sessionState.beatsPerMeasure;
+    const measureType = calibration?.isCalibrating ? "click" : "silent";
+    const plan = Array.from(
+      { length: CALIBRATION_TIMELINE_WINDOW_MEASURES },
+      () => ({ type: measureType }),
+    );
+
+    activeCalibrationTimeline.setBeatsPerMeasure(beatsPerMeasure);
+    activeCalibrationTimeline.setDisplayStartBeat(
+      startMeasure * beatsPerMeasure,
+    );
+    activeCalibrationTimeline.setDrillPlan(plan);
+  }
+
+  function maybeRebaseCalibrationTimeline(absoluteBeatPosition) {
+    if (!resolveCalibrationTimeline()) return;
+
+    const beatsPerMeasure = sessionState.beatsPerMeasure;
+    const currentMeasure = Math.floor(absoluteBeatPosition / beatsPerMeasure);
+    const minVisibleMeasure =
+      calibrationTimelineWindowStartMeasure +
+      CALIBRATION_TIMELINE_REBASE_MARGIN_MEASURES;
+    const maxVisibleMeasure =
+      calibrationTimelineWindowStartMeasure +
+      CALIBRATION_TIMELINE_WINDOW_MEASURES -
+      CALIBRATION_TIMELINE_REBASE_MARGIN_MEASURES;
+
+    if (
+      currentMeasure >= minVisibleMeasure &&
+      currentMeasure <= maxVisibleMeasure
+    ) {
+      return;
+    }
+
+    const nextWindowStartMeasure = Math.max(
+      0,
+      currentMeasure - Math.floor(CALIBRATION_TIMELINE_WINDOW_MEASURES / 2),
+    );
+
+    if (nextWindowStartMeasure === calibrationTimelineWindowStartMeasure) {
+      return;
+    }
+
+    calibrationTimelineWindowStartMeasure = nextWindowStartMeasure;
+    buildCalibrationTimelineWindow(calibrationTimelineWindowStartMeasure);
+  }
+
+  function calibrationTimelineLoop() {
+    if (!calibrationTimelineActive) return;
+
+    const audioContext = audioContextManager.getContext();
+    const activeCalibrationTimeline = resolveCalibrationTimeline();
+    if (audioContext && activeCalibrationTimeline) {
+      const beatPosition = getCalibrationBeatPositionFromAudioTime(
+        audioContext.currentTime,
+      );
+      maybeRebaseCalibrationTimeline(beatPosition);
+      activeCalibrationTimeline.centerAt(beatPosition);
+    }
+
+    calibrationTimelineRafId = requestAnimationFrame(calibrationTimelineLoop);
+  }
+
+  function startCalibrationTimeline() {
+    const activeCalibrationTimeline = resolveCalibrationTimeline();
+    if (!activeCalibrationTimeline || calibrationTimelineActive) return;
+
+    const audioContext = audioContextManager.getContext();
+    calibrationTimelineRunStartAudioTime = audioContext?.currentTime ?? 0;
+    calibrationTimelineWindowStartMeasure = 0;
+    calibrationTimelineActive = true;
+
+    buildCalibrationTimelineWindow(calibrationTimelineWindowStartMeasure);
+    activeCalibrationTimeline.clearDetections();
+
+    calibrationTimelineRafId = requestAnimationFrame(calibrationTimelineLoop);
+  }
+
+  function stopCalibrationTimeline() {
+    calibrationTimelineActive = false;
+    if (calibrationTimelineRafId) {
+      cancelAnimationFrame(calibrationTimelineRafId);
+      calibrationTimelineRafId = null;
+    }
+  }
+
+  function resolveCalibrationTimeline() {
+    if (calibrationTimeline && calibrationTimeline.isConnected) {
+      return calibrationTimeline;
+    }
+
+    calibrationTimeline = onboardingPane.querySelector(
+      "[data-calibration-timeline]",
+    );
+
+    if (!calibrationTimeline && onboardingPane.calibrationControl) {
+      calibrationTimeline = onboardingPane.calibrationControl.querySelector(
+        "[data-calibration-timeline]",
+      );
+    }
+
+    return calibrationTimeline;
+  }
 
   // --- Initialization ---
 
@@ -379,12 +512,14 @@ document.addEventListener("DOMContentLoaded", () => {
     sessionState.subscribe({
       onBPMChange: (bpm) => {
         metronome.setBPM(bpm);
+        calibrationMetronome.setBPM(bpm);
         scorer.setBeatDuration(60.0 / bpm);
         if (calibration) calibration.setBeatDuration(60.0 / bpm);
         detectorManager.setSessionBpm(bpm);
       },
       onBeatsPerMeasureChange: (n) => {
         metronome.setTimeSignature(n);
+        calibrationMetronome.setTimeSignature(n);
         scorer.setBeatsPerMeasure(n);
         if (calibration) calibration.setBeatsPerMeasure(n);
       },
@@ -466,15 +601,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const hasCompletedOnboarding = StorageManager.get(
       "tempoTrainer.hasCompletedOnboarding",
     );
-    const hasCalibration = calibration
-      ? typeof calibration.hasCalibrationData === "function"
-        ? calibration.hasCalibrationData()
-        : calibration.getOffsetMs() !== 0
-      : false;
+    const hasCalibration = onboardingPane.hasCalibrationData();
 
     let initialPane = "onboarding";
     if (hasCompletedOnboarding) {
-      initialPane = hasCalibration ? "plan-play" : "plan-edit";
+      initialPane = hasCalibration ? "plan-play" : "onboarding";
     }
 
     // Initialize display — push current plan through SessionState so all subscribers
@@ -519,4 +650,9 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(updateTimelineScroll);
   }
   updateTimelineScroll();
+
+  globalThis.addEventListener("beforeunload", () => {
+    removeHitListener();
+    stopCalibrationTimeline();
+  });
 });

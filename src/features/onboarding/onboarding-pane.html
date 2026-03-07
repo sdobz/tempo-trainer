@@ -1,65 +1,44 @@
 <template>
   <div class="pane-content">
     <h2>Welcome to Tempo Trainer</h2>
-    <p>
-      Play along with a metronome while the app listens to your microphone,
-      measures your timing accuracy in milliseconds, and shows you a visual
-      timeline of every hit alongside instant per-measure scoring.
-    </p>
+    <p>Set up hit detection once, then start training.</p>
 
     <div class="onboarding-steps">
-      <div class="step" id="step-detector-selection">
-        <h3>1. Choose Hit Detection Method</h3>
-        <p>Select the detection method that works best for your setup:</p>
-        <fieldset class="detector-options">
-          <legend>Detection Method</legend>
-          <label>
-            <input
-              type="radio"
-              name="detector"
-              value="threshold"
-              data-detector-threshold
-              checked
-            />
-            <strong>Threshold (Recommended for beginners)</strong>
-            <br />
-            <small
-              >Simple and responsive. Triggers when microphone level crosses a
-              threshold.</small
-            >
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="detector"
-              value="adaptive"
-              data-detector-adaptive
-            />
-            <strong>Adaptive / Spectral Flux (Advanced)</strong>
-            <br />
-            <small>
-              More sophisticated. Uses frequency analysis to detect hits, great
-              for rejecting certain instruments.
-            </small>
-          </label>
-        </fieldset>
-      </div>
+      <section class="step" id="step-setup" data-step-setup>
+        <h3>
+          <span class="step-title">Tune Hit Detection</span>
+          <span class="step-status" data-setup-status>⚠️ Setup incomplete</span>
+        </h3>
+        <p class="step-description">
+          Select your microphone and hit detection method, then calibrate
+          sensitivity. You can adjust these later if needed.
+        </p>
+        <div class="detector-selector-row">
+          <label for="detector-select">Detector:</label>
+          <select id="detector-select" data-detector-select>
+            <option value="threshold">Threshold</option>
+            <option value="adaptive">Adaptive / Spectral Flux</option>
+          </select>
+        </div>
 
-      <div class="step" id="step-microphone">
-        <h3>2. Configure Microphone</h3>
-        <microphone-control></microphone-control>
-      </div>
+        <div class="setup-section" id="step-microphone">
+          <microphone-control data-compact></microphone-control>
+        </div>
 
-      <div class="step" id="step-calibration">
-        <h3>3. Calibrate System</h3>
-        <calibration-control></calibration-control>
-      </div>
+        <div class="setup-section" id="step-calibration">
+          <calibration-control data-compact></calibration-control>
+        </div>
+      </section>
 
-      <div class="step">
-        <h3>4. Ready to Train!</h3>
-        <p>Once calibrated, proceed to create a plan and start practicing.</p>
-        <button data-complete-btn class="primary-btn">Go to Plan Editor</button>
-      </div>
+      <section class="step">
+        <h3>Continue</h3>
+        <p class="step-description">
+          When setup is ready, continue to plan creation.
+        </p>
+        <button data-complete-btn class="primary-btn" disabled>
+          Go to Plan Editor
+        </button>
+      </section>
     </div>
   </div>
 </template>

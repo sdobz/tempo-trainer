@@ -21,7 +21,7 @@ import { DEFAULT_ADAPTIVE_PARAMS } from "./detector-params.js";
  * Delegate callbacks:
  *   onLevelChanged(level: 0–1)       — spectral flux (primary signal for this detector)
  *   onPeakChanged(peak: 0–1)         — flux peak-hold indicator
- *   onThresholdChanged(pos: 0–1)     — adaptive threshold line position
+ *   onThresholdChanged(pos: 0–1)     — sensitivity line position (= sensitivity)
  *   onHit()                          — hit detected
  */
 class AdaptiveDetector {
@@ -48,16 +48,17 @@ class AdaptiveDetector {
     this._bpm = params.bpm ?? DEFAULT_ADAPTIVE_PARAMS.bpm;
 
     // Threshold and hit-gating tuning
-    this._thresholdBootstrap = 7;
+    this._thresholdBootstrap = 6;
     this._thresholdFloor = 3;
-    this._thresholdWarmupFrames = 12;
-    this._thresholdRiseAttack = 1;
-    this._thresholdFallRelease = 0.005;
+    this._thresholdWarmupFrames = 6;
+    this._thresholdRiseAttack = 0.35;
+    this._thresholdFallRelease = 0.02;
     this._fluxResetFactor = 0.4;
     this._requiredProminenceMin = 0.4;
     this._requiredProminenceScale = 0.1;
-    this._absoluteFluxFloor = 4.5;
+    this._absoluteFluxFloor = 4.0;
     this._amplitudeGateThreshold = 12;
+    this._minHistoryFramesForDetection = 8;
     this._longGapMs = 700;
     this._longGapProminence = 2.5;
     this._veryLongGapMs = 1500;
@@ -86,7 +87,6 @@ class AdaptiveDetector {
     /** @private */ this._lastDetectTime = 0;
     /** @private */ this._lastLevel = -1;
     /** @private */ this._lastPeak = -1;
-    /** @private */ this._lastThreshold = -1;
     /** @private */ this._peakHoldValue = 0;
     /** @private */ this._peakHoldUntil = 0;
     /** @private */ this._fluxHistory = [];
@@ -95,6 +95,7 @@ class AdaptiveDetector {
     /** @private */ this._previousFlux = 0;
     /** @private */ this._smoothedThreshold = 7;
     /** @private */ this._isArmed = true;
+    /** @private */ this._hitsDetected = 0;
     /** @private */ this._now = () => performance.now();
 
     /** @type {((hitAudioTime: number) => void)|null} */
@@ -161,6 +162,8 @@ class AdaptiveDetector {
       this._previousFlux = 0;
       this._smoothedThreshold = this._thresholdBootstrap;
       this._isArmed = true;
+      this._hitsDetected = 0;
+      this._lastHitTime = this._now();
       this._isRunning = true;
       if (!this._rafId) {
         this._rafId = requestAnimationFrame(() => this._detectLoop());
@@ -177,6 +180,7 @@ class AdaptiveDetector {
   stop() {
     this._audioInput.stop();
     this._isRunning = false;
+    this._hitsDetected = 0;
     if (this._rafId) {
       cancelAnimationFrame(this._rafId);
       this._rafId = null;
@@ -262,12 +266,6 @@ class AdaptiveDetector {
         rawAdaptiveThreshold * this._thresholdFallRelease;
     }
     const adaptiveThreshold = this._smoothedThreshold;
-    const thresholdPos = Math.min(1, adaptiveThreshold / 20);
-    if (thresholdPos !== this._lastThreshold) {
-      this._lastThreshold = thresholdPos;
-      this.delegate?.onThresholdChanged?.(thresholdPos);
-    }
-
     // Peak hold on flux
     if (flux >= this._peakHoldValue) {
       this._peakHoldValue = flux;
@@ -311,7 +309,8 @@ class AdaptiveDetector {
       risingEdge;
     const entropyGate = entropy < this._entropyThreshold;
     const historyReady =
-      this._fluxHistory.length >= Math.min(12, this._historyWindowSize);
+      this._fluxHistory.length >=
+      Math.min(this._minHistoryFramesForDetection, this._historyWindowSize);
     const timeSinceLastHit = now - this._lastHitTime;
     const longGapMs = this._longGapMs;
     const veryLongGapMs = this._veryLongGapMs;
@@ -319,15 +318,19 @@ class AdaptiveDetector {
     const veryLongGapProminence = this._veryLongGapProminence;
     const prominence = flux - adaptiveThreshold;
     const longGapGate =
-      timeSinceLastHit > veryLongGapMs
-        ? prominence >= veryLongGapProminence
-        : timeSinceLastHit > longGapMs
-          ? prominence >= longGapProminence
-          : true;
+      this._hitsDetected === 0
+        ? true
+        : timeSinceLastHit > veryLongGapMs
+          ? prominence >= veryLongGapProminence
+          : timeSinceLastHit > longGapMs
+            ? prominence >= longGapProminence
+            : true;
 
     if (!this._isArmed && flux <= fluxResetThreshold) {
       this._isArmed = true;
     }
+
+    const msSinceLastHit = now - this._lastHitTime;
 
     let hit = false;
     if (
@@ -341,6 +344,7 @@ class AdaptiveDetector {
       now - this._lastHitTime > refractoryMs
     ) {
       this._lastHitTime = now;
+      this._hitsDetected += 1;
       this._isArmed = false;
       hit = true;
       const compensatedHitTime =
@@ -362,21 +366,21 @@ class AdaptiveDetector {
     return {
       level,
       peak,
-      threshold: thresholdPos,
+      threshold: this._sensitivity,
       hit,
     };
   }
 
   /** @private */
   _handleHit(hitAudioTime) {
-    this.delegate?.onHit?.();
+    const resolvedHitAudioTime =
+      typeof hitAudioTime === "number"
+        ? hitAudioTime
+        : this._audioInput.audioContext?.currentTime;
+    this.delegate?.onHit?.(resolvedHitAudioTime);
     if (!this.onHitCallback) return;
-    if (typeof hitAudioTime === "number") {
-      this.onHitCallback(hitAudioTime);
-      return;
-    }
-    if (this._audioInput.audioContext) {
-      this.onHitCallback(this._audioInput.audioContext.currentTime);
+    if (typeof resolvedHitAudioTime === "number") {
+      this.onHitCallback(resolvedHitAudioTime);
     }
   }
 

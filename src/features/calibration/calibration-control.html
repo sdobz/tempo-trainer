@@ -1,25 +1,58 @@
 <template>
   <div class="calibration-control">
-    <h3>
-      <span class="calibration-title">2. Calibrate Your System</span>
-      <span
-        class="calibration-status-indicator"
-        data-calibration-status-indicator
-      >⚠️ Not calibrated</span>
-    </h3>
-    <p>
-      Calibration measures system latency to ensure accurate hit detection. Play
-      along with the metronome clicks.
-    </p>
+    <timeline-visualization
+      data-calibration-timeline
+      data-local-plan-only
+    ></timeline-visualization>
+
     <div class="calibration-controls">
-      <button data-calibration-btn type="button" class="calibration-btn">
-        Start Calibration
-      </button>
-      <div data-calibration-status class="calibration-status">
-        Calibration idle.
+      <div class="calibration-top-row">
+        <div class="calibration-offset-controls">
+          <label for="calibration-offset-input">Offset (ms)</label>
+          <div class="calibration-offset-row">
+            <button type="button" class="offset-btn" data-offset-dec>-</button>
+            <input
+              id="calibration-offset-input"
+              data-calibration-offset-input
+              type="number"
+              step="1"
+              min="-300"
+              max="300"
+              value="0"
+            />
+            <button type="button" class="offset-btn" data-offset-inc>+</button>
+          </div>
+        </div>
+
+        <button data-calibration-btn type="button" class="calibration-btn">
+          Auto Calibrate
+        </button>
       </div>
-      <div data-calibration-result class="calibration-result">
-        Offset compensation: 0 ms
+
+      <div
+        class="calibration-progress"
+        aria-live="polite"
+        data-calibration-progress
+      >
+        <div
+          class="calibration-progress-track"
+          data-calibration-progress-track
+          role="progressbar"
+          aria-label="Calibration completeness"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+        >
+          <div
+            data-calibration-progress-fill
+            class="calibration-progress-fill"
+          ></div>
+          <span
+            data-calibration-progress-status
+            class="calibration-progress-status"
+            >Hits 0/10</span
+          >
+        </div>
       </div>
     </div>
   </div>
