@@ -22,29 +22,61 @@ Use one agent per file to scan the codebase, tell each agent to summarize what i
 
 ## Migration
 
-Currently the project is not organized like this. We should create the doc structure first with empty files, then go through them in an order. Could structure as a linting pass?
+We are migrating toward a DI-style service graph where:
 
-Migration is complete when `main.js` is implemented, all components follow the patterns, and `script.js` is deprecated
+- `main.js` instantiates core services
+- root context provides those services
+- components consume services through context
+- services publish state changes through events
+- `script.js` is reduced to startup/nav glue and eventually deprecated
 
-### Current refactor scope (small steps)
+### Target service graph
 
-We are intentionally keeping scope small and iterative.
+1. `audio-context` service
+	- Provides current time, mic/analyser access, FFT-related nodes
+	- Emits readiness and error events
+2. `timeline` service
+	- Consumes audio time
+	- Owns BPM, beats-per-measure, beat duration, and time-division mapping
+3. `metronome` service
+	- Consumes timeline + audio
+	- Emits audible beat/measure events
+4. `score` service
+	- Consumes timeline
+	- Represents intended notes and scored performance
+5. `detector` service
+	- Consumes audio
+	- Emits hit/level/device events
 
-#### Phase 1: Root component/context (now)
+### Event/context contract
 
-- Implement `src/main.js` as the root component.
-- The root component provides shared services through context.
-- `script.js` creates domain objects and injects them into the root component.
-- Replace ad-hoc document-level context handling with root-provided context.
+- Context is for discovery and subscription to service instances.
+- Events are for runtime state propagation.
+- Services follow state-machine conventions from `doc/features/state.md`.
+- Prefer one coarse `patched` event plus optional fine-grained events where needed.
 
-#### Phase 2: Audio context rewrite (next)
+### Phased migration
 
-- Refactor audio context manager into an explicit service shape.
-- Consume the service via context from components.
-- Add the audio overlay component that blocks interaction until audio/mic is ready.
+#### Phase 1 (done/in progress)
 
-#### Boy scouting intention (ongoing, bounded)
+- Root component exists and provides base services via context.
+- Audio overlay blocks interaction until audio context initialization is available.
 
-- Prefer events over callbacks/delegates when touching existing code.
-- Do not expand scope solely to remove every callback/delegate in one pass.
-- Opportunistically normalize service/component communication to event-driven patterns during nearby refactors.
+#### Phase 2 (next)
+
+- Introduce TimelineService as a first-class context service.
+- Move BPM/beats-per-measure ownership behind timeline events.
+
+#### Phase 3
+
+- Move metronome, score, and detector wiring from `script.js` into services/components.
+- Eliminate direct audio-context wiring in `script.js`.
+
+#### Phase 4
+
+- Deprecate `script.js` orchestration logic in favor of component/service ownership.
+
+### Boy scouting intention
+
+- When touching code, replace callback/delegate wiring with event-driven service interfaces.
+- Keep each step bounded; avoid large rewrites in one pass.

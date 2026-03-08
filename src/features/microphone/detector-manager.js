@@ -87,7 +87,7 @@ class DetectorManager {
   // ---------------------------------------------------------------------------
 
   /**
-  * Setter for AudioContext injection from the shared audio context service.
+   * Setter for AudioContext injection from the shared audio context service.
    * Creates the AudioInputSource and initial detector on first injection.
    * @param {AudioContext} ctx
    */

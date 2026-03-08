@@ -12,19 +12,22 @@ In Tempo Trainer, the audio context is a single shared Web Audio API `AudioConte
 
 Lifecycle is centralized in `AudioContextManager`:
 
-- File: `src/features/base/audio-context-manager.js`
+- File: `src/features/audio/audio-context-manager.js`
 - `ensureContext()` lazily creates the context on first use.
 - If the context is `suspended`, it resumes it to satisfy browser user-gesture/audio policies.
 - `getContext()` returns the current instance (or `null` if not created yet).
-- `onContextCreated(callback)` lets dependent features register once and receive the created context.
+- Emits a `ready` event when context creation succeeds.
 
 This design ensures there is one source of truth for audio state and avoids each feature creating its own context.
 
 ## How features use it
 
-- App wiring: `src/script.js`
-	- Registers `onContextCreated` to inject the same context into metronomes, detector manager, and calibration detector.
-	- Calls `ensureContext()` before operations that require audio/microphone readiness.
+- Root provisioning: `src/features/main/main.js`
+	- Provides audio service through context.
+	- Notifies context consumers when audio becomes ready.
+- Access overlay: `src/features/audio/audio-context-overlay.js`
+	- Triggers `ensureContext()` from user interaction.
+	- Keeps UI blocked until context exists.
 - Metronome/playback: `src/features/plan-play/metronome.js`
 	- Uses the context to create oscillator/gain nodes and schedule clicks precisely.
 - Microphone input: `src/features/microphone/audio-input-source.js`
@@ -43,6 +46,8 @@ For this project, “audio context” means the shared, lazily-initialized, brow
 
 ## Updates
 
-Move this to a `service` and create a component that overlays and interrupts interactions. Bind creating the audio context to a click event on that overlay so that app interaction is blocked until we guarantee that the mic is available. Include a disclaimer describing the need
+This feature is now explicitly modeled as a service consumed through context.
+
+Next refinement is to move remaining script-level audio wiring into service/component-level subscriptions so consumers self-wire from context events.
 
 

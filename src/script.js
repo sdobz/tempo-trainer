@@ -70,19 +70,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // Provide shared services from the root component context.
   mainRoot.setServices({ sessionState, detectorManager });
 
-  const syncAudioDependents = () => {
+  const applyAudioContext = () => {
     const ctx = audioContextService.getContext();
-    if (!ctx) return;
+    if (!ctx) return false;
     metronome.audioContext = ctx;
     calibrationMetronome.audioContext = ctx;
     detectorManager.audioContext = ctx;
     if (calibration) {
       calibration.audioContext = ctx;
     }
+    return true;
   };
 
-  audioContextService.addEventListener("ready", syncAudioDependents);
-  syncAudioDependents();
+  audioContextService.addEventListener("ready", applyAudioContext);
+  applyAudioContext();
 
   // Wait for components to be ready
   let timeline; // Direct ref for imperative playback: centerAt, addDetection, clearDetections
@@ -102,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Get calibration instance from calibration-control sub-component
     if (onboardingPane.calibrationControl) {
       calibration = onboardingPane.calibration;
-      syncAudioDependents();
+      applyAudioContext();
     }
 
     const timelineEl = resolveCalibrationTimeline();
@@ -210,11 +211,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function ensurePlayPreviewMonitoring() {
     if (playPreviewActivationInFlight) return;
     if (detectorManager.isRunning) return;
+    if (!applyAudioContext()) return;
 
     playPreviewActivationInFlight = true;
     try {
-      await audioContextService.ensureContext();
-      syncAudioDependents();
       if (!detectorManager.isRunning) {
         await detectorManager.start();
       }
@@ -252,11 +252,13 @@ document.addEventListener("DOMContentLoaded", () => {
     "calibration-start-request",
     async (/** @type {CustomEvent} */ event) => {
       if (calibration && calibration.isCalibrating) return;
+      if (!applyAudioContext()) {
+        alert("Microphone access is required before calibration");
+        event.preventDefault();
+        return;
+      }
 
       try {
-        await audioContextService.ensureContext();
-        syncAudioDependents();
-
         if (!detectorManager.isRunning) {
           await detectorManager.start();
         }
@@ -327,13 +329,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await onboardingReady;
       onboardingPane.refreshSetupStatus();
 
-      // Ensure AudioContext exists for microphone access
-      try {
-        await audioContextService.ensureContext();
-        syncAudioDependents();
-      } catch (e) {
-        console.error("Web Audio API not available:", e);
-      }
+      if (!applyAudioContext()) return;
 
       // Start microphone detector to show levels and enumerate devices
       if (!detectorManager.isRunning) {
@@ -594,8 +590,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // defined at this point (constructed above), eliminating the late-binding hazard.
     planPlayPane.addEventListener("session-start", async () => {
       try {
-        const audioContext = await audioContextService.ensureContext();
-        syncAudioDependents();
+        const audioContext = audioContextService.getContext();
+        if (!audioContext) {
+          alert("Microphone access is required before starting a session");
+          return;
+        }
         scorer.reset();
         await drillSessionManager.startSession(audioContext);
         planPlayPane.playbackState.update({ isPlaying: true });

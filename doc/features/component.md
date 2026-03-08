@@ -16,14 +16,22 @@ component classes are named `DDDDComponent`
 
 Context forms the relationships between components and services
 
+- Components consume services in `onMount()`.
+- A context callback should be treated as "service instance updated".
+- Components should subscribe to service events and update DOM from those events.
+
 ## Root context
 
 - The root context catches all unhandled context requests.
 - It is the primary way that components get access to global services
+- Root context is owned by `main.js` and provides service instances.
+- When a service identity/readiness changes, root calls `notifyContext(...)`.
 
 ## State
 
 Components can be state machines if they follow the conventions of `state.md`
+
+- Prefer closure-based handlers and `listen(...)` cleanup over retaining extra mutable references.
 
 ## DOM
 

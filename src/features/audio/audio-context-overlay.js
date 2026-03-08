@@ -3,59 +3,59 @@ import { querySelector } from "../component/component-utils.js";
 import { AudioContextServiceContext } from "./audio-context-manager.js";
 
 export default class AudioContextOverlay extends BaseComponent {
-	constructor() {
-		super();
-		this.dom = {};
-		this._audioService = null;
-	}
+  getTemplateUrl() {
+    return new URL("./audio-context-overlay.html", import.meta.url).href;
+  }
 
-	getTemplateUrl() {
-		return new URL("./audio-context-overlay.html", import.meta.url).href;
-	}
+  getStyleUrl() {
+    return new URL("./audio-context-overlay.css", import.meta.url).href;
+  }
 
-	getStyleUrl() {
-		return new URL("./audio-context-overlay.css", import.meta.url).href;
-	}
+  onMount() {
+    const activateButton = querySelector(this, "[data-audio-overlay-activate]");
+    const errorEl = querySelector(this, "[data-audio-overlay-error]");
 
-	onMount() {
-		this.dom.activateButton = querySelector(
-			this,
-			"[data-audio-overlay-activate]",
-		);
-		this.dom.error = querySelector(this, "[data-audio-overlay-error]");
+    /** @type {import("./audio-context-manager.js").default|null} */
+    let audioService = null;
 
-		this.listen(this.dom.activateButton, "click", () => {
-			void this._ensureAudioContext();
-		});
+    const render = () => {
+      const hasContext = Boolean(audioService?.getContext?.());
+      this.dataset.ready = hasContext ? "true" : "false";
+      if (hasContext) {
+        errorEl.textContent = "";
+      }
+    };
 
-		this.consumeContext(AudioContextServiceContext, (service) => {
-			this._audioService = service;
-			this._syncFromService();
-		});
-	}
+    const ensureAudioContext = async () => {
+      if (!audioService) {
+        this.dataset.ready = "false";
+        errorEl.textContent = "Audio service is not ready yet.";
+        return;
+      }
 
-	async _ensureAudioContext() {
-		if (!this._audioService) return;
-		this.dom.error.textContent = "";
-		try {
-			await this._audioService.ensureContext();
-			this._syncFromService();
-		} catch {
-			this.dataset.ready = "false";
-			this.dom.error.textContent =
-				"Microphone access is required to continue.";
-		}
-	}
+      errorEl.textContent = "";
+      try {
+        await audioService.ensureContext();
+        render();
+      } catch {
+        this.dataset.ready = "false";
+        errorEl.textContent = "Microphone access is required to continue.";
+      }
+    };
 
-	_syncFromService() {
-		const hasContext = Boolean(this._audioService?.getContext?.());
-		this.dataset.ready = hasContext ? "true" : "false";
-		if (hasContext) {
-			this.dom.error.textContent = "";
-		}
-	}
+    this.listen(activateButton, "click", () => {
+      void ensureAudioContext();
+    });
+
+    this.consumeContext(AudioContextServiceContext, (service) => {
+      audioService = service;
+      render();
+    });
+
+    render();
+  }
 }
 
 if (!customElements.get("audio-context-overlay")) {
-	customElements.define("audio-context-overlay", AudioContextOverlay);
+  customElements.define("audio-context-overlay", AudioContextOverlay);
 }

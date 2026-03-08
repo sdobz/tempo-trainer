@@ -1,1 +1,36 @@
-The detector identifies "notes" - when the audio signal registers an instrument noise.
+The detector identifies when an instrument plays a note.
+
+## Current state
+
+There are two detectors
+- Threshold - when the audio volume exceeds a note
+- Adaptive - complex algorithm to detect notes
+
+Detector behavior is currently exposed through a manager that bridges detector internals and UI.
+
+## Desired state
+
+One detector has parameters to flexibly define any type of 
+
+- Notch filter: only look at a certain frequency range
+- Dynamic thresholding behavior
+- Instrument-specific tuning presets
+
+## Service role
+
+- Detector service consumes audio service output (mic stream, analyser/FFT).
+- It owns active detector configuration and runtime detection state.
+
+## Event role
+
+- Emits domain events for consumers:
+	- `hit`
+	- `level`
+	- `devices-changed`
+	- `patched`
+
+## Context role
+
+- Provided as a root context service.
+- Components consume detector service and update DOM from events.
+- Prefer event-driven subscriptions over delegates/callback references.
