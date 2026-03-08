@@ -65,11 +65,11 @@ export default class OnboardingPane extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/features/onboarding/onboarding-pane.html";
+    return new URL("./onboarding-pane.html", import.meta.url).href;
   }
 
   getStyleUrl() {
-    return "/src/features/onboarding/onboarding-pane.css";
+    return new URL("./onboarding-pane.css", import.meta.url).href;
   }
 
   async onMount() {

@@ -90,8 +90,22 @@ export default class BaseComponent extends HTMLElement {
   _resolveAssetUrl(rawUrl) {
     if (!rawUrl) return rawUrl;
 
+    const isAbsoluteUrl = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(rawUrl);
+
+    // In file:// test environments, module-relative URLs created via
+    // new URL('./x', import.meta.url) resolve to file:///.../src/... .
+    // Normalize these to /src/... so our fetch shim can map to workspace files.
+    if (isAbsoluteUrl && rawUrl.startsWith("file:")) {
+      const path = new URL(rawUrl).pathname;
+      const srcIndex = path.indexOf("/src/");
+      if (srcIndex >= 0) {
+        const srcRelativePath = path.slice(srcIndex + 1);
+        return new URL(srcRelativePath, document.baseURI).href;
+      }
+    }
+
     // Keep absolute URLs unchanged
-    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(rawUrl)) {
+    if (isAbsoluteUrl) {
       return rawUrl;
     }
 

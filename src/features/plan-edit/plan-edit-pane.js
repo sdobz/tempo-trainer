@@ -82,11 +82,11 @@ export default class PlanEditPane extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/features/plan-edit/plan-edit-pane.html";
+    return new URL("./plan-edit-pane.html", import.meta.url).href;
   }
 
   getStyleUrl() {
-    return "/src/features/plan-edit/plan-edit-pane.css";
+    return new URL("./plan-edit-pane.css", import.meta.url).href;
   }
 
   async onMount() {

@@ -34,11 +34,11 @@ export default class TimelineVisualization extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/features/plan-play/timeline-visualization.html";
+    return new URL("./timeline-visualization.html", import.meta.url).href;
   }
 
   getStyleUrl() {
-    return "/src/features/plan-play/timeline-visualization.css";
+    return new URL("./timeline-visualization.css", import.meta.url).href;
   }
 
   onMount() {

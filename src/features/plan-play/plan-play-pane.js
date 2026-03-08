@@ -74,11 +74,11 @@ export default class PlanPlayPane extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/features/plan-play/plan-play-pane.html";
+    return new URL("./plan-play-pane.html", import.meta.url).href;
   }
 
   getStyleUrl() {
-    return "/src/features/plan-play/plan-play-pane.css";
+    return new URL("./plan-play-pane.css", import.meta.url).href;
   }
 
   onMount() {

@@ -28,8 +28,8 @@ Deno.test("PlanVisualizer: should parse plan string correctly", async () => {
 Deno.test("PlanVisualizer: should have required template and style URLs", async () => {
   const component = new PlanVisualizer();
   await component.componentReady;
-  assertEquals(component.getTemplateUrl(), "/src/features/visualizers/plan-visualizer.html");
-  assertEquals(component.getStyleUrl(), "/src/features/visualizers/plan-visualizer.css");
+  assertEquals(component.getTemplateUrl(), new URL("./plan-visualizer.html", import.meta.url).href);
+  assertEquals(component.getStyleUrl(), new URL("./plan-visualizer.css", import.meta.url).href);
 });
 
 Deno.test("PlanVisualizer: should register as custom element", () => {

@@ -58,11 +58,11 @@ export default class CalibrationControl extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/features/calibration/calibration-control.html";
+    return new URL("./calibration-control.html", import.meta.url).href;
   }
 
   getStyleUrl() {
-    return "/src/features/calibration/calibration-control.css";
+    return new URL("./calibration-control.css", import.meta.url).href;
   }
 
   async onMount() {

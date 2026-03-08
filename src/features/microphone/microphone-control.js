@@ -44,11 +44,11 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/features/microphone/microphone-control.html";
+    return new URL("./microphone-control.html", import.meta.url).href;
   }
 
   getStyleUrl() {
-    return "/src/features/microphone/microphone-control.css";
+    return new URL("./microphone-control.css", import.meta.url).href;
   }
 
   async onMount() {

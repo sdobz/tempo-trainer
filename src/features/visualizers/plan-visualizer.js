@@ -41,11 +41,11 @@ export default class PlanVisualizer extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/features/visualizers/plan-visualizer.html";
+    return new URL("./plan-visualizer.html", import.meta.url).href;
   }
 
   getStyleUrl() {
-    return "/src/features/visualizers/plan-visualizer.css";
+    return new URL("./plan-visualizer.css", import.meta.url).href;
   }
 
   onMount() {

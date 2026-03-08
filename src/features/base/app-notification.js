@@ -21,11 +21,11 @@ export default class AppNotification extends BaseComponent {
   }
 
   getTemplateUrl() {
-    return "/src/features/base/app-notification.html";
+    return new URL("./app-notification.html", import.meta.url).href;
   }
 
   getStyleUrl() {
-    return "/src/features/base/app-notification.css";
+    return new URL("./app-notification.css", import.meta.url).href;
   }
 
   onMount() {
