@@ -10,7 +10,7 @@
 
 import BaseComponent from "../base/base-component.js";
 import { DetectorManagerContext } from "./detector-manager.js";
-import { bindEvent, querySelector } from "../base/component-utils.js";
+import { querySelector } from "../base/component-utils.js";
 
 /**
  * @typedef {Object} MicrophoneControlState
@@ -22,9 +22,6 @@ export default class MicrophoneControl extends BaseComponent {
     super();
     /** @type {MicrophoneControlState} */
     this.state = { isConfigured: false };
-
-    /** @type {Array<() => void>} */
-    this._cleanups = [];
 
     /** @type {number[]} — setTimeout IDs for hit dot removal */
     this._hitTimers = [];
@@ -86,8 +83,6 @@ export default class MicrophoneControl extends BaseComponent {
     // Cancel any pending hit-dot removal timers
     this._hitTimers.forEach((id) => clearTimeout(id));
     this._hitTimers = [];
-    this._cleanups.forEach((fn) => fn());
-    this._cleanups = [];
   }
 
   // ---------------------------------------------------------------------------
@@ -165,19 +160,17 @@ export default class MicrophoneControl extends BaseComponent {
   /** @private */
   _setupUIEventListeners(detectorManager) {
     // Sensitivity adjustment via pointer drag on the level bar
-    this._cleanups.push(
-      bindEvent(this.level, "pointerdown", (e) =>
-        this._onSensitivityPointerDown(e, detectorManager),
-      ),
-      bindEvent(this.level, "pointermove", (e) =>
-        this._onSensitivityPointerMove(e, detectorManager),
-      ),
-      bindEvent(window, "pointerup", () => {
-        this._isAdjustingSensitivity = false;
-      }),
-      bindEvent(this.select, "change", () =>
-        this._onDeviceSelected(detectorManager),
-      ),
+    this.listen(this.level, "pointerdown", (e) =>
+      this._onSensitivityPointerDown(e, detectorManager),
+    );
+    this.listen(this.level, "pointermove", (e) =>
+      this._onSensitivityPointerMove(e, detectorManager),
+    );
+    this.listen(window, "pointerup", () => {
+      this._isAdjustingSensitivity = false;
+    });
+    this.listen(this.select, "change", () =>
+      this._onDeviceSelected(detectorManager),
     );
   }
 

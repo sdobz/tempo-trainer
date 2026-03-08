@@ -51,7 +51,7 @@ export default class PlanHistoryPane extends BaseComponent {
     };
 
     /** @type {Array<() => void>} */
-    this._cleanups = [];
+    this._historyItemCleanups = [];
 
     // DOM element references (set in onMount)
     this.historyList = null;
@@ -75,8 +75,8 @@ export default class PlanHistoryPane extends BaseComponent {
   }
 
   onUnmount() {
-    this._cleanups.forEach((cleanup) => cleanup());
-    this._cleanups = [];
+    this._historyItemCleanups.forEach((cleanup) => cleanup());
+    this._historyItemCleanups = [];
   }
 
   // --- Public Methods ---
@@ -129,8 +129,8 @@ export default class PlanHistoryPane extends BaseComponent {
    */
   _setupEventListeners() {
     // Clear old listeners
-    this._cleanups.forEach((cleanup) => cleanup());
-    this._cleanups = [];
+    this._historyItemCleanups.forEach((cleanup) => cleanup());
+    this._historyItemCleanups = [];
 
     if (!this.historyList) return;
 
@@ -139,7 +139,7 @@ export default class PlanHistoryPane extends BaseComponent {
       .querySelectorAll(".history-session-header")
       .forEach((header) => {
         const headerEl = /** @type {HTMLElement} */ (header);
-        this._cleanups.push(
+        this._historyItemCleanups.push(
           bindEvent(headerEl, "click", () => {
             const sessionId = headerEl.dataset.sessionId || "";
             this._toggleSessionExpanded(sessionId);
@@ -150,7 +150,7 @@ export default class PlanHistoryPane extends BaseComponent {
     // Retry button clicks
     this.historyList.querySelectorAll(".retry-session-btn").forEach((btn) => {
       const btnEl = /** @type {HTMLElement} */ (btn);
-      this._cleanups.push(
+      this._historyItemCleanups.push(
         bindEvent(btnEl, "click", (e) => {
           e.stopPropagation();
           const sessionId = btnEl.dataset.sessionId;
@@ -164,7 +164,7 @@ export default class PlanHistoryPane extends BaseComponent {
 
     // Select plan button clicks
     this.historyList.querySelectorAll(".select-plan-btn").forEach((btn) => {
-      this._cleanups.push(
+      this._historyItemCleanups.push(
         bindEvent(btn, "click", (e) => {
           e.stopPropagation();
           dispatchEvent(this, "navigate", { pane: "plan-edit" });
@@ -175,7 +175,7 @@ export default class PlanHistoryPane extends BaseComponent {
     // Delete session button clicks
     this.historyList.querySelectorAll(".delete-session-btn").forEach((btn) => {
       const btnEl = /** @type {HTMLElement} */ (btn);
-      this._cleanups.push(
+      this._historyItemCleanups.push(
         bindEvent(btnEl, "click", (e) => {
           e.stopPropagation();
           const sessionId = btnEl.dataset.sessionId;

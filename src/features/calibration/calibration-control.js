@@ -7,7 +7,6 @@
 
 import BaseComponent from "../base/base-component.js";
 import {
-  bindEvent,
   dispatchEvent,
   querySelector,
 } from "../base/component-utils.js";
@@ -40,9 +39,6 @@ export default class CalibrationControl extends BaseComponent {
 
     /** @type {CalibrationDetector|null} */
     this.calibration = null;
-
-    /** @type {Array<() => void>} */
-    this._cleanups = [];
 
     // UI element references
     this.statusIndicator = null;
@@ -84,14 +80,12 @@ export default class CalibrationControl extends BaseComponent {
     this.offsetIncBtn = querySelector(this, "[data-offset-inc]");
 
     // Setup button click handler
-    this._cleanups.push(
-      bindEvent(this.button, "click", (event) =>
-        this._onCalibrationButtonClick(event),
-      ),
-      bindEvent(this.offsetInput, "change", () => this._applyOffsetInput()),
-      bindEvent(this.offsetIncBtn, "click", () => this._nudgeOffset(1)),
-      bindEvent(this.offsetDecBtn, "click", () => this._nudgeOffset(-1)),
+    this.listen(this.button, "click", (event) =>
+      this._onCalibrationButtonClick(event),
     );
+    this.listen(this.offsetInput, "change", () => this._applyOffsetInput());
+    this.listen(this.offsetIncBtn, "click", () => this._nudgeOffset(1));
+    this.listen(this.offsetDecBtn, "click", () => this._nudgeOffset(-1));
 
     // Create domain instance with injected dependencies
     // - StorageManager: stateless utility, safe to reference directly
@@ -160,9 +154,6 @@ export default class CalibrationControl extends BaseComponent {
       this.calibration.stop("Component unmounted");
       this.calibration = null;
     }
-
-    this._cleanups.forEach((cleanup) => cleanup());
-    this._cleanups = [];
   }
 
   /**

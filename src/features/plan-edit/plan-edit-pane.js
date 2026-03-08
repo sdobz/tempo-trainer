@@ -40,7 +40,7 @@ export default class PlanEditPane extends BaseComponent {
     };
 
     /** @type {Array<() => void>} */
-    this._cleanups = [];
+    this._segmentEditorCleanups = [];
 
     // Injected dependencies (set externally)
     this.planLibrary = null;
@@ -132,38 +132,20 @@ export default class PlanEditPane extends BaseComponent {
     });
 
     // Bind event listeners
-    this._cleanups.push(
-      bindEvent(this.planLibrarySelect, "change", () => this._onPlanSelected()),
-    );
-    this._cleanups.push(
-      bindEvent(this.newPlanBtn, "click", () => this._onNewPlan()),
-    );
-    this._cleanups.push(
-      bindEvent(this.editPlanBtn, "click", () => this._onEditPlan()),
-    );
-    this._cleanups.push(
-      bindEvent(this.clonePlanBtn, "click", () => this._onClonePlan()),
-    );
-    this._cleanups.push(
-      bindEvent(this.savePlanBtn, "click", () => this._onSavePlan()),
-    );
-    this._cleanups.push(
-      bindEvent(this.cancelEditBtn, "click", () => this._onCancelEdit()),
-    );
-    this._cleanups.push(
-      bindEvent(this.deletePlanBtn, "click", () => this._onDeletePlan()),
-    );
-    this._cleanups.push(
-      bindEvent(this.addSegmentBtn, "click", () => this._onAddSegment()),
-    );
-    this._cleanups.push(
-      bindEvent(this.startPlanPlayBtn, "click", () => this._onStartTraining()),
-    );
+    this.listen(this.planLibrarySelect, "change", () => this._onPlanSelected());
+    this.listen(this.newPlanBtn, "click", () => this._onNewPlan());
+    this.listen(this.editPlanBtn, "click", () => this._onEditPlan());
+    this.listen(this.clonePlanBtn, "click", () => this._onClonePlan());
+    this.listen(this.savePlanBtn, "click", () => this._onSavePlan());
+    this.listen(this.cancelEditBtn, "click", () => this._onCancelEdit());
+    this.listen(this.deletePlanBtn, "click", () => this._onDeletePlan());
+    this.listen(this.addSegmentBtn, "click", () => this._onAddSegment());
+    this.listen(this.startPlanPlayBtn, "click", () => this._onStartTraining());
   }
 
   onUnmount() {
-    this._cleanups.forEach((cleanup) => cleanup());
-    this._cleanups = [];
+    this._segmentEditorCleanups.forEach((cleanup) => cleanup());
+    this._segmentEditorCleanups = [];
   }
 
   /**
@@ -471,6 +453,9 @@ export default class PlanEditPane extends BaseComponent {
    * Render the segments list
    */
   _renderSegmentsList() {
+    this._segmentEditorCleanups.forEach((cleanup) => cleanup());
+    this._segmentEditorCleanups = [];
+
     this.segmentsList.innerHTML = "";
 
     this.editingSegments.forEach((segment, index) => {
@@ -509,11 +494,11 @@ export default class PlanEditPane extends BaseComponent {
         this._updateEditorVisualization();
       };
 
-      this._cleanups.push(bindEvent(onInput, "change", updateSegment));
-      this._cleanups.push(bindEvent(offInput, "change", updateSegment));
-      this._cleanups.push(bindEvent(repsInput, "change", updateSegment));
+      this._segmentEditorCleanups.push(bindEvent(onInput, "change", updateSegment));
+      this._segmentEditorCleanups.push(bindEvent(offInput, "change", updateSegment));
+      this._segmentEditorCleanups.push(bindEvent(repsInput, "change", updateSegment));
 
-      this._cleanups.push(
+      this._segmentEditorCleanups.push(
         bindEvent(deleteBtn, "click", () => {
           this.editingSegments.splice(index, 1);
           this._renderSegmentsList();

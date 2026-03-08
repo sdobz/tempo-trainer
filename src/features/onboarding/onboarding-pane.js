@@ -11,7 +11,6 @@ import {
   DETECTOR_TYPES,
 } from "../microphone/detector-params.js";
 import {
-  bindEvent,
   dispatchEvent,
   querySelector,
 } from "../base/component-utils.js";
@@ -39,9 +38,6 @@ export default class OnboardingPane extends BaseComponent {
     super();
     /** @type {OnboardingState} */
     this.state = { isReady: false, micConfigured: false, calibrated: false };
-
-    /** @type {Array<() => void>} */
-    this._cleanups = [];
 
     // Element references (set in onMount)
     this.completeBtn = null;
@@ -95,38 +91,25 @@ export default class OnboardingPane extends BaseComponent {
 
     // Bind detector selection change
     if (this.detectorSelect) {
-      this._cleanups.push(
-        bindEvent(this.detectorSelect, "change", (e) =>
-          this._onDetectorChange(e),
-        ),
+      this.listen(this.detectorSelect, "change", (e) =>
+        this._onDetectorChange(e),
       );
     }
 
     if (this.microphoneControl?.level) {
-      this._cleanups.push(
-        bindEvent(this.microphoneControl.level, "pointerup", () => {
-          this.refreshSetupStatus();
-        }),
-      );
+      this.listen(this.microphoneControl.level, "pointerup", () => {
+        this.refreshSetupStatus();
+      });
     }
 
-    this._cleanups.push(
-      bindEvent(this, "calibration-complete", () => this.refreshSetupStatus()),
-      bindEvent(this, "calibration-start-request", () =>
-        this.refreshSetupStatus(),
-      ),
+    this.listen(this, "calibration-complete", () => this.refreshSetupStatus());
+    this.listen(this, "calibration-start-request", () =>
+      this.refreshSetupStatus(),
     );
 
-    this._cleanups.push(
-      bindEvent(this.completeBtn, "click", () => this._onComplete()),
-    );
+    this.listen(this.completeBtn, "click", () => this._onComplete());
 
     this.refreshSetupStatus();
-  }
-
-  onUnmount() {
-    this._cleanups.forEach((fn) => fn());
-    this._cleanups = [];
   }
 
   /** @returns {boolean} */

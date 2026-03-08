@@ -6,7 +6,6 @@
 
 import BaseComponent from "../base/base-component.js";
 import {
-  bindEvent,
   dispatchEvent,
   querySelector,
 } from "../base/component-utils.js";
@@ -45,7 +44,7 @@ export default class PlanPlayPane extends BaseComponent {
     };
 
     /** @type {Array<() => void>} */
-    this._cleanups = [];
+    this._subscriptionCleanups = [];
 
     // Subscribable playback state — provided to descendant visualizers via PlaybackContext
     this._playbackState = new PlaybackState();
@@ -103,7 +102,7 @@ export default class PlanPlayPane extends BaseComponent {
     this.provideContext(PlaybackContext, () => this._playbackState);
 
     // Subscribe to playbackState for own DOM rendering
-    this._cleanups.push(
+    this._subscriptionCleanups.push(
       this._playbackState.subscribe((state) => {
         // Beat indicator
         if (state.beat) {
@@ -138,7 +137,7 @@ export default class PlanPlayPane extends BaseComponent {
       this._sessionState = ss;
       // Initialise from current session state
       this.setBPM(ss.bpm);
-      this._cleanups.push(
+      this._subscriptionCleanups.push(
         ss.subscribe({
           onBPMChange: (bpm) => this.setBPM(bpm),
         }),
@@ -146,41 +145,31 @@ export default class PlanPlayPane extends BaseComponent {
     });
 
     // BPM / time-signature input listeners — update SessionState so all consumers see the change
-    this._cleanups.push(
-      bindEvent(this.bpmInput, "input", () => {
-        const bpm = parseInt(this.bpmInput.value, 10);
-        if (!isNaN(bpm) && this._sessionState) this._sessionState.setBPM(bpm);
-      }),
-    );
-    this._cleanups.push(
-      bindEvent(this.timeSignatureSelect, "change", () => {
-        const beatsPerMeasure = parseInt(
-          this.timeSignatureSelect.value.split("/")[0],
-          10,
-        );
-        if (!isNaN(beatsPerMeasure) && this._sessionState)
-          this._sessionState.setBeatsPerMeasure(beatsPerMeasure);
-      }),
-    );
+    this.listen(this.bpmInput, "input", () => {
+      const bpm = parseInt(this.bpmInput.value, 10);
+      if (!isNaN(bpm) && this._sessionState) this._sessionState.setBPM(bpm);
+    });
+    this.listen(this.timeSignatureSelect, "change", () => {
+      const beatsPerMeasure = parseInt(
+        this.timeSignatureSelect.value.split("/")[0],
+        10,
+      );
+      if (!isNaN(beatsPerMeasure) && this._sessionState)
+        this._sessionState.setBeatsPerMeasure(beatsPerMeasure);
+    });
 
     // Bind event listeners
-    this._cleanups.push(
-      bindEvent(this.startBtn, "click", () => this._onStart()),
-    );
-    this._cleanups.push(bindEvent(this.stopBtn, "click", () => this._onStop()));
-    this._cleanups.push(
-      bindEvent(this.viewResultsBtn, "click", () => this._onViewResults()),
-    );
-    this._cleanups.push(
-      bindEvent(this.calibrationWarning, "notification-action", () =>
-        this._onCalibrationWarningAction(),
-      ),
+    this.listen(this.startBtn, "click", () => this._onStart());
+    this.listen(this.stopBtn, "click", () => this._onStop());
+    this.listen(this.viewResultsBtn, "click", () => this._onViewResults());
+    this.listen(this.calibrationWarning, "notification-action", () =>
+      this._onCalibrationWarningAction(),
     );
   }
 
   onUnmount() {
-    this._cleanups.forEach((cleanup) => cleanup());
-    this._cleanups = [];
+    this._subscriptionCleanups.forEach((cleanup) => cleanup());
+    this._subscriptionCleanups = [];
   }
 
   // --- Public Methods ---

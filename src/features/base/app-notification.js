@@ -1,11 +1,10 @@
 import BaseComponent from "./base-component.js";
-import { bindEvent, dispatchEvent, querySelector } from "./component-utils.js";
+import { dispatchEvent, querySelector } from "./component-utils.js";
 
 export default class AppNotification extends BaseComponent {
   constructor() {
     super();
 
-    this._cleanups = [];
     this._actionDetail = null;
     this._isVisible = false;
     this._pendingConfig = {
@@ -33,20 +32,13 @@ export default class AppNotification extends BaseComponent {
     this.messageEl = querySelector(this, "[data-notification-message]");
     this.actionBtn = querySelector(this, "[data-notification-action-btn]");
 
-    this._cleanups.push(
-      bindEvent(this.actionBtn, "click", () => this._onAction()),
-    );
+    this.listen(this.actionBtn, "click", () => this._onAction());
 
     if (this._isVisible) {
       this._applyShow(this._pendingConfig);
     } else {
       this._applyHide();
     }
-  }
-
-  onUnmount() {
-    this._cleanups.forEach((cleanup) => cleanup());
-    this._cleanups = [];
   }
 
   show(
