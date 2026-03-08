@@ -9,12 +9,12 @@ import {
   deserializeParams,
   normalizeDetectorParams,
 } from "./detector-params.js";
-import { createContext } from "../base/context.js";
+import { createContext } from "../component/context.js";
 
 /**
  * Context token.  Provided at document root by script.js;
  * consumed by microphone-control and onboarding-pane.
- * @type {import('../base/context.js').Context<DetectorManager|null>}
+ * @type {import('../component/context.js').Context<DetectorManager|null>}
  */
 export const DetectorManagerContext = createContext("detector-manager", null);
 
@@ -33,7 +33,7 @@ export const DetectorManagerContext = createContext("detector-manager", null);
  *   Services.register("detectorManager", new DetectorManager(StorageManager));
  *
  * AudioContext is injected lazily (browser requires user gesture):
- *   audioContextManager.setContextForComponents(metronome, detectorManager, calibration);
+ *   detectorManager.audioContext = audioContextService.getContext();
  *
  * Named detector configs (for future multi-instrument support):
  *   manager.setActiveDetector({ id: "snare", type: "adaptive", sensitivity: 0.7 });
@@ -87,7 +87,7 @@ class DetectorManager {
   // ---------------------------------------------------------------------------
 
   /**
-   * Setter for AudioContext injection (matches AudioContextManager.setContextForComponents).
+  * Setter for AudioContext injection from the shared audio context service.
    * Creates the AudioInputSource and initial detector on first injection.
    * @param {AudioContext} ctx
    */

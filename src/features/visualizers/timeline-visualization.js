@@ -4,8 +4,8 @@
  * Provides beat-by-beat visualization with scrolling display.
  */
 
-import BaseComponent from "../base/base-component.js";
-import { querySelector } from "../base/component-utils.js";
+import BaseComponent from "../component/base-component.js";
+import { querySelector } from "../component/component-utils.js";
 import { SessionStateContext } from "../base/session-state.js";
 
 /** @typedef {{ type: string }} Measure */

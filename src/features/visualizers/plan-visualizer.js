@@ -5,8 +5,8 @@
  * handle navigation events via a delegate.
  */
 
-import BaseComponent from "../base/base-component.js";
-import { querySelector } from "../base/component-utils.js";
+import BaseComponent from "../component/base-component.js";
+import { querySelector } from "../component/component-utils.js";
 import { PlaybackContext } from "../plan-play/playback-state.js";
 import { SessionStateContext } from "../base/session-state.js";
 

@@ -4,8 +4,8 @@
  * Provides beat-by-beat visualization with scrolling display.
  */
 
-import BaseComponent from "../base/base-component.js";
-import { querySelector } from "../base/component-utils.js";
+import BaseComponent from "../component/base-component.js";
+import { querySelector } from "../component/component-utils.js";
 
 /** @typedef {{ type: string }} Measure */
 
@@ -84,7 +84,8 @@ export default class TimelineVisualization extends BaseComponent {
       return;
     }
 
-    const totalBeats = this.drillPlan.length * this.beatsPerMeasure + this.tailBeats;
+    const totalBeats =
+      this.drillPlan.length * this.beatsPerMeasure + this.tailBeats;
     const contentWidth = totalBeats * this.pxPerBeat;
     const paddingWidth = viewportWidth;
     const totalWidth = paddingWidth + contentWidth + paddingWidth;

@@ -1,5 +1,5 @@
-import BaseComponent from "./base-component.js";
-import { dispatchEvent, querySelector } from "./component-utils.js";
+import BaseComponent from "../component/base-component.js";
+import { dispatchEvent, querySelector } from "../component/component-utils.js";
 
 export default class AppNotification extends BaseComponent {
   constructor() {
@@ -41,9 +41,12 @@ export default class AppNotification extends BaseComponent {
     }
   }
 
-  show(
-    { type = "info", message = "", actionLabel = "", actionDetail = null } = {},
-  ) {
+  show({
+    type = "info",
+    message = "",
+    actionLabel = "",
+    actionDetail = null,
+  } = {}) {
     this._isVisible = true;
     this._pendingConfig = { type, message, actionLabel, actionDetail };
     if (!this.root) return;

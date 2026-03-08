@@ -1,0 +1,23 @@
+<template>
+  <div class="audio-context-overlay__content">
+    <slot></slot>
+  </div>
+
+  <div class="audio-context-overlay__gate" data-audio-overlay-gate>
+    <div class="audio-context-overlay__card">
+      <div class="audio-context-overlay__icon" aria-hidden="true">🎤</div>
+      <h2 class="audio-context-overlay__title">Microphone access required</h2>
+      <p class="audio-context-overlay__text">
+        We need mic to perform note detection.
+      </p>
+      <button
+        class="audio-context-overlay__button"
+        type="button"
+        data-audio-overlay-activate
+      >
+        Enable microphone
+      </button>
+      <p class="audio-context-overlay__error" data-audio-overlay-error></p>
+    </div>
+  </div>
+</template>

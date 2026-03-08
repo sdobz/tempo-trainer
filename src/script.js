@@ -1,29 +1,36 @@
 // --- ESM Module Imports ---
 import StorageManager from "./features/base/storage-manager.js";
-import SessionState, {
-  SessionStateContext,
-} from "./features/base/session-state.js";
+import SessionState from "./features/base/session-state.js";
 import DetectorManager from "./features/microphone/detector-manager.js";
-import { DetectorManagerContext } from "./features/microphone/detector-manager.js";
 import Metronome from "./features/plan-play/metronome.js";
 import Scorer from "./features/plan-play/scorer.js";
 import PlanLibrary from "./features/plan-edit/plan-library.js";
 import PaneManager from "./features/base/pane-manager.js";
-import AudioContextManager from "./features/base/audio-context-manager.js";
 import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
 import "./features/plan-edit/plan-edit-pane.js";
 import "./features/plan-play/plan-play-pane.js";
 import "./features/plan-history/plan-history-pane.js";
 import PracticeSessionManager from "./features/plan-history/practice-session-manager.js";
 import "./features/onboarding/onboarding-pane.js";
-import { getAllElements } from "./features/base/dom-utils.js";
+import "./features/audio/audio-context-overlay.js";
+import { getAllElements } from "./features/component/dom-utils.js";
+
+import MainComponent from "./features/main/main.js";
 
 /** @typedef {import("./features/plan-edit/plan-edit-pane.js").default} PlanEditPane */
 /** @typedef {import("./features/plan-play/plan-play-pane.js").default} PlanPlayPane */
 /** @typedef {import("./features/plan-history/plan-history-pane.js").default} PlanHistoryPane */
 /** @typedef {import("./features/onboarding/onboarding-pane.js").default} OnboardingPane */
+/** @typedef {import("./features/main/main.js").default} TempoTrainerMain */
 
 document.addEventListener("DOMContentLoaded", () => {
+  const mainRoot = /** @type {TempoTrainerMain|null} */ (
+    document.querySelector("tempo-trainer-main")
+  );
+  if (!mainRoot || !(mainRoot instanceof MainComponent)) {
+    throw new Error("tempo-trainer-main root component not found");
+  }
+
   // --- DOM Elements ---
   const onboardingPane = /** @type {OnboardingPane} */ (
     document.querySelector("onboarding-pane")
@@ -48,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   const scorer = new Scorer(4, 0.5); // Will be configured when session starts
   const practiceSessionManager = new PracticeSessionManager();
-  const audioContextManager = new AudioContextManager();
+  const audioContextService = mainRoot.audioContextService;
   const paneManager = new PaneManager();
   const sessionState = new SessionState(); // owns BPM, beatsPerMeasure, drill plan
 
@@ -58,28 +65,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const detectorManager = new DetectorManager(StorageManager);
   detectorManager.setSessionBpm(sessionState.bpm);
 
-  // Provide SessionStateContext and DetectorManagerContext at document root.
-  // Synchronous registration; runs before any component's async onMount().
-  document.documentElement.addEventListener("context-request", (event) => {
-    if (event.context === SessionStateContext) {
-      event.stopPropagation();
-      event.callback(sessionState);
-    } else if (event.context === DetectorManagerContext) {
-      event.stopPropagation();
-      event.callback(detectorManager);
-    }
-  });
+  let calibration;
 
-  // Register audioContextManager once. Wire it to dependent objects when the
-  // AudioContext is first created — one call site instead of three.
-  audioContextManager.onContextCreated((ctx) => {
+  // Provide shared services from the root component context.
+  mainRoot.setServices({ sessionState, detectorManager });
+
+  const syncAudioDependents = () => {
+    const ctx = audioContextService.getContext();
+    if (!ctx) return;
     metronome.audioContext = ctx;
     calibrationMetronome.audioContext = ctx;
     detectorManager.audioContext = ctx;
-  });
+    if (calibration) {
+      calibration.audioContext = ctx;
+    }
+  };
+
+  audioContextService.addEventListener("ready", syncAudioDependents);
+  syncAudioDependents();
 
   // Wait for components to be ready
-  let calibration;
   let timeline; // Direct ref for imperative playback: centerAt, addDetection, clearDetections
   let calibrationTimeline;
   let drillSessionManager; // Will be initialized after all components ready
@@ -97,12 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Get calibration instance from calibration-control sub-component
     if (onboardingPane.calibrationControl) {
       calibration = onboardingPane.calibration;
-
-      // AudioContext must reach calibration once created.
-      // Done here (after onboardingReady) so the reference is valid.
-      audioContextManager.onContextCreated((ctx) => {
-        calibration.audioContext = ctx;
-      });
+      syncAudioDependents();
     }
 
     const timelineEl = resolveCalibrationTimeline();
@@ -213,7 +213,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     playPreviewActivationInFlight = true;
     try {
-      await audioContextManager.ensureContext();
+      await audioContextService.ensureContext();
+      syncAudioDependents();
       if (!detectorManager.isRunning) {
         await detectorManager.start();
       }
@@ -253,7 +254,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (calibration && calibration.isCalibrating) return;
 
       try {
-        await audioContextManager.ensureContext();
+        await audioContextService.ensureContext();
+        syncAudioDependents();
 
         if (!detectorManager.isRunning) {
           await detectorManager.start();
@@ -304,7 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pane === "plan-play") {
       timeline.centerAt(0);
 
-      if (audioContextManager.getContext()) {
+      if (audioContextService.getContext()) {
         if (!detectorManager.isRunning) {
           try {
             await detectorManager.start();
@@ -327,7 +329,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Ensure AudioContext exists for microphone access
       try {
-        await audioContextManager.ensureContext();
+        await audioContextService.ensureContext();
+        syncAudioDependents();
       } catch (e) {
         console.error("Web Audio API not available:", e);
       }
@@ -488,7 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function calibrationTimelineLoop() {
     if (!calibrationTimelineActive) return;
 
-    const audioContext = audioContextManager.getContext();
+    const audioContext = audioContextService.getContext();
     const activeCalibrationTimeline = resolveCalibrationTimeline();
     if (audioContext && activeCalibrationTimeline) {
       const beatPosition = getCalibrationBeatPositionFromAudioTime(
@@ -505,7 +508,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const activeCalibrationTimeline = resolveCalibrationTimeline();
     if (!activeCalibrationTimeline || calibrationTimelineActive) return;
 
-    const audioContext = audioContextManager.getContext();
+    const audioContext = audioContextService.getContext();
     calibrationTimelineRunStartAudioTime = audioContext?.currentTime ?? 0;
     calibrationTimelineWindowStartMeasure = 0;
     calibrationTimelineActive = true;
@@ -591,7 +594,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // defined at this point (constructed above), eliminating the late-binding hazard.
     planPlayPane.addEventListener("session-start", async () => {
       try {
-        const audioContext = await audioContextManager.ensureContext();
+        const audioContext = await audioContextService.ensureContext();
+        syncAudioDependents();
         scorer.reset();
         await drillSessionManager.startSession(audioContext);
         planPlayPane.playbackState.update({ isPlaying: true });
@@ -700,7 +704,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Animation frame for timeline scrolling during playback
   function updateTimelineScroll() {
-    const audioContext = audioContextManager.getContext();
+    const audioContext = audioContextService.getContext();
     if (drillSessionManager && audioContext) {
       drillSessionManager.updateTimelineScroll(audioContext);
     }

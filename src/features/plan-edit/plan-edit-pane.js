@@ -4,12 +4,12 @@
  * @module plan-edit-pane
  */
 
-import BaseComponent from "../base/base-component.js";
+import BaseComponent from "../component/base-component.js";
 import {
   bindEvent,
   dispatchEvent,
   querySelector,
-} from "../base/component-utils.js";
+} from "../component/component-utils.js";
 import { SessionStateContext } from "../base/session-state.js";
 import "../visualizers/plan-visualizer.js";
 
@@ -494,9 +494,15 @@ export default class PlanEditPane extends BaseComponent {
         this._updateEditorVisualization();
       };
 
-      this._segmentEditorCleanups.push(bindEvent(onInput, "change", updateSegment));
-      this._segmentEditorCleanups.push(bindEvent(offInput, "change", updateSegment));
-      this._segmentEditorCleanups.push(bindEvent(repsInput, "change", updateSegment));
+      this._segmentEditorCleanups.push(
+        bindEvent(onInput, "change", updateSegment),
+      );
+      this._segmentEditorCleanups.push(
+        bindEvent(offInput, "change", updateSegment),
+      );
+      this._segmentEditorCleanups.push(
+        bindEvent(repsInput, "change", updateSegment),
+      );
 
       this._segmentEditorCleanups.push(
         bindEvent(deleteBtn, "click", () => {

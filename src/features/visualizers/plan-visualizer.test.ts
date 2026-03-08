@@ -1,6 +1,9 @@
 /// <reference lib="dom" />
-import { assertEquals, assertExists } from "https://deno.land/std@0.210.0/assert/mod.ts";
-import "../base/setup-dom.ts";
+import {
+  assertEquals,
+  assertExists,
+} from "https://deno.land/std@0.210.0/assert/mod.ts";
+import "../component/setup-dom.ts";
 import PlanVisualizer from "./plan-visualizer.js";
 
 Deno.test("PlanVisualizer: should initialize with default state", async () => {
@@ -25,12 +28,21 @@ Deno.test("PlanVisualizer: should parse plan string correctly", async () => {
   assertEquals(plan[4].type, "silent");
 });
 
-Deno.test("PlanVisualizer: should have required template and style URLs", async () => {
-  const component = new PlanVisualizer();
-  await component.componentReady;
-  assertEquals(component.getTemplateUrl(), new URL("./plan-visualizer.html", import.meta.url).href);
-  assertEquals(component.getStyleUrl(), new URL("./plan-visualizer.css", import.meta.url).href);
-});
+Deno.test(
+  "PlanVisualizer: should have required template and style URLs",
+  async () => {
+    const component = new PlanVisualizer();
+    await component.componentReady;
+    assertEquals(
+      component.getTemplateUrl(),
+      new URL("./plan-visualizer.html", import.meta.url).href,
+    );
+    assertEquals(
+      component.getStyleUrl(),
+      new URL("./plan-visualizer.css", import.meta.url).href,
+    );
+  },
+);
 
 Deno.test("PlanVisualizer: should register as custom element", () => {
   assertExists(customElements.get("plan-visualizer"));

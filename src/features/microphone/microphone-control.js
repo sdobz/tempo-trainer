@@ -8,9 +8,9 @@
  * The component multiplies by 100 for CSS percentage positioning.
  */
 
-import BaseComponent from "../base/base-component.js";
+import BaseComponent from "../component/base-component.js";
 import { DetectorManagerContext } from "./detector-manager.js";
-import { querySelector } from "../base/component-utils.js";
+import { querySelector } from "../component/component-utils.js";
 
 /**
  * @typedef {Object} MicrophoneControlState

@@ -1,9 +1,20 @@
+import { createContext } from "../component/context.js";
+
 /**
- * AudioContextManager manages the Web Audio API AudioContext lifecycle.
- * Handles lazy initialization, user gesture requirements, and component injection.
+ * @type {import('../component/context.js').Context<AudioContextManager|null>}
  */
-class AudioContextManager {
+export const AudioContextServiceContext = createContext(
+  "audio-context-service",
+  null,
+);
+
+/**
+ * AudioContextManager manages the shared Web Audio API AudioContext lifecycle.
+ * Emits a "ready" event once the context is first created.
+ */
+class AudioContextManager extends EventTarget {
   constructor() {
+    super();
     /** @type {AudioContext|null} */
     this.audioContext = null;
   }
@@ -37,13 +48,9 @@ class AudioContextManager {
       }
 
       this.audioContext = new AudioContextClass();
-      // Fire one-time onContextCreated listeners
-      if (this._contextCreatedCallbacks) {
-        for (const cb of this._contextCreatedCallbacks) {
-          cb(this.audioContext);
-        }
-        this._contextCreatedCallbacks = [];
-      }
+      this.dispatchEvent(
+        new CustomEvent("ready", { detail: { context: this.audioContext } }),
+      );
       return this.audioContext;
     } catch (e) {
       console.error("Failed to create AudioContext:", e);
@@ -57,47 +64,6 @@ class AudioContextManager {
    */
   getContext() {
     return this.audioContext;
-  }
-
-  /**
-   * Injects the AudioContext into audio-dependent components.
-   * @param {Object} metronome - Metronome instance
-   * @param {Object} [micDetector] - MicrophoneDetector instance (optional)
-   * @param {Object} [calibration] - CalibrationDetector instance (optional)
-   */
-  setContextForComponents(metronome, micDetector, calibration) {
-    if (!this.audioContext) {
-      console.warn("AudioContext not yet created. Call ensureContext() first.");
-      return;
-    }
-
-    metronome.audioContext = this.audioContext;
-
-    if (micDetector) {
-      micDetector.audioContext = this.audioContext;
-    }
-
-    if (calibration) {
-      calibration.audioContext = this.audioContext;
-    }
-  }
-
-  /**
-   * Register a callback that fires once when the AudioContext is first created.
-   * If the context already exists the callback is invoked immediately.
-   * Use this instead of calling setContextForComponents() in multiple places.
-   *
-   * @param {(ctx: AudioContext) => void} callback
-   */
-  onContextCreated(callback) {
-    if (this.audioContext) {
-      callback(this.audioContext);
-      return;
-    }
-    if (!this._contextCreatedCallbacks) {
-      this._contextCreatedCallbacks = [];
-    }
-    this._contextCreatedCallbacks.push(callback);
   }
 
   /**

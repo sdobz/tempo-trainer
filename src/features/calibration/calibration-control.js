@@ -5,11 +5,8 @@
  * Provides a complete calibration experience with status display.
  */
 
-import BaseComponent from "../base/base-component.js";
-import {
-  dispatchEvent,
-  querySelector,
-} from "../base/component-utils.js";
+import BaseComponent from "../component/base-component.js";
+import { dispatchEvent, querySelector } from "../component/component-utils.js";
 import CalibrationDetector from "./calibration-detector.js";
 import StorageManager from "../base/storage-manager.js";
 import "../visualizers/timeline-visualization.js";

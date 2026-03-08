@@ -1,0 +1,1 @@
+The detector identifies "notes" - when the audio signal registers an instrument noise.

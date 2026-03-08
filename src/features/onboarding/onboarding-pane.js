@@ -3,17 +3,14 @@
  * Coordinates detector selection, microphone setup, calibration, and completion.
  */
 
-import BaseComponent from "../base/base-component.js";
+import BaseComponent from "../component/base-component.js";
 import { DetectorManagerContext } from "../microphone/detector-manager.js";
 import {
   DEFAULT_ADAPTIVE_PARAMS,
   DEFAULT_THRESHOLD_PARAMS,
   DETECTOR_TYPES,
 } from "../microphone/detector-params.js";
-import {
-  dispatchEvent,
-  querySelector,
-} from "../base/component-utils.js";
+import { dispatchEvent, querySelector } from "../component/component-utils.js";
 import "../microphone/microphone-control.js";
 import "../calibration/calibration-control.js";
 import "../visualizers/timeline-visualization.js";

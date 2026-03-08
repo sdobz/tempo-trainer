@@ -4,11 +4,8 @@
  * @module plan-play-pane
  */
 
-import BaseComponent from "../base/base-component.js";
-import {
-  dispatchEvent,
-  querySelector,
-} from "../base/component-utils.js";
+import BaseComponent from "../component/base-component.js";
+import { dispatchEvent, querySelector } from "../component/component-utils.js";
 import { PlaybackState, PlaybackContext } from "./playback-state.js";
 import { SessionStateContext } from "../base/session-state.js";
 import "../visualizers/timeline-visualization.js";

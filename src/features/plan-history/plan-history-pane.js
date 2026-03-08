@@ -4,12 +4,12 @@
  * @module plan-history-pane
  */
 
-import BaseComponent from "../base/base-component.js";
+import BaseComponent from "../component/base-component.js";
 import {
   bindEvent,
   dispatchEvent,
   querySelector,
-} from "../base/component-utils.js";
+} from "../component/component-utils.js";
 import "../visualizers/plan-visualizer.js";
 import "../visualizers/timeline-visualization.js";
 

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -9,42 +9,50 @@
     <link rel="stylesheet" href="src/styles/components.css" />
   </head>
   <body>
-    <div class="app-wrapper">
-      <header class="app-header">
-        <h1>Tempo Trainer</h1>
-      </header>
+    <tempo-trainer-main>
+      <audio-context-overlay>
+        <div class="app-wrapper">
+          <header class="app-header">
+            <h1>Tempo Trainer</h1>
+          </header>
 
-      <main class="pane-container">
-        <!-- Onboarding Pane -->
-        <section id="pane-onboarding" class="pane">
-          <onboarding-pane></onboarding-pane>
-        </section>
+          <main class="pane-container">
+            <!-- Onboarding Pane -->
+            <section id="pane-onboarding" class="pane">
+              <onboarding-pane></onboarding-pane>
+            </section>
 
-        <!-- Plan Editing Pane -->
-        <!-- Plan Edit Pane -->
-        <plan-edit-pane id="pane-plan-edit" class="pane"></plan-edit-pane>
+            <!-- Plan Editing Pane -->
+            <!-- Plan Edit Pane -->
+            <plan-edit-pane id="pane-plan-edit" class="pane"></plan-edit-pane>
 
-        <!-- Plan Play Pane -->
-        <plan-play-pane id="pane-plan-play" class="pane"></plan-play-pane>
+            <!-- Plan Play Pane -->
+            <plan-play-pane id="pane-plan-play" class="pane"></plan-play-pane>
 
-        <!-- Plan History Pane -->
-        <plan-history-pane
-          id="pane-plan-history"
-          class="pane"
-        ></plan-history-pane>
-      </main>
+            <!-- Plan History Pane -->
+            <plan-history-pane
+              id="pane-plan-history"
+              class="pane"
+            ></plan-history-pane>
+          </main>
 
-      <nav class="pane-nav">
-        <button class="pane-link" data-pane="onboarding" title="Setup">
-          ⚙️
-        </button>
-        <button class="pane-link" data-pane="plan-edit" title="Plan">📋</button>
-        <button class="pane-link" data-pane="plan-play" title="Play">▶️</button>
-        <button class="pane-link" data-pane="plan-history" title="History">
-          📊
-        </button>
-      </nav>
-    </div>
+          <nav class="pane-nav">
+            <button class="pane-link" data-pane="onboarding" title="Setup">
+              ⚙️
+            </button>
+            <button class="pane-link" data-pane="plan-edit" title="Plan">
+              📋
+            </button>
+            <button class="pane-link" data-pane="plan-play" title="Play">
+              ▶️
+            </button>
+            <button class="pane-link" data-pane="plan-history" title="History">
+              📊
+            </button>
+          </nav>
+        </div>
+      </audio-context-overlay>
+    </tempo-trainer-main>
 
     <!-- Main application as ES module -->
     <script type="module" src="src/script.js"></script>

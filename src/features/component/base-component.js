@@ -13,7 +13,7 @@
  * - Context protocol (provideContext / consumeContext / notifyContext)
  */
 
-import { ContextRequestEvent } from "../component/context.js";
+import { ContextRequestEvent } from "./context.js";
 
 /**
  * @typedef {Object.<string, *>} ComponentState
@@ -49,7 +49,7 @@ export default class BaseComponent extends HTMLElement {
     /**
      * Context providers registered on this component.
      * Map<Context, { getValue: () => any, subscribers: Set<(value: any) => void> }>
-     * @type {Map<import('../component/context.js').Context<any>, { getValue: () => any, subscribers: Set<(value: any) => void> }>}
+     * @type {Map<import('./context.js').Context<any>, { getValue: () => any, subscribers: Set<(value: any) => void> }>}
      */
     this._contextProviders = new Map();
     /** @type {Promise<void>} */
@@ -257,7 +257,7 @@ export default class BaseComponent extends HTMLElement {
    * whenever notifyContext(context) is called.
    *
    * @template T
-   * @param {import('../component/context.js').Context<T>} context - The context token
+   * @param {import('./context.js').Context<T>} context - The context token
    * @param {() => T} getValue - Returns the current value to deliver
    */
   provideContext(context, getValue) {
@@ -285,7 +285,7 @@ export default class BaseComponent extends HTMLElement {
    * Call this whenever the provided value changes.
    *
    * @template T
-   * @param {import('../component/context.js').Context<T>} context
+   * @param {import('./context.js').Context<T>} context
    */
   notifyContext(context) {
     const entry = this._contextProviders.get(context);
@@ -305,7 +305,7 @@ export default class BaseComponent extends HTMLElement {
    * on every future change (subscribe=true by default).
    *
    * @template T
-   * @param {import('../component/context.js').Context<T>} context
+   * @param {import('./context.js').Context<T>} context
    * @param {(value: T) => void} callback
    */
   consumeContext(context, callback) {
