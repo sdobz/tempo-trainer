@@ -36,6 +36,13 @@ If this file disagrees with `doc/**`, treat `doc/**` as canonical.
 - `src/features/main/main.js`: partial composition root and context bridge.
 - Migration target: reduce `script.js` to minimal app wiring as service boundaries harden.
 
+Wiring split:
+
+- `main.js` owns root context provisioning and root-level inter-service wiring.
+- app orchestrator owns inter-pane routing and workflow messaging.
+
+No additional wiring layer is needed by default. Introduce a third layer only if one layer starts owning responsibilities from both categories and cannot be split cleanly.
+
 ## Core Architectural Rules
 
 - One canonical owner per state domain.
@@ -72,4 +79,5 @@ If this file disagrees with `doc/**`, treat `doc/**` as canonical.
 
 - `script.js` still owns substantial wiring and some mixed responsibilities.
 - Plan/chart naming remains partially split between code and docs.
+- `SessionState` still exists in runtime as a legacy mirror; timeline/chart are target canonical owners.
 - Some legacy callback/delegate surfaces remain and are being normalized to contract-first service boundaries.

@@ -16,13 +16,13 @@ Performance is split across two modules:
 ## Inputs
 
 - Detector hit timings (`DetectorManager.onHit` path through `DrillSessionManager`).
-- Session timing config (BPM and beats-per-measure from `SessionState`).
-- Chart/plan measures active for the run.
+- Session timing config (BPM and beats-per-measure from timeline service; currently mirrored in legacy `SessionState`).
+- Chart measures active for the run (currently provided through legacy `planData.plan` wiring).
 
 ## Outputs
 
 - Live score updates through playback state.
-- Final session record with plan snapshot and derived metrics.
+- Final session record with chart snapshot and derived metrics.
 - History/statistics views in plan history pane.
 
 ## Storage

@@ -30,7 +30,7 @@ Microphone source wiring currently happens in `src/features/microphone/audio-inp
 	- Provides audio service through context.
 	- Notifies context consumers when audio becomes ready.
 - Access overlay: `src/features/audio/audio-context-overlay.js`
-	- Triggers `ensureContext()` from user interaction.
+	- Is the canonical UI trigger for `ensureContext()` from user interaction.
 	- Keeps UI blocked until context exists.
 - Playback: `src/features/plan-play/metronome.js`
 	- Uses the context to create oscillator/gain nodes and schedule clicks precisely.
@@ -48,6 +48,8 @@ Microphone source wiring currently happens in `src/features/microphone/audio-inp
 
 For this project, "audio context" means the shared, lazily-initialized browser runtime that all timing, playback, and microphone detection features synchronize against.
 
+It is the only supported gateway for creating/resuming `AudioContext` in app code.
+
 ## Known seam
 
 - `AudioContextManager` is context-provided from `main`, but many runtime consumers are still wired in `script.js`.
@@ -57,6 +59,7 @@ For this project, "audio context" means the shared, lazily-initialized browser r
 
 - Treat audio context + microphone runtime as one browser boundary with explicit contracts.
 - Move script-level wiring to service/component-level subscriptions.
+- Remove direct `AudioContext` creation/resume outside this service.
 
 ## Minimal design target
 
@@ -79,6 +82,7 @@ For this project, "audio context" means the shared, lazily-initialized browser r
 
 - At most one shared `AudioContext` instance is active.
 - Consumers do not create independent context instances.
+- `ensureContext()` is user-gesture-triggered by `audio-context-overlay`, not by arbitrary components.
 
 ### Error handling
 

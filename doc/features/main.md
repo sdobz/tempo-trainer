@@ -16,6 +16,7 @@
 ## Ownership boundary
 
 - `main` is a context bridge and composition root shell.
+- It owns root context provisioning and root-level inter-service wiring.
 - It does not orchestrate pane workflows, session lifecycle, or scoring.
 
 ## Known seam

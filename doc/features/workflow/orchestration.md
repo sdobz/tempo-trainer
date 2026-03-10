@@ -2,6 +2,8 @@
 
 Workflow orchestration coordinates panes, services, and startup sequencing for the concrete Tempo Trainer app.
 
+This file describes the app orchestrator layer (inter-pane routing and workflow messaging), not root context wiring.
+
 ## Current owner
 
 - `src/script.js` is the concrete orchestrator.
@@ -19,6 +21,8 @@ It currently coordinates:
 - Interpret pane-level intent events (`session-start`, `session-stop`, `navigate`, etc.).
 - Route data between runtime domains (detector, playback, timeline visualizer, performance persistence).
 - Keep startup ordering safe (component ready, service ready, context ready).
+
+Root context provisioning and root-level inter-service wiring belong to `main.js` composition logic, not app orchestration.
 
 ## Non-responsibilities
 
@@ -56,3 +60,4 @@ It currently coordinates:
 - Orchestration does not become a domain state owner.
 - Domain state transitions happen inside owning services.
 - Pane transitions are serial and explicit.
+- App orchestrator handles inter-pane routing/messaging (example: playback finished -> navigate to review/history pane).

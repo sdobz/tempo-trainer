@@ -103,7 +103,8 @@ We are migrating toward a DI-style service graph where:
 	- Shared audio context lifecycle and readiness.
 	- Exposed through root context.
 2. `SessionState` (created in `src/script.js`, provided by `main`)
-	- Owns session BPM, beats-per-measure, and active plan data.
+	- Legacy state holder during migration.
+	- Timing and selected-chart ownership are being moved out to timeline/chart services.
 	- Fan-out currently uses subscribe handlers.
 3. `DetectorManager` (created in `src/script.js`, provided by `main`)
 	- Owns detector type/config, mic input bridge, device selection, hit listeners.
@@ -125,6 +126,7 @@ We are migrating toward a DI-style service graph where:
 	- Emits audible beat/measure events
 4. `chart` service (currently implemented as `PlanLibrary` + session plan projection)
 	- Owns intended practice representation
+	- Owns selected chart as canonical state
 	- Projects chart into timeline-ready measures
 5. `performance` service (currently split across `Scorer` + `PracticeSessionManager`)
 	- Captures and evaluates observed user performance
@@ -139,6 +141,13 @@ We are migrating toward a DI-style service graph where:
 - Events are for runtime state propagation.
 - Services follow state-machine conventions documented in `doc/features/**`.
 - Prefer one coarse `patched` event plus optional fine-grained events where needed.
+
+### Wiring layers
+
+- `main.js` (composition/root wiring): root context provisioning and root-level inter-service wiring.
+- app orchestrator (`script.js` during migration): inter-pane routing and workflow messaging.
+
+These are distinct responsibilities and should not be merged into a single god object.
 
 Note: `doc/features/state.md` does not exist yet in this structure. Until added, state semantics are documented per feature file under `doc/features/**`.
 

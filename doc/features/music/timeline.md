@@ -2,13 +2,13 @@
 
 Timeline is the domain that translates raw time into musical divisions (beat, measure, segment position).
 
-It is the destination for session timing semantics and selected playback timing logic that is currently split across `SessionState` and `Metronome`.
+Timeline is the canonical owner of tempo, meter, transport state, and time-division mapping.
 
 ## Current implementation
 
-- Domain semantics are currently split:
-	- `SessionState` (`src/features/base/session-state.js`) owns BPM and beats-per-measure.
-	- `Metronome` (`src/features/plan-play/metronome.js`) owns beat duration and next scheduled beat progression.
+- Runtime semantics are still partially distributed in legacy code:
+	- `SessionState` (`src/features/base/session-state.js`) still stores tempo/meter as migration debt.
+	- `Metronome` (`src/features/plan-play/metronome.js`) still derives beat duration internally.
 	- timeline rendering lives in `src/features/visualizers/timeline-visualization.js`.
 - Main timeline UI is `src/features/visualizers/timeline-visualization.js`.
 - It renders:
@@ -34,25 +34,14 @@ It is the destination for session timing semantics and selected playback timing 
 
 ## Known seam
 
-Timeline semantics are split between:
-
-- Session state tempo data.
-- Metronome scheduling state.
-- Visualization math and calibration rebase logic in `script.js`.
-
-This split makes ownership unclear and duplicates time-translation logic.
+Legacy runtime still duplicates timing logic in `SessionState`, `Metronome`, and `script.js`.
+This is an implementation seam, not an ownership model.
 
 ## Migration target
 
-Create a dedicated Timeline service that owns:
-
-- BPM, beats-per-measure, and derived beat duration.
-- Conversion between audio time and musical divisions.
-- Canonical helpers for beat/measure/segment lookup.
-
-Keep `timeline-visualization` as a pure renderer that consumes timeline outputs.
-
-Move session-state timing fields and selected metronome timing math into timeline-owned semantics.
+- Keep timeline as the sole timing owner.
+- Remove timing ownership from `SessionState` and `Metronome`.
+- Keep `timeline-visualization` as a pure renderer consuming timeline outputs.
 
 ## Minimal design target
 
@@ -84,6 +73,7 @@ Move session-state timing fields and selected metronome timing math into timelin
 - Beats per measure is a positive integer.
 - Beat duration is derived from tempo only.
 - Transport commands are idempotent when target state already matches current state.
+- No other service owns tempo/meter as canonical state.
 
 ### Error handling
 
