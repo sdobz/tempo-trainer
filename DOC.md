@@ -27,6 +27,55 @@ The framework extraction goal does **not** mean adding framework features now. I
 - If a behavior is temporary migration glue, document it as temporary and name its removal trigger.
 - No feature addition as part of doc backfill.
 
+## Contract Depth Standard
+
+Docs should be specific enough to be implemented autonomously, but not locked to field-level types.
+
+Each service-level doc must define:
+
+- Commands: named methods and intent (`setTempo`, `start`, `stop`, etc.).
+- State invariants: truths that must hold after every command.
+- Event contract: required events and when each emits.
+- Error contract: recoverable vs terminal failures and consumer expectations.
+
+Avoid specifying concrete payload types unless correctness depends on exact shape.
+Prefer semantic payload descriptions (for example: "contains current tempo and previous tempo").
+
+## Event Granularity Policy
+
+Use a two-tier event model:
+
+- Tier 1 coarse event: `patched` (or equivalent) for full-state recompute consumers.
+- Tier 2 domain events: minimal, named events only when consumers need push-style streams (`beat`, `measure-completed`, `hit`, device changes).
+
+Rules:
+
+- Every state-changing command emits Tier 1.
+- Prefer one semantic state/config event over many edge events when data is naturally modeled as enums/snapshots.
+- Do not emit multiple synonymous events for the same transition.
+
+Recommended default for stateful domains:
+
+- `state-changed`: carries previous/current enum state for lifecycle (`stopped|playing|paused`).
+- `config-changed`: carries the relevant config snapshot delta (tempo/meter/etc).
+- `patched`: retained for full recompute consumers.
+
+## Error Handling Policy
+
+Each service documents three classes of failures:
+
+- Validation errors: bad command input (clamp/reject behavior must be specified).
+- Dependency errors: upstream unavailable (`AudioContext` missing/suspended/device denied).
+- Runtime errors: failures during active operation (playback scheduling failure, stream drop).
+
+Each class must specify:
+
+- Whether state changes or remains unchanged.
+- Whether the service keeps running or transitions to a degraded/stopped state.
+- How failures are surfaced:
+	- synchronous command validation failures should throw
+	- asynchronous dependency/runtime failures should emit `fault` (with code/context)
+
 ## Linting
 
 #todo
@@ -136,7 +185,10 @@ Each `doc/features/**.md` should include:
 - Current implementation
 - Owned state
 - Inputs and dependencies
+- Command contract
 - Outputs/events
+- Invariants
+- Error handling
 - Persistence
 - Lifecycle
 - Known seams and migration target

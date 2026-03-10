@@ -19,6 +19,11 @@ Playback is currently implemented by `src/features/plan-play/metronome.js` and o
 - Measure progression signaling through callbacks.
 - Calibration click playback via a second metronome instance in `script.js`.
 
+Target boundary clarification:
+
+- Timeline owns transport and timing (`play/pause/stop`, beat scheduling decisions, tempo/meter interpretation).
+- Playback owns sound rendering only (when asked to emit a click/tone at a given time/profile).
+
 ## Observable playback state
 
 `PlaybackState` (`src/features/plan-play/playback-state.js`) is the consumer-facing observable for the active session.
@@ -43,6 +48,45 @@ Consumers call `subscribe(fn)` and receive the full snapshot immediately and on 
 
 ## Migration target
 
-- Promote playback to a context-provided runtime service with explicit events (`started`, `stopped`, `beat`, `measure`).
-- Merge `Metronome` scheduling and `PlaybackState` observation under one service boundary.
+- Keep playback as an infrastructure service that renders sound on request.
+- Move transport/timing ownership to timeline.
+- Keep `PlaybackState` as UI-facing projection state; do not treat it as transport authority.
+
+## Proposed command contract
+
+- `renderClick(atTime, accentProfile)`
+	- Schedules one click/tone render operation.
+- `renderCue(cue, atTime)`
+	- Schedules a non-beat cue (count-in, calibration marker, UI cue).
+- `setClickProfile(profile)`
+	- Updates rendering parameters used by future render commands.
+
+Playback does not own tempo, meter, transport state, or beat progression.
+
+## Proposed event contract
+
+Required coarse/error events:
+
+- `patched`
+	- Emitted after successful rendering configuration transitions.
+- `fault`
+	- Emitted for asynchronous dependency/runtime failures.
+
+Validation failures in command methods throw synchronously.
+
+## Invariants
+
+- Playback never becomes source-of-truth for transport lifecycle.
+- Render commands never mutate timeline state.
+- Scheduled click times are never emitted in the past relative to service clock.
+
+## Error handling
+
+- Validation failure (invalid click profile, invalid render request):
+	- Throw synchronously.
+	- State unchanged.
+- Dependency failure (audio context unavailable/suspended/device blocked):
+	- Emit `fault`.
+- Runtime scheduling failure:
+	- Emit `fault`.
 

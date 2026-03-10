@@ -61,6 +61,42 @@ Stateful class. Context is used only for delivery; the service itself takes its 
 - `ready` event (if async initialization is required).
 - Domain events (`beat`, `hit`, `devices-changed`, etc.) — add only when there is a demonstrated consumer.
 
+## Required contract sections
+
+Every service doc must include these sections before implementation starts:
+
+- Command contract: command names and intent-level behavior.
+- Event contract: required events, emit triggers, and ordering expectations.
+- Invariants: conditions that must be true after every command.
+- Error handling: validation/dependency/runtime failures and resulting state.
+
+Without these four sections, the service spec is considered incomplete.
+
+## Event contract baseline
+
+Minimum baseline for stateful services:
+
+- `patched`: emitted after any successful state transition.
+- `state-changed`: emitted when lifecycle enum state changes (if service has lifecycle state).
+- `config-changed`: emitted when primary domain configuration changes.
+
+Domain services add stream events only when consumers need push semantics.
+Examples: `beat`, `measure-completed`, `hit`, `devices-changed`.
+
+Prefer enum state/config events over multiple synonymous edge events (`started/paused/stopped`).
+
+## Event ordering rule
+
+For a single command execution:
+
+1. Update internal state.
+2. Emit domain edge event(s) for that transition (if any).
+3. Emit `patched`.
+
+If command validation fails, throw synchronously and do not emit domain events or `patched`.
+
+Asynchronous dependency/runtime failures should emit `fault` with domain code/context.
+
 ## When to introduce a service
 
 Promote to a service when:
