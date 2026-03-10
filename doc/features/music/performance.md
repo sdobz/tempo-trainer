@@ -25,6 +25,12 @@ Performance is split across two modules:
 - Final session record with plan snapshot and derived metrics.
 - History/statistics views in plan history pane.
 
+## Storage
+
+- Performance history persistence is owned by `PracticeSessionManager`.
+- Storage transport uses browser persistence (`StorageManager`).
+- Performance domain owns session record shape and derived metric semantics.
+
 ## Known seam
 
 Performance ownership is split between runtime scoring and persistence analytics, coordinated in `script.js`.

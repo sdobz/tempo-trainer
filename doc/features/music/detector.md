@@ -1,4 +1,6 @@
-The detector identifies when an instrument plays a note.
+# Detector
+
+The detector identifies when an instrument plays a note and provides calibration-facing timing observations.
 
 ## Current state
 
@@ -19,11 +21,13 @@ It owns:
 - microphone device selection
 - hit listener registration
 - BPM propagation for adaptive refractory behavior
+- detector-facing calibration timing inputs (observed hit times)
 
 ## Service role
 
 - Detector service consumes audio service output (mic stream, analyser/FFT).
 - It owns active detector configuration and runtime detection state.
+- It is the source of observed hit timestamps used by calibration and scoring.
 
 ## Event role
 
@@ -32,6 +36,8 @@ It owns:
 	- `level`
 	- `devices-changed`
 	- `patched`
+
+Calibration consumes detector hit timing; calibration does not own hit detection.
 
 ## Context role
 
@@ -43,6 +49,10 @@ In current implementation, the manager is context-provided by `main`, but instan
 
 ## Calibration
 
-Calibration is the process of determining the association between the `currentTime` in the computer, how long it takes to play a sound, and how long a users response takes to be detected.
+Calibration in this project is detector-adjacent timing alignment:
 
-Calibration currently uses detector hit timing plus metronome expected beats and is orchestrated in `script.js`.
+- observed side: detector hit timestamps
+- expected side: scheduled reference beats
+- output: offset used to translate observed hits into musical time
+
+Current implementation still orchestrates calibration flow in `src/script.js`, but the detector domain owns the observed timing stream that calibration depends on.

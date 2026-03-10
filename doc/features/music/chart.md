@@ -14,6 +14,11 @@ The chart is the intended practice structure. In current code this domain is mos
 - Segment structure (`on`, `off`, `reps`).
 - Derived drill measures used for playback.
 
+## Storage
+
+- Chart catalog persistence is owned by `PlanLibrary` and stored via browser persistence (`StorageManager`).
+- Chart domain owns plan schema semantics; persistence only provides storage mechanics.
+
 ## Providers and consumers
 
 - `plan-edit-pane` creates/edits/selects plans.

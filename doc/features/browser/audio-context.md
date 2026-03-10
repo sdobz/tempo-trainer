@@ -1,12 +1,14 @@
 # Audio Context
 
-In Tempo Trainer, the audio context is a single shared Web Audio API `AudioContext` used as the app’s audio engine and timing clock.
+In Tempo Trainer, audio context is the browser runtime boundary for timing, output playback, and microphone processing.
 
 ## What it is
 
 - The browser-provided `AudioContext` powers sound generation and audio processing.
 - Its `currentTime` is the canonical timing source for click scheduling, drill playback sync, and timeline centering.
 - The app treats it as a shared infrastructure object, not per-component state.
+
+Microphone runtime is part of this boundary: audio input nodes/analyser chains depend on this same context lifecycle.
 
 ## Lifecycle in this codebase
 
@@ -20,6 +22,8 @@ Lifecycle is centralized in `AudioContextManager`:
 
 This design ensures there is one source of truth for audio state and avoids each feature creating its own context.
 
+Microphone source wiring currently happens in `src/features/microphone/audio-input-source.js` via injected `AudioContext` from this service.
+
 ## How features use it
 
 - Root provisioning: `src/features/main/main.js`
@@ -28,9 +32,9 @@ This design ensures there is one source of truth for audio state and avoids each
 - Access overlay: `src/features/audio/audio-context-overlay.js`
 	- Triggers `ensureContext()` from user interaction.
 	- Keeps UI blocked until context exists.
-- Metronome/playback: `src/features/plan-play/metronome.js`
+- Playback: `src/features/plan-play/metronome.js`
 	- Uses the context to create oscillator/gain nodes and schedule clicks precisely.
-- Microphone input: `src/features/microphone/audio-input-source.js`
+- Microphone input and detector runtime: `src/features/microphone/audio-input-source.js` and `src/features/microphone/detector-manager.js`
 	- Uses the context to build input/analyser nodes for detection.
 - Calibration/timeline sync: `src/script.js` and `src/features/calibration/calibration-detector.js`
 	- Uses `currentTime` as the reference for beat position and hit timing.
@@ -42,12 +46,16 @@ This design ensures there is one source of truth for audio state and avoids each
 
 ## Practical definition
 
-For this project, “audio context” means the shared, lazily-initialized, browser-managed real-time audio/timing runtime that all audio and microphone features synchronize against.
+For this project, "audio context" means the shared, lazily-initialized browser runtime that all timing, playback, and microphone detection features synchronize against.
 
-## Updates
+## Known seam
 
-This feature is now explicitly modeled as a service consumed through context.
+- `AudioContextManager` is context-provided from `main`, but many runtime consumers are still wired in `script.js`.
+- Browser boundary concerns (audio context, storage, permissions) are split across feature docs and not fully normalized yet.
 
-Next refinement is to move remaining script-level audio wiring into service/component-level subscriptions so consumers self-wire from context events.
+## Migration target
+
+- Treat audio context + microphone runtime as one browser boundary with explicit contracts.
+- Move script-level wiring to service/component-level subscriptions.
 
 
