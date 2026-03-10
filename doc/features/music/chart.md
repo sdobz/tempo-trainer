@@ -1,4 +1,4 @@
-The score represents an intended sequence of notes
+The chart represents an intended sequence of notes
 
 ## Current state
 
@@ -22,3 +22,10 @@ The performance is the resulting data from a detector reading
 ## Context role
 
 - Score service is provided by root context and consumed by components that visualize performance.
+
+## Provider
+
+The chart is provided in several contexts
+- Editing a chart
+- Performing a chart
+- Reviewing a chart in history

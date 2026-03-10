@@ -26,5 +26,4 @@ Services are also sometimes state machines or components
 - Command methods (`start`, `stop`, `setBpm`, etc).
 - Event surface:
 	- `ready`
-	- `patched`
 	- optional feature-specific events (`hit`, `beat`, `devices-changed`, ...)

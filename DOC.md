@@ -57,26 +57,3 @@ We are migrating toward a DI-style service graph where:
 
 ### Phased migration
 
-#### Phase 1 (done/in progress)
-
-- Root component exists and provides base services via context.
-- Audio overlay blocks interaction until audio context initialization is available.
-
-#### Phase 2 (next)
-
-- Introduce TimelineService as a first-class context service.
-- Move BPM/beats-per-measure ownership behind timeline events.
-
-#### Phase 3
-
-- Move metronome, score, and detector wiring from `script.js` into services/components.
-- Eliminate direct audio-context wiring in `script.js`.
-
-#### Phase 4
-
-- Deprecate `script.js` orchestration logic in favor of component/service ownership.
-
-### Boy scouting intention
-
-- When touching code, replace callback/delegate wiring with event-driven service interfaces.
-- Keep each step bounded; avoid large rewrites in one pass.

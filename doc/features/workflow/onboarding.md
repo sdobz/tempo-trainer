@@ -1,0 +1,1 @@
+Onboarding is the process of selecting hardware and tuning how detectors are set up to match the users intention

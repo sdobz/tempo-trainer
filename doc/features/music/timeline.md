@@ -11,14 +11,12 @@ It maps audio `currentTime` to musical structure (beats, measures, segments).
 	- beat duration
 	- measure/beat mapping helpers
 
-## Event role
-
-- Emits `patched` for broad state changes.
-- May emit finer events (`bpm-changed`, `meter-changed`) if needed for performance.
-
 ## Consumers
 
 - Metronome consumes timeline for beat scheduling.
-- Score consumes timeline for intended/actual note mapping.
+- Chart consumes timeline for intended/actual note mapping.
 - Visual components consume timeline events to update DOM.
 
+## Persistence
+
+The timeline is generally "always running" even if invisible.

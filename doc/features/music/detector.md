@@ -34,3 +34,7 @@ One detector has parameters to flexibly define any type of
 - Provided as a root context service.
 - Components consume detector service and update DOM from events.
 - Prefer event-driven subscriptions over delegates/callback references.
+
+## Calibration
+
+Calibration is the process of determining the association between the `currentTime` in the computer, how long it takes to play a sound, and how long a users response takes to be detected.
