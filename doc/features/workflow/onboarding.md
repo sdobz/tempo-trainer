@@ -18,3 +18,29 @@ Onboarding prepares the runtime so performance feedback is trustworthy.
 ## Known seam
 
 Calibration timeline windowing and calibration metronome orchestration are currently implemented in `script.js`.
+
+## Minimal design target
+
+### Workflow state
+
+- `awaiting-audio`
+- `awaiting-mic`
+- `calibrating`
+- `completed`
+
+### Input intents
+
+- `audio-granted`
+- `device-selected`
+- `calibration-start`
+- `calibration-complete`
+
+### Output effects
+
+- Invoke browser/audio and detector commands.
+- Persist onboarding completion flag.
+
+### Notifications
+
+- Coarse invalidation notification is sufficient for onboarding UI state.
+- Keep hit/beat streams at service level; onboarding consumes them indirectly via calibration status.

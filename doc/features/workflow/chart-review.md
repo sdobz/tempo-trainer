@@ -21,3 +21,26 @@ Code name: `plan-history-pane` (class `PlanHistoryPane`, element `<plan-history-
 ## Known seam
 
 Metric computation and review UI are coupled through shared session shape; schema changes require synchronized updates in manager, pane rendering, and docs.
+
+## Minimal design target
+
+### Workflow state
+
+- `selectedSessionId`
+- `visibleSessionList`
+
+### Input intents
+
+- `session-select`
+- `session-delete`
+- `session-retry`
+
+### Output effects
+
+- Query/update performance history service.
+- Emit navigation intent for retry/edit transitions.
+
+### Notifications
+
+- Coarse invalidation notification is sufficient for review UI updates.
+- No derived-metric event taxonomy by default.

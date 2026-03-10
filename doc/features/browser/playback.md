@@ -52,41 +52,35 @@ Consumers call `subscribe(fn)` and receive the full snapshot immediately and on 
 - Move transport/timing ownership to timeline.
 - Keep `PlaybackState` as UI-facing projection state; do not treat it as transport authority.
 
-## Proposed command contract
+## Minimal design target
+
+### Canonical state
+
+- `ready`: audio output available for rendering
+- `clickProfile`: rendering parameters for future clicks/cues
+
+### Commands
 
 - `renderClick(atTime, accentProfile)`
-	- Schedules one click/tone render operation.
 - `renderCue(cue, atTime)`
-	- Schedules a non-beat cue (count-in, calibration marker, UI cue).
 - `setClickProfile(profile)`
-	- Updates rendering parameters used by future render commands.
 
 Playback does not own tempo, meter, transport state, or beat progression.
 
-## Proposed event contract
+### Notifications
 
-Required coarse/error events:
+- Coarse invalidation notification only for configuration changes (`changed`/`patched`).
+- No transport lifecycle notifications.
+- `fault` for asynchronous dependency/runtime failures.
 
-- `patched`
-	- Emitted after successful rendering configuration transitions.
-- `fault`
-	- Emitted for asynchronous dependency/runtime failures.
-
-Validation failures in command methods throw synchronously.
-
-## Invariants
+### Invariants
 
 - Playback never becomes source-of-truth for transport lifecycle.
 - Render commands never mutate timeline state.
-- Scheduled click times are never emitted in the past relative to service clock.
+- Scheduled click times are not in the past relative to playback clock.
 
-## Error handling
+### Error handling
 
-- Validation failure (invalid click profile, invalid render request):
-	- Throw synchronously.
-	- State unchanged.
-- Dependency failure (audio context unavailable/suspended/device blocked):
-	- Emit `fault`.
-- Runtime scheduling failure:
-	- Emit `fault`.
+- Validation failures throw synchronously and leave state unchanged.
+- Dependency/runtime failures emit `fault`.
 

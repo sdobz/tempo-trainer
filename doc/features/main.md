@@ -21,3 +21,15 @@
 ## Known seam
 
 `main` is only a partial composition root today because `script.js` still creates several core runtime objects (`SessionState`, `DetectorManager`, `Metronome`, `Scorer`, `DrillSessionManager`).
+
+## Minimal feature-contract baseline
+
+Use this baseline for all `doc/features/**` service-like docs:
+
+- Define one canonical state snapshot for the domain.
+- Define command methods that mutate that state.
+- Start with one coarse invalidation notification (`changed`/`patched`).
+- Add stream notifications only when coarse invalidation is not practical (high-frequency or strict edge consumers).
+- Validation failures throw synchronously; asynchronous dependency/runtime failures emit `fault`.
+
+This keeps event surfaces small and pushes correctness into canonical state and command semantics.

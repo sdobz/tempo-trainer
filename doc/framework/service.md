@@ -124,6 +124,57 @@ This provides a deterministic initial render and keeps event handlers simple.
 - Duplicate work: coarse notifications can trigger full recompute. Accept this by default; optimize only on measured hotspots.
 - Late subscribers: if consumers need the latest edge event, encode that in canonical state so initial read is sufficient.
 
+## Example: Hit Lifecycle (Mic -> UI -> Storage)
+
+This example shows one end-to-end flow and how relationships are managed without duplicating ownership.
+
+### Ownership map
+
+- `audio-context` owns browser audio runtime readiness and shared `AudioContext` identity.
+- `detector` owns hit detection and emits hit timing stream.
+- `timeline` owns tempo/meter/transport and time-division mapping.
+- `performance` owns scoring/session records and persistence handoff.
+- Components own rendering only.
+- Orchestration owns wiring only.
+
+### Startup and wiring
+
+1. Composition root creates service instances with independent constructors.
+	- Preferred default: services do not hold direct references to other services.
+	- Cross-service interaction is wired at composition/orchestration level through subscriptions and command calls.
+	- Exception: infrastructure wrappers (for example browser APIs) can be injected as narrow ports/adapters.
+2. Composition root wires cross-service subscriptions.
+	- detector `hit` -> performance `registerHit(...)`
+	- timeline coarse change -> detector `setBpm(...)` (derived input, not ownership transfer)
+3. Root provides service instances via context tokens.
+	- Components discover services through context.
+
+### Runtime flow for one hit
+
+1. User enables microphone.
+	- `audio-context-overlay` component calls `audioContext.ensureContext()`.
+	- audio-context transitions to ready and emits coarse invalidation.
+2. Detector starts.
+	- Orchestration (or owning workflow service) calls detector `start()`.
+3. Physical hit occurs.
+	- detector emits `hit` stream event with hit timing.
+4. Fan-out by wiring layer.
+	- performance receives hit and updates canonical run state (`registerHit(...)`).
+	- Optional visualization adapter receives hit and updates transient UI overlays.
+5. UI refresh.
+	- Components subscribed to performance read canonical state and re-render score/status.
+6. Session completion.
+	- workflow/orchestration calls performance `completeRun(...)`.
+	- performance persists session through persistence service.
+
+### Relationship rules demonstrated
+
+- detector does not persist sessions.
+- performance does not detect hits; it consumes detector output.
+- timeline remains canonical for tempo/meter even if detector accepts derived `setBpm(...)` input.
+- components do not subscribe to each other; they subscribe to services.
+- context delivers service identity; events/streams carry runtime change notifications.
+
 ## When to introduce a service
 
 Promote to a service when:

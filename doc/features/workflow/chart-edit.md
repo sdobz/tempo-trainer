@@ -17,3 +17,26 @@ Chart edit is the process of creating, cloning, and modifying plan definitions.
 
 The edit workflow owns plan authoring, while playback consumes a flattened measure projection; the projection contract should be explicitly versioned.
 
+## Minimal design target
+
+### Workflow state
+
+- `editingDraft`
+- `selectedChartId`
+
+### Input intents
+
+- `chart-select`
+- `chart-save`
+- `chart-delete`
+
+### Output effects
+
+- Update chart service/catalog.
+- Update selected chart in shared runtime state.
+
+### Notifications
+
+- Coarse invalidation notification is sufficient for most edit consumers.
+- No fine-grained edit event taxonomy by default.
+

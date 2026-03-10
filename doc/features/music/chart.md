@@ -33,3 +33,34 @@ The chart is the intended practice structure. In current code this domain is mos
 ## Migration target
 
 Move to one owner and one term (`chart` or `plan`) across storage, runtime state, and docs.
+
+## Minimal design target
+
+### Canonical state
+
+- `selectedChartId`
+- `selectedChart`
+- `chartCatalogRevision` (increments when catalog content changes)
+
+### Commands
+
+- `selectChart(id)`
+- `saveChart(chart)`
+- `deleteChart(id)`
+- `projectToMeasures(id | chart)`
+
+### Notifications
+
+- One coarse invalidation notification (`changed`/`patched`) for selection/catalog changes.
+- No dedicated fine-grained events by default.
+- `fault` for asynchronous persistence failures.
+
+### Invariants
+
+- Selected chart is always either null or present in catalog.
+- Projection output is deterministic for a given chart definition.
+
+### Error handling
+
+- Validation failures throw synchronously.
+- Persistence failures emit `fault` and leave in-memory state consistent.

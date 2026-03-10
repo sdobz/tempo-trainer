@@ -58,4 +58,31 @@ For this project, "audio context" means the shared, lazily-initialized browser r
 - Treat audio context + microphone runtime as one browser boundary with explicit contracts.
 - Move script-level wiring to service/component-level subscriptions.
 
+## Minimal design target
+
+### Canonical state
+
+- `contextState`: `uninitialized | ready | suspended | unavailable`
+- `context`: nullable `AudioContext` reference
+
+### Commands
+
+- `ensureContext()`
+- `resume()`
+
+### Notifications
+
+- One coarse invalidation notification (`changed`/`patched`) when readiness state changes.
+- `fault` for asynchronous initialization/resume failures.
+
+### Invariants
+
+- At most one shared `AudioContext` instance is active.
+- Consumers do not create independent context instances.
+
+### Error handling
+
+- Validation/precondition failures throw synchronously when applicable.
+- Browser/runtime failures emit `fault` and preserve a queryable readiness state.
+
 

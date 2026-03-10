@@ -38,3 +38,34 @@ Performance ownership is split between runtime scoring and persistence analytics
 ## Migration target
 
 Introduce a single context-visible performance domain API while keeping scorer math and history storage internally separated.
+
+## Minimal design target
+
+### Canonical state
+
+- `currentRun` summary (status, per-measure scores, overall score)
+- `lastCompletedSession` summary
+
+### Commands
+
+- `startRun(context)`
+- `registerHit(hitTime)`
+- `finalizeMeasure(index)`
+- `completeRun(meta)`
+- `discardRun()`
+
+### Notifications
+
+- One coarse invalidation notification (`changed`/`patched`) for score/progress updates.
+- One optional edge notification `run-completed` if a consumer must react immediately without diffing.
+- `fault` for asynchronous persistence/analysis failures.
+
+### Invariants
+
+- Scoring state for the active run is append-only with measure finalization boundaries.
+- Completed sessions are immutable records once persisted.
+
+### Error handling
+
+- Validation failures throw synchronously.
+- Persistence/derivation failures emit `fault`; run state remains queryable.

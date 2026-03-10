@@ -38,13 +38,40 @@ It owns:
 
 Calibration consumes detector hit timing; calibration does not own hit detection.
 
-## Migration target signal surface
+## Minimal design target
 
-Once promoted to an `EventTarget` service, the intended domain events are:
-- `hit` — carries `hitAudioTime`
-- `level` — carries current signal level
-- `devices-changed` — carries device list
-- `patched` — carries full state snapshot
+### Canonical state
+
+- `activeDetectorType`
+- `params`
+- `selectedDeviceId`
+- `running`
+
+### Commands
+
+- `setActiveDetector(config)`
+- `setSensitivity(value)`
+- `setBpm(value)`
+- `selectDevice(deviceId)`
+- `start()` / `stop()`
+
+### Notifications
+
+- One coarse invalidation notification (`changed`/`patched`) for configuration/runtime state changes.
+- One required stream notification: `hit` (timing stream needed by calibration/scoring).
+- Optional debug/preview streams (`level`, `devices-changed`) only while there is a concrete consumer.
+- `fault` for asynchronous dependency/runtime failures.
+
+### Invariants
+
+- Detector configuration is always normalized before activation.
+- Exactly one active detector strategy exists while running.
+- Hit timing source is canonical for downstream scoring/calibration.
+
+### Error handling
+
+- Validation failures throw synchronously.
+- Runtime/dependency failures emit `fault` and keep detector in safe stopped/degraded mode.
 
 ## Context role
 

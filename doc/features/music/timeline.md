@@ -54,59 +54,38 @@ Keep `timeline-visualization` as a pure renderer that consumes timeline outputs.
 
 Move session-state timing fields and selected metronome timing math into timeline-owned semantics.
 
-## Proposed command contract
+## Minimal design target
+
+### Canonical state
+
+- `transportState`: `stopped | playing | paused`
+- `tempo`
+- `beatsPerMeasure`
+- `position`: current musical position (division/measure+beat)
+
+### Commands
 
 - `setTempo(bpm)`
-	- Updates canonical tempo for all time-division mapping.
 - `setBeatsPerMeasure(count)`
-	- Updates meter for beat/measure indexing.
 - `play()`
-	- Transitions transport lifecycle to `playing`.
 - `pause()`
-	- Transitions transport lifecycle to `paused`.
 - `stop()`
-	- Transitions transport lifecycle to `stopped`.
 - `seekToDivision(position)`
-	- Moves transport anchor to a specific musical position.
 
-Commands express intent; direct state mutation is forbidden.
+### Notifications
 
-## Proposed event contract
+- One coarse invalidation notification (`changed`/`patched`) after successful state transitions.
+- Optional high-frequency playhead stream only if a consumer cannot efficiently pull from canonical state.
+- `fault` for asynchronous dependency/runtime failures.
 
-Required coarse event:
+### Invariants
 
-- `patched`
-	- Emitted after every successful state transition.
+- Tempo is positive and finite.
+- Beats per measure is a positive integer.
+- Beat duration is derived from tempo only.
+- Transport commands are idempotent when target state already matches current state.
 
-Required domain events:
+### Error handling
 
-- `state-changed`
-	- Emitted when timeline lifecycle state changes. Payload includes previous/current state enum (`stopped`, `playing`, `paused`).
-- `config-changed`
-	- Emitted when timing config changes (tempo/meter).
-- `fault`
-	- Emitted for asynchronous dependency/runtime failures.
-
-Rationale: lifecycle is represented by one enum transition event, not multiple edge event names.
-
-## Invariants
-
-- Tempo is always positive and finite.
-- Beats per measure is an integer greater than zero.
-- Beat duration is always derived from tempo (never independently assigned).
-- A transport state command that does not change state is idempotent (no-op, no events).
-- Time-to-division mapping uses one canonical source of tempo/meter at any given moment.
-
-## Error handling
-
-- Validation failure (invalid tempo/meter/seek position):
-	- Throw synchronously.
-	- State remains unchanged.
-	- Do not emit domain events or `patched`.
-- Dependency failure (audio clock unavailable):
-	- Timeline remains usable for pure math operations.
-	- Clock-dependent queries return a documented failure/null result.
-	- Emit `fault`.
-- Runtime failure (unexpected mapping/transport exception):
-	- Service enters a safe non-playing state.
-	- Emit `fault`.
+- Validation failures throw synchronously and do not mutate state.
+- Dependency/runtime failures do not throw through unrelated callers; they emit `fault` and keep timeline in a safe transport state.

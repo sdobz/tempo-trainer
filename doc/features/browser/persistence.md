@@ -30,3 +30,30 @@ Browser persistence is the shared storage boundary used by multiple domains.
 
 - Keep persistence as shared infrastructure.
 - Make domain-specific persisted schemas explicit in each owning feature doc.
+
+## Minimal design target
+
+### Canonical state
+
+- Persistence has no domain state; it exposes storage availability and operations.
+
+### Commands
+
+- `get(key)`
+- `set(key, value)`
+- `remove(key)`
+
+### Notifications
+
+- No domain notifications by default.
+- `fault` only for asynchronous/storage-layer failures where callers cannot receive synchronous throw.
+
+### Invariants
+
+- Persistence layer does not impose domain semantics.
+- Keys are owned/versioned by domain services, not by persistence infrastructure.
+
+### Error handling
+
+- Operation failures are synchronous throws in direct API paths.
+- Runtime/storage environment failures may surface as `fault` at owning service boundaries.

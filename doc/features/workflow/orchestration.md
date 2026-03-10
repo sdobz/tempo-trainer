@@ -29,3 +29,30 @@ It currently coordinates:
 
 - Reduce orchestration to minimal app wiring.
 - Push domain behavior behind service interfaces and event contracts.
+
+## Minimal design target
+
+### Canonical state
+
+- `activePane`
+- `startupPhase` (`booting | ready | degraded`)
+
+### Inputs (intent events)
+
+- Pane intents only (`navigate`, `session-start`, `session-stop`, onboarding completion).
+
+### Outputs
+
+- Service command invocations (timeline/playback/detector/performance/chart).
+- No domain computation in orchestration.
+
+### Notifications
+
+- Optional coarse orchestration invalidation (`changed`) if a top-level shell needs it.
+- `fault` for startup/routing coordination failures.
+
+### Invariants
+
+- Orchestration does not become a domain state owner.
+- Domain state transitions happen inside owning services.
+- Pane transitions are serial and explicit.

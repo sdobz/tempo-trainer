@@ -20,3 +20,20 @@ Code name: `plan-visualizer.js` (class `PlanVisualizer`). The "chart" term is th
 - Does not own detector configuration.
 - Does not own session persistence.
 
+## Minimal design target
+
+### Canonical state
+
+- Visualizer-local render cache only (derived from chart/performance/timeline sources).
+
+### Inputs
+
+- Chart projection data.
+- Optional playback/performance overlays.
+
+### Notifications
+
+- No domain events are emitted by default.
+- Re-render on coarse invalidation from upstream sources.
+- Add fine-grained render notifications only if profiling shows coarse redraw is too expensive.
+
