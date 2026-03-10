@@ -1,31 +1,30 @@
-The chart represents an intended sequence of notes
+# Chart
 
-## Current state
+The chart is the intended practice structure. In current code this domain is mostly called `plan`.
 
-It is named `plan`
+## Current implementation
 
-## Service role
+- Persistent plan catalog is managed by `src/features/plan-edit/plan-library.js`.
+- Runtime selected plan is held in `SessionState.plan` (`src/features/base/session-state.js`).
+- Timeline and scorer consume a flattened measure array (`planData.plan`) at playback time.
 
-- Score consumes timeline semantics to place notes in beat/measure space.
-- Score receives detector performance events and records outcomes.
-- Score exposes aggregate/measure-level results as shared state.
+## Owned data
 
-## Performance
+- Plan identity and metadata (`id`, `name`, `description`, `difficulty`, `tags`).
+- Segment structure (`on`, `off`, `reps`).
+- Derived drill measures used for playback.
 
-The performance is the resulting data from a detector reading 
+## Providers and consumers
 
-## Event role
+- `plan-edit-pane` creates/edits/selects plans.
+- `plan-play-pane` and visualizers consume selected plan via `SessionState`.
+- `DrillSessionManager` and `Scorer` consume runtime drill measures.
+- `PracticeSessionManager` stores the plan snapshot with each session record.
 
-- Emits `patched` when score state changes.
-- May emit finer events (`note-registered`, `measure-finalized`, `session-complete`) for focused UI updates.
+## Known seam
 
-## Context role
+"Chart" and "plan" are the same semantic object but use mixed naming across code and docs.
 
-- Score service is provided by root context and consumed by components that visualize performance.
+## Migration target
 
-## Provider
-
-The chart is provided in several contexts
-- Editing a chart
-- Performing a chart
-- Reviewing a chart in history
+Move to one owner and one term (`chart` or `plan`) across storage, runtime state, and docs.

@@ -1,22 +1,35 @@
-The timeline is global state.
+# Timeline
 
-It maps audio `currentTime` to musical structure (beats, measures, segments).
+Timeline is currently a visualized beat-space projection, not yet a standalone service.
 
-## Service role
+## Current implementation
 
-- Timeline is a shared service provided through root context.
-- It consumes audio time and owns tempo semantics:
-	- BPM
-	- beats per measure
-	- beat duration
-	- measure/beat mapping helpers
+- Main timeline UI is `src/features/visualizers/timeline-visualization.js`.
+- It renders:
+	- measure groups (`click-in`, `silent`, etc.)
+	- beat grid
+	- expected beat markers
+	- detected hit markers
+- `DrillSessionManager.updateTimelineScroll(...)` drives centering during playback.
+- Calibration uses a separate timeline window managed in `script.js`.
 
-## Consumers
+## Inputs
 
-- Metronome consumes timeline for beat scheduling.
-- Chart consumes timeline for intended/actual note mapping.
-- Visual components consume timeline events to update DOM.
+- `SessionState.plan` and `SessionState.beatsPerMeasure` via context subscription.
+- Audio-clock-derived beat positions supplied by orchestrators.
 
-## Persistence
+## Outputs
 
-The timeline is generally "always running" even if invisible.
+- Visual feedback only (no domain event contract yet).
+
+## Known seam
+
+Timeline semantics are split between:
+
+- Session state tempo data.
+- Metronome scheduling state.
+- Visualization math and calibration rebase logic in `script.js`.
+
+## Migration target
+
+Create a dedicated timeline domain service for beat/measure mapping and keep `timeline-visualization` as a pure renderer.

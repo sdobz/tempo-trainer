@@ -1,8 +1,30 @@
-Playback is responsible for producing sounds in response to user actions.
+# Playback
 
-## Metronome
+Playback is currently implemented by `src/features/plan-play/metronome.js` and orchestrated by `DrillSessionManager` in `src/features/plan-play/drill-session-manager.js`.
 
-The metronome can be turned on or off. It plays clicks on the beat, with a distinct click for the "1"
+## Current implementation
 
-The "tone" of the metronome can be adjusted, for example during click in.
+- `Metronome` is a scheduler around `AudioContext.currentTime`.
+- It keeps local state for:
+	- running/stopped status
+	- BPM and beat duration
+	- beats-per-measure
+	- next scheduled beat time
+- `DrillSessionManager` provides beat/measure callbacks and chooses click frequencies.
+- `scheduleClick(time, frequency)` synthesizes oscillator-based clicks.
+
+## Responsibilities today
+
+- Audible beat playback during session run.
+- Measure progression signaling through callbacks.
+- Calibration click playback via a second metronome instance in `script.js`.
+
+## Known seam
+
+- Playback uses callbacks (`onBeat`, `onMeasureComplete`) instead of event contracts.
+- Two metronome instances are managed from `script.js` (session and calibration).
+
+## Migration target
+
+- Promote playback to a context-provided runtime service with explicit events (`started`, `stopped`, `beat`, `measure`).
 

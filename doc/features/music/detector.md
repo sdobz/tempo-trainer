@@ -8,13 +8,17 @@ There are two detectors
 
 Detector behavior is currently exposed through a manager that bridges detector internals and UI.
 
-## Desired state
+## Runtime owner
 
-One detector has parameters to flexibly define any type of 
+`src/features/microphone/detector-manager.js` is the current owner for detector lifecycle.
 
-- Notch filter: only look at a certain frequency range
-- Dynamic thresholding behavior
-- Instrument-specific tuning presets
+It owns:
+
+- detector instance creation/switching
+- sensitivity and parameter persistence
+- microphone device selection
+- hit listener registration
+- BPM propagation for adaptive refractory behavior
 
 ## Service role
 
@@ -35,6 +39,10 @@ One detector has parameters to flexibly define any type of
 - Components consume detector service and update DOM from events.
 - Prefer event-driven subscriptions over delegates/callback references.
 
+In current implementation, the manager is context-provided by `main`, but instance construction still happens in `script.js`.
+
 ## Calibration
 
 Calibration is the process of determining the association between the `currentTime` in the computer, how long it takes to play a sound, and how long a users response takes to be detected.
+
+Calibration currently uses detector hit timing plus metronome expected beats and is orchestrated in `script.js`.
