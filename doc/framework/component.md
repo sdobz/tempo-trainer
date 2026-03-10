@@ -25,6 +25,15 @@ Context forms the relationships between components and services.
 - When the callback fires: unsubscribe from the previous service's events, store the new reference, subscribe to its events. This prevents double-subscribe accumulation when an instance is replaced.
 - Components should subscribe to service events and update DOM from those events.
 
+Consumer bootstrap sequence:
+
+1. Receive service instance via context.
+2. Read canonical service state immediately and perform initial render.
+3. Subscribe to service notifications/events.
+4. On notification, re-read canonical state and re-render affected DOM.
+
+Do not wait for an event to perform first render; events are invalidation signals, not initial data delivery.
+
 ## Root context
 
 - The root context catches all unhandled context requests.

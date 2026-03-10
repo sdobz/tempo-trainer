@@ -74,16 +74,26 @@ Without these four sections, the service spec is considered incomplete.
 
 ## Event contract baseline
 
+Event design starts from consumer intent, not from a fixed list of event names.
+
+Design process:
+
+1. List consumer decisions, not UI updates.
+	- Example: "show paused badge", "recompute beat grid", "react to each hit".
+2. For each decision, ask whether polling canonical state on a coarse notification is enough.
+	- If yes, keep coarse.
+	- If no (high-frequency stream or strict edge semantics), add a domain event.
+3. Prefer one discriminated event shape over many synonymous event names.
+	- Example: one lifecycle event with `state` enum payload instead of separate `started/paused/stopped` events.
+4. Stop adding events when each event maps to a distinct consumer decision.
+	- If two events are always handled together, merge them.
+
 Minimum baseline for stateful services:
 
-- `patched`: emitted after any successful state transition.
-- `state-changed`: emitted when lifecycle enum state changes (if service has lifecycle state).
-- `config-changed`: emitted when primary domain configuration changes.
+- One coarse "state may have changed" notification (`patched` or equivalent).
+- Optional domain events only where coarse notifications are insufficient.
 
-Domain services add stream events only when consumers need push semantics.
-Examples: `beat`, `measure-completed`, `hit`, `devices-changed`.
-
-Prefer enum state/config events over multiple synonymous edge events (`started/paused/stopped`).
+The type system should enforce event semantics through discriminated payloads, not through proliferation of event names.
 
 ## Event ordering rule
 
@@ -96,6 +106,23 @@ For a single command execution:
 If command validation fails, throw synchronously and do not emit domain events or `patched`.
 
 Asynchronous dependency/runtime failures should emit `fault` with domain code/context.
+
+## Consumer bootstrap protocol
+
+Events are notifications to read canonical state. Consumers should follow this sequence:
+
+1. Acquire service instance (usually via context callback in `onMount()`).
+2. Read canonical snapshot immediately and render from it.
+3. Subscribe to service notifications/events.
+4. On each notification, re-read canonical snapshot (or apply stream payload for high-frequency paths).
+
+This provides a deterministic initial render and keeps event handlers simple.
+
+## Bootstrap caveats
+
+- Lost-update window: if state can change between initial read and subscription, service API should offer an atomic `subscribeAndReplay`/`subscribeImmediate` style path, or guarantee same-tick ordering.
+- Duplicate work: coarse notifications can trigger full recompute. Accept this by default; optimize only on measured hotspots.
+- Late subscribers: if consumers need the latest edge event, encode that in canonical state so initial read is sufficient.
 
 ## When to introduce a service
 

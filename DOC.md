@@ -43,22 +43,23 @@ Prefer semantic payload descriptions (for example: "contains current tempo and p
 
 ## Event Granularity Policy
 
-Use a two-tier event model:
+Event scope is a design process, not a naming checklist.
 
-- Tier 1 coarse event: `patched` (or equivalent) for full-state recompute consumers.
-- Tier 2 domain events: minimal, named events only when consumers need push-style streams (`beat`, `measure-completed`, `hit`, device changes).
+Process:
 
-Rules:
+1. Define consumer decisions.
+2. Start with one coarse notification (`patched` or equivalent).
+3. Add domain events only where coarse notification is insufficient (high-frequency streams, strict edge semantics, or performance hotspots measured in practice).
+4. Prefer discriminated payloads that type-check exhaustively over many near-synonymous event names.
+5. Remove events that do not map to unique consumer decisions.
 
-- Every state-changing command emits Tier 1.
-- Prefer one semantic state/config event over many edge events when data is naturally modeled as enums/snapshots.
-- Do not emit multiple synonymous events for the same transition.
+Default stance: optimize for fewer events and lower engineering overhead first; increase event specificity only with evidence.
 
-Recommended default for stateful domains:
+Consumer bootstrap:
 
-- `state-changed`: carries previous/current enum state for lifecycle (`stopped|playing|paused`).
-- `config-changed`: carries the relevant config snapshot delta (tempo/meter/etc).
-- `patched`: retained for full recompute consumers.
+- Initial render should come from canonical state read, not waiting for first event.
+- Events notify consumers to re-read canonical state.
+- If a service can change state between read and subscribe, provide an atomic subscribe+replay mechanism.
 
 ## Error Handling Policy
 
