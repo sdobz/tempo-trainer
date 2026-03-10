@@ -10,14 +10,15 @@ component classes are named `DDDDComponent`
 1. When imported in `main.js` the web component is registered
 2. onMount looks up dom elements and creates event callbacks
 3. The component recieves events if it is mounted, and runs methods that update the dom, and accesses services
-4. onMount fires, cleanup is run, and references are removed
+4. onUnmount fires, cleanup is run, and references are removed
 
 ## Context
 
-Context forms the relationships between components and services
+Context forms the relationships between components and services.
 
 - Components consume services in `onMount()`.
-- A context callback should be treated as "service instance updated".
+- A context callback means "service instance updated" — not "service state changed".
+- When the callback fires: unsubscribe from the previous service's events, store the new reference, subscribe to its events. This prevents double-subscribe accumulation when an instance is replaced.
 - Components should subscribe to service events and update DOM from those events.
 
 ## Root context
