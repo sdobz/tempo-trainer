@@ -29,15 +29,22 @@ It owns:
 - It owns active detector configuration and runtime detection state.
 - It is the source of observed hit timestamps used by calibration and scoring.
 
-## Event role
+## Current signal surface
 
-- Emits domain events for consumers:
-	- `hit`
-	- `level`
-	- `devices-changed`
-	- `patched`
+`DetectorManager` is not yet an `EventTarget`. It uses two parallel interfaces:
+
+- `addHitListener(fn)` — registers a timing callback that receives `hitAudioTime` (an `AudioContext.currentTime` float). Returns an unsubscribe function. Used by calibration and scoring.
+- `setDelegate(obj)` — registers a UI delegate for visual feedback. The delegate receives: `onHit()`, `onLevelChanged(level)`, `onPeakChanged(peak)`, `onThresholdChanged(pos)`, `onDevicesChanged(devs, activeId)`.
 
 Calibration consumes detector hit timing; calibration does not own hit detection.
+
+## Migration target signal surface
+
+Once promoted to an `EventTarget` service, the intended domain events are:
+- `hit` — carries `hitAudioTime`
+- `level` — carries current signal level
+- `devices-changed` — carries device list
+- `patched` — carries full state snapshot
 
 ## Context role
 

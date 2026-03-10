@@ -2,8 +2,12 @@ A component is how the DOM is manipulated
 
 ## Naming
 
-files named `*.component.js` have one default export which is a component
-component classes are named `DDDDComponent`
+Component files follow feature naming: `*-pane.js`, `*-control.js`, `*-overlay.js`, `*-visualization.js`.
+No files use the `*.component.js` pattern.
+
+Component classes use PascalCase matching the file: `PlanPlayPane`, `PlanEditPane`, `MicrophoneControl`, `AudioContextOverlay`, `TimelineVisualization`.
+
+The shared base class is `BaseComponent` at `src/features/component/base-component.js`.
 
 ## Lifecycle
 

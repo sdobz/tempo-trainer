@@ -29,7 +29,7 @@ Context is the mechanism for delivering a service to its consumers. It is not a 
 
 State changes propagate through service events, not through context. If a context callback fires repeatedly during normal operation, the code is using context as a state channel — use events instead.
 
-This boundary is also what makes components context-agnostic: a chart editor that consumes `ChartContext` doesn't know whether a root service or a pane-scoped service provides it. Both use the same token and the same interface. Only the provider changes.
+This boundary is also what makes components context-agnostic: a chart editor that consumes `SessionStateContext` for plan access doesn't know whether a root service or a pane-scoped service provides it. Both use the same token and the same interface. Only the provider changes.
 
 ## Consumer contract
 

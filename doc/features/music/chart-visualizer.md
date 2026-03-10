@@ -2,6 +2,8 @@
 
 Chart visualization is responsible for rendering plan/chart structure for user comprehension.
 
+Code name: `plan-visualizer.js` (class `PlanVisualizer`). The "chart" term is the target; code uses `plan-*`.
+
 ## Current implementation
 
 - `src/features/visualizers/plan-visualizer.js` renders plan segments and structure.

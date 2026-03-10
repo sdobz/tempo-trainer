@@ -4,7 +4,7 @@ Chart play is the active practice run from "start" to completion/stop.
 
 ## Current flow
 
-1. User enters `plan-play` pane.
+1. User enters `plan-play-pane` (class `PlanPlayPane`, element `<plan-play-pane>`).
 2. `plan-play-pane` emits `session-start`.
 3. `script.js` validates audio context and starts `DrillSessionManager`.
 4. `DrillSessionManager` coordinates metronome, detector, scorer, and timeline updates.

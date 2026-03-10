@@ -4,7 +4,7 @@ Chart edit is the process of creating, cloning, and modifying plan definitions.
 
 ## Current flow
 
-- `plan-edit-pane` drives user edits.
+- `plan-edit-pane` (class `PlanEditPane`, element `<plan-edit-pane>`) drives user edits.
 - `PlanLibrary` (`src/features/plan-edit/plan-library.js`) owns persistence for built-in and custom plans.
 - Selected/active plan is pushed into `SessionState.setPlan(...)` for playback consumers.
 

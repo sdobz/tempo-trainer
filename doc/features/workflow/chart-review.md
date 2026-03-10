@@ -2,6 +2,8 @@
 
 Chart review is the post-session workflow for inspecting completed runs and derived metrics.
 
+Code name: `plan-history-pane` (class `PlanHistoryPane`, element `<plan-history-pane>`). The code uses "history"; this doc uses "review" as the target term for the workflow concept.
+
 ## Current flow
 
 - Sessions are saved via `PracticeSessionManager.saveSession(...)`.
