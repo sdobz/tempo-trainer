@@ -51,6 +51,15 @@ export class PlaybackState {
   }
 
   /**
+   * Get a copy of the current state snapshot for deterministic bootstrap reads.
+   * [Phase 0] Added for consumer bootstrap-without-subscribe pattern.
+   * @returns {PlaybackSnapshot}
+   */
+  getSnapshot() {
+    return { ...this._state };
+  }
+
+  /**
    * Subscribe to state changes.  fn is called immediately with the current
    * state and again on every update.
    * @param {(state: PlaybackSnapshot) => void} fn

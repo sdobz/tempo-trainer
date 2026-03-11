@@ -278,3 +278,61 @@ Deno.test(
     assertEquals(manager.isRunning, false);
   },
 );
+
+// [Phase 0] Event contract tests for hit, changed, fault events
+Deno.test("DetectorManager: emits 'hit' EventTarget events on hits", () => {
+  const storage = new MockStorageManager();
+  const manager = new DetectorManager(storage);
+  const hits: CustomEvent[] = [];
+
+  manager.addEventListener("hit", (ev) => {
+    if (ev instanceof CustomEvent) hits.push(ev);
+  });
+
+  manager.onHitFromDetector(100.5);
+
+  assertEquals(hits.length, 1);
+  assertEquals(hits[0].detail.time, 100.5);
+});
+
+Deno.test(
+  "DetectorManager: emits 'changed' events on setSensitivity",
+  () => {
+    const storage = new MockStorageManager();
+    const manager = new DetectorManager(storage);
+    const changes: CustomEvent[] = [];
+
+    manager.addEventListener("changed", (ev) => {
+      if (ev instanceof CustomEvent) changes.push(ev);
+    });
+
+    manager.setSensitivity(0.7);
+
+    assertEquals(changes.length, 1);
+    assertEquals(changes[0].detail.field, "sensitivity");
+    assertEquals(changes[0].detail.value, 0.7);
+  },
+);
+
+Deno.test(
+  "DetectorManager: hit event and addHitListener both fire (compat)",
+  () => {
+    const storage = new MockStorageManager();
+    const manager = new DetectorManager(storage);
+    const hitEvents: CustomEvent[] = [];
+    const hitTimes: number[] = [];
+
+    manager.addEventListener("hit", (ev) => {
+      if (ev instanceof CustomEvent) hitEvents.push(ev);
+    });
+
+    manager.addHitListener((time) => hitTimes.push(time));
+
+    manager.onHitFromDetector(150);
+
+    assertEquals(hitEvents.length, 1);
+    assertEquals(hitTimes.length, 1);
+    assertEquals(hitEvents[0].detail.time, 150);
+    assertEquals(hitTimes[0], 150);
+  },
+);

@@ -46,11 +46,12 @@ export const DetectorManagerContext = createContext("detector-manager", null);
  *   onHit()                     — visual hit feedback
  *   onDevicesChanged(devs, id)  — device list updated (from AudioInputSource)
  */
-class DetectorManager {
+class DetectorManager extends EventTarget {
   /**
    * @param {Object} storageManager — StorageManager instance for params persistence
    */
   constructor(storageManager) {
+    super();
     this._storage = storageManager;
 
     /** @type {AudioContext|null} Injected after first user gesture */
@@ -133,12 +134,22 @@ class DetectorManager {
   }
 
   /**
-   * Start detection. Creates AudioInputSource/detector if AudioContext is ready.
+   * Toggle detector start/stop.
+   * [Phase 0] Returns Promise<boolean> indicating success.
    * @returns {Promise<boolean>}
    */
   async start() {
     if (!this._detector) return false;
-    return this._detector.start();
+    try {
+      const result = await this._detector.start();
+      // [Phase 0 event] Emit state change when detector starts.
+      this.dispatchEvent(new CustomEvent("changed", { detail: { field: "running", value: true } }));
+      return result;
+    } catch (error) {
+      // [Phase 0 event] Emit fault for async failures in detector startup.
+      this.dispatchEvent(new CustomEvent("fault", { detail: { code: "detector-start-failed", error } }));
+      return false;
+    }
   }
 
   /**
@@ -146,6 +157,8 @@ class DetectorManager {
    */
   stop() {
     this._detector?.stop();
+    // [Phase 0 event] Emit state change when detector stops.
+    this.dispatchEvent(new CustomEvent("changed", { detail: { field: "running", value: false } }));
   }
 
   // ---------------------------------------------------------------------------
@@ -166,6 +179,8 @@ class DetectorManager {
     this._params = { ...this._params, sensitivity: clamped };
     this._saveParams(this._params);
     this._detector?.setSensitivity?.(clamped);
+    // [Phase 0 compat shim] Emit state change event. Remove after consumers migrate: target=Phase 4.
+    this.dispatchEvent(new CustomEvent("changed", { detail: { field: "sensitivity", value: clamped } }));
   }
 
   /**
@@ -326,6 +341,9 @@ class DetectorManager {
       typeof hitAudioTime === "number"
         ? hitAudioTime
         : (this._audioContext?.currentTime ?? 0);
+
+    // [Phase 0 event] Emit hit stream event for scoring and timing.
+    this.dispatchEvent(new CustomEvent("hit", { detail: { time: resolvedHitTime } }));
 
     this._hitListeners.forEach((listener) => {
       try {

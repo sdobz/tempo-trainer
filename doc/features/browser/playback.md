@@ -36,15 +36,19 @@ It holds:
 - `beat` — `{ beatNum, isDownbeat, shouldShow }` or `null`
 - `isPlaying` — boolean
 
-Consumers call `subscribe(fn)` and receive the full snapshot immediately and on every `update(patch)`.
+**[Phase 0] Consumer bootstrap pattern:**
+- Call `getSnapshot()` to read current state without subscribing (deterministic initial render).
+- Call `subscribe(fn)` to listen for updates; fn is called immediately and on every change.
+- Call `update(patch)` to modify state (internal use only).
 
 `PlaybackContext` is the context token (exported from the same file). It is provided by `plan-play-pane` (scoped, not root) and consumed by `plan-visualizer` and `timeline-visualization`.
 
 ## Known seam
 
-- `Metronome` uses callbacks (`onBeat`, `onMeasureComplete`) instead of event contracts.
-- Two metronome instances are managed from `script.js` (session and calibration).
-- `PlaybackState` uses a custom subscriber set (`subscribe`/`unsubscribe`) rather than `EventTarget`.
+**[Phase 0 compat]:**
+- `Metronome` still uses callbacks (`onBeat`, `onMeasureComplete`) instead of event contracts (remove Phase 3).
+- Two metronome instances managed from `script.js` (session and calibration); will move to dedicated services Phase 2–3.
+- `PlaybackState` uses custom subscriber (compatible design, no EventTarget needed for UI state).
 
 ## Migration target
 

@@ -1,9 +1,9 @@
-import { createContext } from "./context.js";
+import { createContext } from "../component/context.js";
 
 /**
  * Context token.  Provided at the document root by script.js;
  * consumed by plan-play-pane and any other component that needs session data.
- * @type {import('./context.js').Context<SessionState|null>}
+ * @type {import('../component/context.js').Context<SessionState|null>}
  */
 export const SessionStateContext = createContext("session-state", null);
 
@@ -41,12 +41,13 @@ export const SessionStateContext = createContext("session-state", null);
  * @property {((planData: any) => void)=} onPlanChange
  */
 
-class SessionState {
+class SessionState extends EventTarget {
   /**
    * @param {number} [initialBPM=120]
    * @param {number} [initialBeatsPerMeasure=4]
    */
   constructor(initialBPM = 120, initialBeatsPerMeasure = 4) {
+    super();
     /** @type {number} */
     this._bpm = initialBPM;
     /** @type {number} */
@@ -92,6 +93,8 @@ class SessionState {
   setBPM(bpm) {
     this._bpm = bpm;
     this._notify("onBPMChange", bpm);
+    // [Phase 0 compat shim] Emit EventTarget event. Remove after all consumers use events: target=Phase 4.
+    this.dispatchEvent(new CustomEvent("changed", { detail: { field: "bpm", value: bpm } }));
   }
 
   /**
@@ -101,6 +104,8 @@ class SessionState {
   setBeatsPerMeasure(n) {
     this._beatsPerMeasure = n;
     this._notify("onBeatsPerMeasureChange", n);
+    // [Phase 0 compat shim] Emit EventTarget event. Remove after all consumers use events: target=Phase 4.
+    this.dispatchEvent(new CustomEvent("changed", { detail: { field: "beatsPerMeasure", value: n } }));
   }
 
   /**
@@ -110,6 +115,8 @@ class SessionState {
   setPlan(planData) {
     this._plan = planData;
     this._notify("onPlanChange", planData);
+    // [Phase 0 compat shim] Emit EventTarget event. Remove after all consumers use events: target=Phase 4.
+    this.dispatchEvent(new CustomEvent("changed", { detail: { field: "plan", value: planData } }));
   }
 
   // ---------------------------------------------------------------------------
@@ -119,6 +126,9 @@ class SessionState {
   /**
    * Register a set of handlers to be called when state changes.
    * Only provide the handlers you care about; others are ignored.
+   *
+   * [Phase 0 compat shim] Deprecated in favor of EventTarget.addEventListener().
+   * Remove this method after all consumers migrate: target=Phase 4.
    *
    * @param {SessionStateHandlers} handlers
    * @returns {() => void} Unsubscribe function — call to stop receiving updates

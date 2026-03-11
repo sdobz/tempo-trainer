@@ -2,13 +2,42 @@
 
 The detector identifies when an instrument plays a note and provides calibration-facing timing observations.
 
-## Current state
+## Current state (with Phase 0 contract hardening)
 
-There are two detectors
-- Threshold - when the audio volume exceeds a note
-- Adaptive - complex algorithm to detect notes
+Two detectors are available:
+- **Threshold**: When audio volume exceeds a note threshold.
+- **Adaptive**: Complex algorithm to detect notes.
 
-Detector behavior is currently exposed through a manager that bridges detector internals and UI.
+Detector behavior is exposed through `DetectorManager` which bridges detector internals and UI.
+
+### [Phase 0] Event contract (NEW)
+
+DetectorManager now emits EventTarget events for state changes and hits:
+
+- **`hit` event**: Required stream of hit timings.
+  - Fired on `onHitFromDetector(hitAudioTime)`.
+  - Detail: `{ time: number }` (AudioContext.currentTime).
+  - Used by calibration and scoring.
+
+- **`changed` event**: Coarse state invalidation.
+  - Fired on sensitivity changes, device selection, detector type changes.
+  - Detail: `{ field: string, value: unknown }` (e.g., `{ field: "sensitivity", value: 0.7 }`).
+
+- **`fault` event**: Async/dependency failures (runtime, not validation).
+  - Emitted for detector startup/stream failures.
+  - Detail: `{ code: string, error: Error }`.
+
+### [Phase 0] Legacy callback/delegate interface (COMPAT SHIM)
+
+Old interfaces remain for backward compatibility (remove in Phase 4):
+
+- `setDelegate(obj)` — registers UI delegate for visual feedback (deprecated).
+  - Delegate receives: `onHit()`, `onLevelChanged(level)`, `onPeakChanged(peak)`, etc.
+  - Will be removed once consumers migrate to event listeners.
+
+- `addHitListener(fn)` — registers timing callback (deprecated).
+  - Returns unsubscribe function.
+  - Fires alongside `hit` events until removal in Phase 4.
 
 ## Runtime owner
 
@@ -19,7 +48,8 @@ It owns:
 - detector instance creation/switching
 - sensitivity and parameter persistence
 - microphone device selection
-- hit listener registration
+- **[Phase 0] hit event stream via EventTarget** (was: hit listener registration)
+- **[Phase 0] state change notifications via EventTarget** (was: delegate forwarding)
 - BPM propagation for adaptive refractory behavior
 - detector-facing calibration timing inputs (observed hit times)
 
@@ -31,12 +61,15 @@ It owns:
 
 ## Current signal surface
 
-`DetectorManager` is not yet an `EventTarget`. It uses two parallel interfaces:
+**[Phase 0] New EventTarget interface:**
+- `addEventListener("hit", handler)` — hit stream (required).
+- `addEventListener("changed", handler)` — state changes (coarse).
+- `addEventListener("fault", handler)` — failures.
+- `removeEventListener("hit" | "changed" | "fault", handler)`.
 
-- `addHitListener(fn)` — registers a timing callback that receives `hitAudioTime` (an `AudioContext.currentTime` float). Returns an unsubscribe function. Used by calibration and scoring.
-- `setDelegate(obj)` — registers a UI delegate for visual feedback. The delegate receives: `onHit()`, `onLevelChanged(level)`, `onPeakChanged(peak)`, `onThresholdChanged(pos)`, `onDevicesChanged(devs, activeId)`.
-
-Calibration consumes detector hit timing; calibration does not own hit detection.
+**Legacy delegate/callback interface (COMPAT SHIM, target=Phase 4):**
+- `setDelegate(obj)` — registers UI delegate.
+- `addHitListener(fn)` — registers timing callback; returns unsubscribe.
 
 ## Minimal design target
 
