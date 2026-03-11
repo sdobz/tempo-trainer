@@ -19,7 +19,7 @@ mkdir -p dist
 echo "📦 Bundling for production..."
 
 # Use Deno's native bundler to create a single bundle file
-deno bundle src/script.js dist/app.js
+deno bundle src/bootstrap.js dist/app.js
 
 echo "✅ Bundle created: dist/app.js"
 echo ""

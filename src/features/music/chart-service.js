@@ -2,7 +2,7 @@ import { createContext } from "../component/context.js";
 import PlanLibrary from "../plan-edit/plan-library.js";
 
 /**
- * Context token. Provided by script.js; consumed by panes that need chart selection/manipulation.
+ * Context token. Provided by main composition root; consumed by panes that need chart selection/manipulation.
  * @type {import('../component/context.js').Context<ChartService|null>}
  */
 export const ChartServiceContext = createContext("chart-service", null);
@@ -22,7 +22,7 @@ export const ChartServiceContext = createContext("chart-service", null);
  *   - "chart-saved": { detail: { chart: ChartObject } }
  *   - "chart-deleted": { detail: { chartId: string } }
  *
- * Usage (in script.js):
+ * Usage (in app orchestrator):
  *   const chartService = new ChartService();
  *   chartService.addEventListener("chart-selected", (e) => { ... });
  *   chartService.selectChart(builtInChart);

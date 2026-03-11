@@ -3,7 +3,7 @@ import Scorer from "../plan-play/scorer.js";
 import PracticeSessionManager from "../plan-history/practice-session-manager.js";
 
 /**
- * Context token. Provided by script.js; consumed by panes during playback + history viewing.
+ * Context token. Provided by main composition root; consumed by panes during playback + history viewing.
  * @type {import('../component/context.js').Context<PerformanceService|null>}
  */
 export const PerformanceServiceContext = createContext(
@@ -27,7 +27,7 @@ export const PerformanceServiceContext = createContext(
  *   - "measure-finalized": { detail: { measureIndex: number, score: number } }
  *   - "session-ended": { detail: { sessionData: Object } }
  *
- * Usage (in script.js and panes):
+ * Usage (in app orchestrator and panes):
  *   const performanceService = new PerformanceService();
  *   performanceService.addEventListener("hit", (e) => { ... });
  *   performanceService.registerHit(0.5);  // Register hit at 0.5 beats offset

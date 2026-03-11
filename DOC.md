@@ -95,28 +95,35 @@ We are migrating toward a DI-style service graph where:
 - root context provides those services
 - components consume services through context
 - services publish state changes through events
-- `script.js` is reduced to startup/nav glue and eventually deprecated
+- `bootstrap.js` starts the app and delegates workflow wiring to `app-orchestrator.js`
 
 ### Current service graph (as implemented now)
 
 1. `AudioContextManager` (created in `src/features/main/main.js`)
 	- Shared audio context lifecycle and readiness.
 	- Exposed through root context.
-2. `SessionState` (created in `src/script.js`, provided by `main`)
+2. `SessionState` (created in `src/features/main/main.js`, provided by `main`)
 	- Legacy state holder during migration.
 	- Timing ownership has moved to timeline service.
 	- Selected chart ownership has moved to chart service.
 	- Still carries compatibility mirror fields and legacy plan projection seam.
 	- Fan-out currently uses subscribe handlers.
-3. `TimelineService` (created in `src/script.js`, provided by `main`)
+3. `TimelineService` (created in `src/features/main/main.js`, provided by `main`)
 	- Canonical owner of tempo, meter, transport, and position.
 	- Emits `changed` and `transport` events for timing state transitions.
-4. `DetectorManager` (created in `src/script.js`, provided by `main`)
+4. `DetectorManager` (created in `src/features/main/main.js`, provided by `main`)
 	- Owns detector type/config, mic input bridge, device selection, hit listeners.
+<<<<<<< Updated upstream
 5. `PlaybackService` (created in `src/script.js`, provided by `main`)
 	- Rendering-only audio service for clicks/cues.
 	- Used by both drill playback and calibration click paths.
 6. `Metronome` + `Scorer` + `DrillSessionManager` (created in `src/script.js`)
+=======
+5. `PlaybackService` (created in `src/features/main/main.js`, provided by `main`)
+	- Rendering-only audio service for clicks/cues.
+	- Used by both drill playback and calibration click paths.
+6. `Metronome` + `Scorer` + `DrillSessionManager` (root-created and orchestrator-wired)
+>>>>>>> Stashed changes
 	- Metronome remains a scheduling shim; DrillSessionManager coordinates run flow/scoring.
 7. `PracticeSessionManager` + `PlanLibrary`
 	- Persist history metrics and plan catalog (built-in and custom).
@@ -153,7 +160,7 @@ We are migrating toward a DI-style service graph where:
 ### Wiring layers
 
 - `main.js` (composition/root wiring): root context provisioning and root-level inter-service wiring.
-- app orchestrator (`script.js` during migration): inter-pane routing and workflow messaging.
+- `app-orchestrator.js`: inter-pane routing and workflow messaging.
 
 These are distinct responsibilities and should not be merged into a single god object.
 
@@ -161,7 +168,7 @@ Note: `doc/features/state.md` does not exist yet in this structure. Until added,
 
 ### Phased migration
 
-1. Keep `script.js` behavior stable while documenting exact ownership seams.
+1. Keep orchestrator behavior stable while documenting exact ownership seams.
 2. Move ownership descriptions into feature docs first, then move code ownership.
 3. Replace ad-hoc callback fan-out with explicit event contracts.
 4. Remove script-level orchestration only after equivalent context/service paths exist.

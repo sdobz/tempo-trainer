@@ -12,7 +12,7 @@ import {
 import { createContext } from "../component/context.js";
 
 /**
- * Context token.  Provided at document root by script.js;
+ * Context token.  Provided at document root by main composition root;
  * consumed by microphone-control and onboarding-pane.
  * @type {import('../component/context.js').Context<DetectorManager|null>}
  */
@@ -22,15 +22,14 @@ export const DetectorManagerContext = createContext("detector-manager", null);
  * DetectorManager — Owns the full lifetime of beat detection.
  *
  * Centralizes everything that was previously scattered across MicrophoneControl,
- * OnboardingPane, and script.js:
+ * OnboardingPane, and app orchestration:
  *   - Audio hardware (AudioInputSource)
  *   - Detector creation and hot-swapping
  *   - Persistent DetectorParams serialization
  *   - onHit timing callback (always re-wired across detector switches)
  *   - Stable delegate forwarding (UI never holds a direct detector reference)
  *
- * script.js registers one instance in Services before component init:
- *   Services.register("detectorManager", new DetectorManager(StorageManager));
+ * main.js composition creates one instance before component context consumers mount.
  *
  * AudioContext is injected lazily (browser requires user gesture):
  *   detectorManager.audioContext = audioContextService.getContext();

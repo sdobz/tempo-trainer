@@ -49,7 +49,7 @@ export default class OnboardingPane extends BaseComponent {
   }
 
   /**
-   * Convenience getter so script.js can access the calibration domain object
+   * Convenience getter so app orchestration can access the calibration domain object
    * without reaching through three levels of nesting.
    * @returns {import('../calibration/calibration-detector.js').default|null}
    */

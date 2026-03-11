@@ -262,7 +262,8 @@ Tested on Chrome, Firefox, and Edge.
 
 #### Main Orchestration
 
-- `script.js` - Main application logic and pane coordination
+- `bootstrap.js` - Browser startup entrypoint
+- `app-orchestrator.js` - Main application logic and pane coordination
 - `pane-manager.js` - Navigation controller with hash-based routing and intelligent pane selection
 
 #### Feature Modules

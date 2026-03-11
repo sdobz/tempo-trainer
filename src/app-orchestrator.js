@@ -1,12 +1,6 @@
-// --- ESM Module Imports ---
 import StorageManager from "./features/base/storage-manager.js";
-import SessionState from "./features/base/session-state.js";
-import DetectorManager from "./features/microphone/detector-manager.js";
-import Metronome from "./features/plan-play/metronome.js";
-import Scorer from "./features/plan-play/scorer.js";
-import PlanLibrary from "./features/plan-edit/plan-library.js";
-import PaneManager from "./features/base/pane-manager.js";
 import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
+<<<<<<< Updated upstream:src/script.js
 import ChartService from "./features/music/chart-service.js";
 import PerformanceService from "./features/music/performance-service.js";
 import TimelineService from "./features/music/timeline-service.js";
@@ -17,9 +11,9 @@ import "./features/plan-history/plan-history-pane.js";
 import PracticeSessionManager from "./features/plan-history/practice-session-manager.js";
 import "./features/onboarding/onboarding-pane.js";
 import "./features/audio/audio-context-overlay.js";
+=======
+>>>>>>> Stashed changes:src/app-orchestrator.js
 import { getAllElements } from "./features/component/dom-utils.js";
-
-import MainComponent from "./features/main/main.js";
 
 /** @typedef {import("./features/plan-edit/plan-edit-pane.js").default} PlanEditPane */
 /** @typedef {import("./features/plan-play/plan-play-pane.js").default} PlanPlayPane */
@@ -27,14 +21,13 @@ import MainComponent from "./features/main/main.js";
 /** @typedef {import("./features/onboarding/onboarding-pane.js").default} OnboardingPane */
 /** @typedef {import("./features/main/main.js").default} TempoTrainerMain */
 
-document.addEventListener("DOMContentLoaded", () => {
-  const mainRoot = /** @type {TempoTrainerMain|null} */ (
-    document.querySelector("tempo-trainer-main")
-  );
-  if (!mainRoot || !(mainRoot instanceof MainComponent)) {
-    throw new Error("tempo-trainer-main root component not found");
-  }
-
+/**
+ * App workflow orchestrator.
+ * Wires pane intents and runtime service command routing.
+ *
+ * @param {TempoTrainerMain} mainRoot
+ */
+export function startAppOrchestrator(mainRoot) {
   // --- DOM Elements ---
   const onboardingPane = /** @type {OnboardingPane} */ (
     document.querySelector("onboarding-pane")
@@ -49,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector("plan-play-pane")
   );
 
+<<<<<<< Updated upstream:src/script.js
   // --- Feature Instances ---
   const planLibrary = new PlanLibrary();
   const playbackService = new PlaybackService();
@@ -95,6 +89,24 @@ document.addEventListener("DOMContentLoaded", () => {
     playbackService,
   });
 
+=======
+  const {
+    planLibrary,
+    metronome,
+    calibrationMetronome,
+    scorer,
+    practiceSessionManager,
+    audioContextService,
+    paneManager,
+    sessionState,
+    timelineService,
+    playbackService,
+    detectorManager,
+  } = mainRoot.getRuntime();
+
+  let calibration;
+
+>>>>>>> Stashed changes:src/app-orchestrator.js
   const applyAudioContext = () => {
     const ctx = audioContextService.getContext();
     if (!ctx) return false;
@@ -112,9 +124,9 @@ document.addEventListener("DOMContentLoaded", () => {
   applyAudioContext();
 
   // Wait for components to be ready
-  let timeline; // Direct ref for imperative playback: centerAt, addDetection, clearDetections
+  let timeline;
   let calibrationTimeline;
-  let drillSessionManager; // Will be initialized after all components ready
+  let drillSessionManager;
   let playPreviewActivationCleanup = null;
   let playPreviewActivationInFlight = false;
 
@@ -126,7 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let calibrationTimelineRafId = null;
 
   const onboardingReady = onboardingPane.componentReady.then(() => {
-    // Get calibration instance from calibration-control sub-component
     if (onboardingPane.calibrationControl) {
       calibration = onboardingPane.calibration;
       applyAudioContext();
@@ -141,7 +152,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const planEditReady = planEditPane.componentReady;
 
   const planPlayReady = planPlayPane.componentReady.then(() => {
-    // Get the timeline-visualization component for imperative playback operations only
     const timelineVizComponent = planPlayPane.querySelector(
       "timeline-visualization",
     );
@@ -150,7 +160,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     timeline = timelineVizComponent;
 
-    // Handle navigation
     planPlayPane.addEventListener(
       "navigate",
       (/** @type {CustomEvent} */ event) => {
@@ -162,9 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   });
 
-  // Initialize plan-history-pane event listeners
   const planHistoryReady = planHistoryPane.componentReady.then(() => {
-    // Handle retry plan
     planHistoryPane.addEventListener(
       "retry-plan",
       (/** @type {CustomEvent} */ event) => {
@@ -174,7 +181,6 @@ document.addEventListener("DOMContentLoaded", () => {
       },
     );
 
-    // Handle navigation
     planHistoryPane.addEventListener(
       "navigate",
       (/** @type {CustomEvent} */ event) => {
@@ -185,7 +191,6 @@ document.addEventListener("DOMContentLoaded", () => {
       },
     );
 
-    // Handle deleting a session from history
     planHistoryPane.addEventListener(
       "delete-session",
       (/** @type {CustomEvent} */ event) => {
@@ -201,7 +206,6 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   });
 
-  // Handle onboarding completion
   onboardingPane.addEventListener("complete", () => {
     StorageManager.set("tempoTrainer.hasCompletedOnboarding", "true");
     paneManager.navigate("plan-edit");
@@ -307,7 +311,6 @@ document.addEventListener("DOMContentLoaded", () => {
     buildCalibrationTimelineWindow(calibrationTimelineWindowStartMeasure);
   });
 
-  // Handle navigation from plan-edit-pane
   planEditPane.addEventListener(
     "navigate",
     (/** @type {CustomEvent} */ event) => {
@@ -318,19 +321,14 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   );
 
-  // --- Pane Navigation ---
-
   let hasInitialized = false;
 
   /** @param {string} pane */
   const updatePaneVisibility = async (pane) => {
-    // Use PaneManager to handle DOM visibility
     paneManager.updateVisibility(pane);
 
-    // Only start mic after app is fully initialized
     if (!hasInitialized) return;
 
-    // Ensure play pane timeline and visualizer are populated when switching to play tab
     if (pane === "plan-play") {
       timeline.centerAt(0);
 
@@ -347,17 +345,14 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // Handle pane-specific setup
     if (pane === "onboarding") {
       playPreviewActivationCleanup?.();
 
-      // Wait for onboarding component to be ready before accessing detectors
       await onboardingReady;
       onboardingPane.refreshSetupStatus();
 
       if (!applyAudioContext()) return;
 
-      // Start microphone detector to show levels and enumerate devices
       if (!detectorManager.isRunning) {
         try {
           await detectorManager.start();
@@ -400,7 +395,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       stopCalibrationTimeline();
       stopCalibrationMetronome();
-      // Stop microphone detector when leaving onboarding (but not when going to play)
       detectorManager.stop();
     } else {
       stopCalibrationTimeline();
@@ -410,24 +404,14 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   paneManager.onPaneChange(updatePaneVisibility);
-
-  // Initialize pane manager after all callbacks are registered.
-  // This reads the current URL hash and fires the first pane-change callback.
-  // Must come after onPaneChange() registrations so listeners are in place.
-  // NOTE: hasInitialized is still false here, so updatePaneVisibility returns
-  // early — the actual first render happens at the end of init().
   paneManager.initialize();
 
-  // Setup navigation button click handlers
   getAllElements("[data-pane]").forEach((btn) => {
     const navEl = /** @type {HTMLElement} */ (btn);
     navEl.addEventListener("click", () => {
       paneManager.navigate(navEl.dataset.pane || "onboarding");
     });
   });
-
-  // Setup BPM and time signature change handlers after plan-play pane is ready
-  // NOTE: BPM/time-sig input listeners now live inside plan-play-pane (via consumeContext).
 
   function getCalibrationBeatPositionFromAudioTime(audioTime) {
     const beatDuration = timelineService.beatDuration;
@@ -567,10 +551,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return calibrationTimeline;
   }
 
-  // --- Initialization ---
-
   async function init() {
-    // Wait for all components to be ready
     await Promise.all([
       onboardingReady,
       planEditReady,
@@ -578,7 +559,6 @@ document.addEventListener("DOMContentLoaded", () => {
       planHistoryReady,
     ]);
 
-    // Create DrillSessionManager now that all components are ready
     drillSessionManager = new DrillSessionManager(
       metronome,
       playbackService,
@@ -591,7 +571,6 @@ document.addEventListener("DOMContentLoaded", () => {
       timelineService,
     );
 
-    // [Phase 2] TimelineService is canonical for tempo/meter fan-out.
     timelineService.addEventListener(
       "changed",
       (/** @type {CustomEvent} */ event) => {
@@ -614,7 +593,6 @@ document.addEventListener("DOMContentLoaded", () => {
       },
     );
 
-    // [Phase 2 seam] SessionState still carries plan data until chart/timeline convergence.
     sessionState.subscribe({
       onPlanChange: (planData) => {
         const measures =
@@ -623,7 +601,6 @@ document.addEventListener("DOMContentLoaded", () => {
       },
     });
 
-    // Apply initial timeline values once so dependent modules are in sync.
     metronome.setBPM(timelineService.tempo);
     metronome.setTimeSignature(timelineService.beatsPerMeasure);
     calibrationMetronome.setBPM(timelineService.tempo);
@@ -632,8 +609,6 @@ document.addEventListener("DOMContentLoaded", () => {
     scorer.setBeatsPerMeasure(timelineService.beatsPerMeasure);
     detectorManager.setSessionBpm(timelineService.tempo);
 
-    // Register session-start/stop here — drillSessionManager is guaranteed to be
-    // defined at this point (constructed above), eliminating the late-binding hazard.
     planPlayPane.addEventListener("session-start", async () => {
       try {
         const audioContext = audioContextService.getContext();
@@ -655,10 +630,7 @@ document.addEventListener("DOMContentLoaded", () => {
       planPlayPane.playbackState.update({ isPlaying: false });
     });
 
-    // DrillSessionManager now updates PlaybackState directly for beat/highlight/score/status.
-
     drillSessionManager.onSessionComplete((sessionData) => {
-      // Augment session data with plan info from plan editor
       const currentPlan = planEditPane.getCurrentPlan();
       const sessionPlan = currentPlan
         ? {
@@ -690,7 +662,6 @@ document.addEventListener("DOMContentLoaded", () => {
         scorer.reset();
       }
 
-      // Update history display and navigate to history pane with expanded session
       if (session) {
         const allSessions = practiceSessionManager.getSessions();
         planHistoryPane.displaySessions(allSessions, session.id);
@@ -698,12 +669,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Initialize plan editor pane — must be after Promise.all so planLibrary is ready
     if (planEditPane) {
       planEditPane.init(planLibrary);
     }
 
-    // Determine which pane to show
     const hasCompletedOnboarding = StorageManager.get(
       "tempoTrainer.hasCompletedOnboarding",
     );
@@ -714,8 +683,6 @@ document.addEventListener("DOMContentLoaded", () => {
       initialPane = hasCalibration ? "plan-play" : "onboarding";
     }
 
-    // Initialize display — push current plan through SessionState so all subscribers
-    // (scorer, timeline, planVisualizer) receive it via the subscription wired above.
     if (sessionState.plan) {
       sessionState.setPlan(sessionState.plan);
     }
@@ -723,31 +690,23 @@ document.addEventListener("DOMContentLoaded", () => {
     planPlayPane.reset();
     planPlayPane.setCalibrationWarningVisible(!hasCalibration);
 
-    // Display existing sessions from history
     const sessions = practiceSessionManager.getSessions();
     if (sessions.length > 0) {
       planHistoryPane.displaySessions(sessions);
     }
 
-    // Mark initialization complete and navigate to initial pane
-    // This will trigger updatePaneVisibility which will now handle mic setup
     hasInitialized = true;
 
-    // Navigate to appropriate pane
     if (globalThis.location.hash === "" || globalThis.location.hash === "#") {
-      // Keep URL state consistent, then force initial render in case pane manager
-      // already has the same current pane and doesn't emit a change callback.
       paneManager.navigate(initialPane);
       await updatePaneVisibility(initialPane);
     } else {
-      // Hash is already set, trigger updatePaneVisibility manually
       await updatePaneVisibility(paneManager.getCurrentPane() || "onboarding");
     }
   }
 
   init();
 
-  // Animation frame for timeline scrolling during playback
   function updateTimelineScroll() {
     const audioContext = audioContextService.getContext();
     if (drillSessionManager && audioContext) {
@@ -761,4 +720,4 @@ document.addEventListener("DOMContentLoaded", () => {
     removeHitListener();
     stopCalibrationTimeline();
   });
-});
+}

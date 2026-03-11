@@ -32,8 +32,9 @@ When guidance conflicts, use this precedence order:
 
 ## Current Migration Reality
 
-- `src/script.js` is still the concrete orchestrator.
-- `src/features/main/main.js` is a partial composition root/context bridge.
+- `src/bootstrap.js` is the startup entrypoint.
+- `src/app-orchestrator.js` is the concrete orchestrator.
+- `src/features/main/main.js` is the composition root/context bridge.
 - Continue moving domain behavior into service contracts documented in `doc/features/**`.
 
 ## Naming Notes

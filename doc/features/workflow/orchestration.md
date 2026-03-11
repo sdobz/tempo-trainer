@@ -6,11 +6,11 @@ This file describes the app orchestrator layer (inter-pane routing and workflow 
 
 ## Current owner
 
-- `src/script.js` is the concrete orchestrator.
+- `src/app-orchestrator.js` is the concrete orchestrator.
+- `src/bootstrap.js` starts the app on `DOMContentLoaded` and invokes the orchestrator.
 
 It currently coordinates:
 
-- root service injection into `main`
 - pane navigation and visibility updates
 - session start/stop lifecycle wiring
 - calibration and preview monitoring setup

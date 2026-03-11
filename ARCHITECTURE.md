@@ -32,9 +32,9 @@ If this file disagrees with `doc/**`, treat `doc/**` as canonical.
 
 ### Runtime today
 
-- `src/script.js`: concrete orchestration layer.
-- `src/features/main/main.js`: partial composition root and context bridge.
-- Migration target: reduce `script.js` to minimal app wiring as service boundaries harden.
+- `src/bootstrap.js`: startup entrypoint and DOM boot.
+- `src/app-orchestrator.js`: concrete orchestration layer.
+- `src/features/main/main.js`: composition root and context bridge.
 
 Wiring split:
 
@@ -77,7 +77,6 @@ No additional wiring layer is needed by default. Introduce a third layer only if
 
 ## Open Migration Seams
 
-- `script.js` still owns substantial wiring and some mixed responsibilities.
 - Plan/chart naming remains partially split between code and docs.
 - `SessionState` still exists in runtime as a legacy mirror; timeline is now canonical for tempo/meter and chart is canonical for selection/catalog.
 - `Metronome` remains a temporary scheduling shim; playback rendering now belongs to `PlaybackService`.

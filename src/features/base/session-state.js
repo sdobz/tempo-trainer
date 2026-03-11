@@ -1,7 +1,7 @@
 import { createContext } from "../component/context.js";
 
 /**
- * Context token.  Provided at the document root by script.js;
+ * Context token.  Provided at the document root by main composition root;
  * consumed by plan-play-pane and any other component that needs session data.
  * @type {import('../component/context.js').Context<SessionState|null>}
  */
@@ -16,7 +16,7 @@ export const SessionStateContext = createContext("session-state", null);
  *
  * Consumers subscribe once; mutations call `setBPM()`, `setBeatsPerMeasure()`,
  * or `setPlan()`, which notify all registered handlers automatically.
- * This replaces the manual fan-out blocks that previously appeared in script.js
+ * This replaces the manual fan-out blocks that previously appeared in app orchestration
  * and in DrillSessionManager.startSession().
  *
  * Usage:
