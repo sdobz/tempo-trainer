@@ -197,8 +197,7 @@ class DrillSessionManager {
 
   /**
    * Starts a new drill session.
-   * Reads current BPM and beatsPerMeasure from TimelineService when available.
-   * SessionState is only a compatibility fallback.
+    * Reads current BPM and beatsPerMeasure from TimelineService.
    * @param {AudioContext} audioContext - Web Audio API context
    * @returns {Promise<void>}
    */

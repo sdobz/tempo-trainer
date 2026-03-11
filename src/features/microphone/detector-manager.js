@@ -190,7 +190,6 @@ class DetectorManager extends EventTarget {
     this._params = { ...this._params, sensitivity: clamped };
     this._saveParams(this._params);
     this._detector?.setSensitivity?.(clamped);
-    // [Phase 0 compat shim] Emit state change event. Remove after consumers migrate: target=Phase 4.
     this.dispatchEvent(
       new CustomEvent("changed", {
         detail: { field: "sensitivity", value: clamped },

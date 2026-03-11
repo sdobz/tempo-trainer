@@ -1,5 +1,4 @@
 import { createContext } from "../component/context.js";
-import Scorer from "../plan-play/scorer.js";
 import PracticeSessionManager from "../plan-history/practice-session-manager.js";
 
 /**
@@ -12,132 +11,42 @@ export const PerformanceServiceContext = createContext(
 );
 
 /**
- * PerformanceService — canonical owner of live scoring and session persistence.
- *
- * Composes:
- *   - Scorer: live hit registration and measure scoring
- *   - PracticeSessionManager: session recording, retrieval, and metrics derivation
+ * PerformanceService — canonical owner of persisted session history.
  *
  * [Phase 1] This service establishes performance as an explicit domain boundary.
- * Internal implementation details (Scorer, PracticeSessionManager) remain private.
- * Consumers call only the public service API, not the internal components directly.
+ * Internal implementation details remain private.
  *
  * Event contract:
- *   - "hit": { detail: { beatPosition: number } }
- *   - "measure-finalized": { detail: { measureIndex: number, score: number } }
- *   - "session-ended": { detail: { sessionData: Object } }
+ *   - "session-saved": { detail: { session: Object } }
+ *   - "session-deleted": { detail: { sessionId: string } }
  *
  * Usage (in app orchestrator and panes):
  *   const performanceService = new PerformanceService();
- *   performanceService.addEventListener("hit", (e) => { ... });
- *   performanceService.registerHit(0.5);  // Register hit at 0.5 beats offset
- *   performanceService.getScores();       // Get all measure scores
- *   performanceService.recordSession(sessionData); // Save and derive metrics
+ *   performanceService.addEventListener("session-saved", (e) => { ... });
+ *   performanceService.saveSession(sessionData);
+ *   performanceService.getSessions();
  */
 class PerformanceService extends EventTarget {
   constructor() {
     super();
-    /** @type {Scorer} */
-    this._scorer = new Scorer(4, 0.5); // default 4/4, 120 BPM
     /** @type {PracticeSessionManager} */
     this._sessionManager = new PracticeSessionManager();
   }
 
   /**
-   * Configure the scorer for a session.
-   * @param {number} beatsPerMeasure Time signature numerator (e.g., 4 for 4/4).
-   * @param {number} beatDuration Seconds per beat (60/BPM).
-   */
-  configure(beatsPerMeasure, beatDuration) {
-    this._scorer = new Scorer(beatsPerMeasure, beatDuration);
-  }
-
-  /**
-   * Set the drill plan structure.
-   * @param {Array<{type: "click-in"|"silent"|"playing"}>} measures Plan array.
-   */
-  setDrillPlan(measures) {
-    this._scorer.setDrillPlan(measures);
-  }
-
-  /**
-   * Register a hit during playback.
-   * Emits "hit" event.
-   * @param {number} beatPosition Time in beats from measure start (e.g., 0.5 for half beat).
-   */
-  registerHit(beatPosition) {
-    this._scorer.registerHit(beatPosition);
-    this.dispatchEvent(
-      new CustomEvent("hit", {
-        detail: { beatPosition },
-      }),
-    );
-  }
-
-  /**
-   * Finalize a measure and compute its score.
-   * Emits "measure-finalized" event with the score.
-   * @param {number} measureIndex Index of the measure to finalize.
-   */
-  finalizeMeasure(measureIndex) {
-    // Score is computed internally by Scorer.finalizeMeasure()
-    this._scorer.finalizeMeasure(measureIndex);
-    const score = this._scorer.getMeasureScore(measureIndex);
-    this.dispatchEvent(
-      new CustomEvent("measure-finalized", {
-        detail: { measureIndex, score },
-      }),
-    );
-  }
-
-  /**
-   * Get all measure scores.
-   * @returns {number[]} Array of scores (0–99 per measure).
-   */
-  getScores() {
-    return this._scorer.getAllScores();
-  }
-
-  /**
-   * Get a single measure score.
-   * @param {number} measureIndex Measure index.
-   * @returns {number} Score 0–99.
-   */
-  getScore(measureIndex) {
-    return this._scorer.getMeasureScore(measureIndex);
-  }
-
-  /**
-   * Get the overall session score.
-   * Averaged across all non-"click-in" measures.
-   * @returns {number} Score 0–99.
-   */
-  getOverallScore() {
-    return this._scorer.getOverallScore();
-  }
-
-  /**
-   * Reset scoring state (typically at session start).
-   */
-  reset() {
-    this._scorer.reset();
-  }
-
-  /**
-   * Record a completed session.
-   * Derives metrics (drift, missed, rhythm, etc.) and persists to storage.
-   * Emits "session-ended" event.
+   * Persist a completed session.
+   * Emits "session-saved" with the saved session record.
    * @param {Object} sessionData Session object with plan, bpm, timeSignature, measureHits, etc.
+   * @returns {Object}
    */
-  recordSession(sessionData) {
-    // Ensure this session's overall score is set from scorer
-    sessionData.overallScore = this.getOverallScore();
-    this._sessionManager.saveSession(sessionData);
+  saveSession(sessionData) {
+    const saved = this._sessionManager.saveSession(sessionData);
     this.dispatchEvent(
-      new CustomEvent("session-ended", {
-        detail: { sessionData },
+      new CustomEvent("session-saved", {
+        detail: { session: saved },
       }),
     );
+    return saved;
   }
 
   /**
@@ -172,7 +81,15 @@ class PerformanceService extends EventTarget {
    * @param {string} sessionId Session ID to delete.
    */
   deleteSession(sessionId) {
-    this._sessionManager.deleteSession(sessionId);
+    const deleted = this._sessionManager.deleteSession(sessionId);
+    if (deleted) {
+      this.dispatchEvent(
+        new CustomEvent("session-deleted", {
+          detail: { sessionId },
+        }),
+      );
+    }
+    return deleted;
   }
 
   /**

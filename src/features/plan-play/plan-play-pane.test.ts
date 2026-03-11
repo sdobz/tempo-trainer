@@ -260,6 +260,8 @@ Deno.test("PlanPlayPane: reset should reset to initial state", async () => {
   assertEquals(startBtn.disabled, false);
   assertEquals(stopBtn.disabled, true);
   assertEquals(component.state.currentMeasure, 0);
+
+  component.remove();
 });
 
 Deno.test(

@@ -218,12 +218,12 @@ Deno.test("PlanEditPane: should block delete for built-in plans", async () => {
   const component = await createComponent();
 
   let deleteCalled = false;
-  component.planLibrary = {
-    deletePlan: () => {
+  component.chartService = {
+    deleteChart: () => {
       deleteCalled = true;
       return true;
     },
-  } as unknown as typeof component.planLibrary;
+  } as any;
 
   component.editingPlan = {
     id: "builtin-1",

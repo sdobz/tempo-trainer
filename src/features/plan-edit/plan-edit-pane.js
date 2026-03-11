@@ -44,7 +44,6 @@ export default class PlanEditPane extends BaseComponent {
     this._segmentEditorCleanups = [];
 
     // Injected dependencies (set via context)
-    this.planLibrary = null;
     /** @type {import('../music/chart-service.js').default|null} */
     this.chartService = null;
     /** @type {import('../music/timeline-service.js').default|null} */
@@ -157,15 +156,6 @@ export default class PlanEditPane extends BaseComponent {
     this._segmentEditorCleanups = [];
   }
 
-  /**
-   * Initialize the component with dependencies.
-   * @param {PlanLibrary} planLibrary
-   */
-  init(planLibrary) {
-    this.planLibrary = planLibrary;
-    this._populatePlanLibrary();
-  }
-
   // --- Public Methods ---
 
   /**
@@ -181,10 +171,7 @@ export default class PlanEditPane extends BaseComponent {
    * @returns {Array}
    */
   getAllPlans() {
-    if (this.chartService) {
-      return this.chartService.getAllCharts();
-    }
-    return this.planLibrary ? this.planLibrary.getAllPlans() : [];
+    return this.chartService ? this.chartService.getAllCharts() : [];
   }
 
   /**
@@ -193,11 +180,9 @@ export default class PlanEditPane extends BaseComponent {
    */
   selectChartByObject(chart) {
     const planObject = chart;
-    if (!planObject || !planObject.id) return;
+    if (!planObject || !planObject.id || !this.chartService) return;
 
-    const plan = this.chartService
-      ? this.chartService.getChartById(planObject.id)
-      : this.planLibrary?.getPlanById(planObject.id);
+    const plan = this.chartService.getChartById(planObject.id);
 
     if (plan) {
       this.planLibrarySelect.value = plan.id || "";
@@ -229,9 +214,7 @@ export default class PlanEditPane extends BaseComponent {
    * Populate the plan library dropdown
    */
   _populatePlanLibrary() {
-    const plans = this.chartService
-      ? this.chartService.getAllCharts()
-      : this.planLibrary?.getAllPlans() || [];
+    const plans = this.chartService ? this.chartService.getAllCharts() : [];
 
     this.planLibrarySelect.innerHTML =
       '<option value="">Select a plan...</option>';
@@ -248,9 +231,7 @@ export default class PlanEditPane extends BaseComponent {
     const planId = params.get("plan");
     if (planId) {
       this.planLibrarySelect.value = planId;
-      const plan = this.chartService
-        ? this.chartService.getChartById(planId)
-        : this.planLibrary?.getPlanById(planId);
+      const plan = this.chartService?.getChartById(planId);
       if (plan) {
         this._showPlanInfo(plan);
       }
@@ -267,9 +248,7 @@ export default class PlanEditPane extends BaseComponent {
       return;
     }
 
-    const plan = this.chartService
-      ? this.chartService.getChartById(this.planLibrarySelect.value)
-      : this.planLibrary?.getPlanById(this.planLibrarySelect.value);
+    const plan = this.chartService?.getChartById(this.planLibrarySelect.value);
     if (plan) {
       this._showPlanInfo(plan);
       this.updateUrlWithPlan(plan.id || null);
@@ -577,7 +556,7 @@ export default class PlanEditPane extends BaseComponent {
    * Handle "Save Plan" button
    */
   _onSavePlan() {
-    if (!this.chartService && !this.planLibrary) return;
+    if (!this.chartService) return;
 
     // Built-in plans are immutable; if this path is reached unexpectedly,
     // save as a new custom plan instead of mutating built-in identity.
@@ -603,10 +582,7 @@ export default class PlanEditPane extends BaseComponent {
     }
 
     try {
-      // [Phase 1] Use chartService when available
-      const savedPlan = this.chartService
-        ? this.chartService.saveChart(planData)
-        : this.planLibrary.savePlan(planData);
+      const savedPlan = this.chartService.saveChart(planData);
 
       this._hidePlanEditor();
       this._populatePlanLibrary();
@@ -640,19 +616,14 @@ export default class PlanEditPane extends BaseComponent {
    */
   _onDeletePlan() {
     if (!this.editingPlan?.id || this.editingPlan.isBuiltIn) return;
-    if (!this.chartService && !this.planLibrary) return;
+    if (!this.chartService) return;
 
     if (!confirm(`Delete "${this.editingPlan.name}"?`)) {
       return;
     }
 
     try {
-      // [Phase 1] Use chartService when available
-      if (this.chartService) {
-        this.chartService.deleteChart(this.editingPlan.id);
-      } else {
-        this.planLibrary.deletePlan(this.editingPlan.id);
-      }
+      this.chartService.deleteChart(this.editingPlan.id);
 
       this._hidePlanEditor();
       this._populatePlanLibrary();

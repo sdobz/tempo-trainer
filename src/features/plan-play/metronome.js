@@ -2,10 +2,6 @@ import PlaybackService from "../music/playback-service.js";
 
 /**
  * Metronome manages beat scheduling callbacks.
- *
- * [Phase 3 compat shim] Scheduling remains here temporarily while playback
- * rendering is delegated to PlaybackService. Remove scheduling from this class
- * no later than Phase 6.
  */
 class Metronome {
   /**
@@ -119,7 +115,6 @@ class Metronome {
    * @param {number} frequency - Frequency in Hz
    */
   scheduleClick(time, frequency) {
-    // [Phase 3 compat shim] Forwarding wrapper for legacy callers.
     this.playbackService.renderClick(time, {
       frequency,
       durationSec: 0.05,

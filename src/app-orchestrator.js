@@ -30,12 +30,11 @@ export function startAppOrchestrator(mainRoot) {
   );
 
   const {
-    planLibrary,
     chartService,
+    performanceService,
     metronome,
     calibrationMetronome,
     scorer,
-    practiceSessionManager,
     audioContextService,
     paneManager,
     timelineService,
@@ -135,10 +134,10 @@ export function startAppOrchestrator(mainRoot) {
         const { sessionId } = event.detail;
         if (!sessionId) return;
 
-        const deleted = practiceSessionManager.deleteSession(sessionId);
+        const deleted = performanceService.deleteSession(sessionId);
         if (!deleted) return;
 
-        const allSessions = practiceSessionManager.getSessions();
+        const allSessions = performanceService.getSessions();
         planHistoryPane.displaySessions(allSessions);
       },
     );
@@ -602,7 +601,7 @@ export function startAppOrchestrator(mainRoot) {
         timeSignature: `${timelineService.beatsPerMeasure}/4`,
       };
 
-      const session = practiceSessionManager.saveSession(fullSessionData);
+      const session = performanceService.saveSession(fullSessionData);
 
       if (sessionData.completed) {
         planPlayPane.reset();
@@ -610,15 +609,11 @@ export function startAppOrchestrator(mainRoot) {
       }
 
       if (session) {
-        const allSessions = practiceSessionManager.getSessions();
+        const allSessions = performanceService.getSessions();
         planHistoryPane.displaySessions(allSessions, session.id);
         paneManager.navigate("plan-history");
       }
     });
-
-    if (planEditPane) {
-      planEditPane.init(planLibrary);
-    }
 
     const hasCompletedOnboarding = StorageManager.get(
       "tempoTrainer.hasCompletedOnboarding",
@@ -633,7 +628,7 @@ export function startAppOrchestrator(mainRoot) {
     planPlayPane.reset();
     planPlayPane.setCalibrationWarningVisible(!hasCalibration);
 
-    const sessions = practiceSessionManager.getSessions();
+    const sessions = performanceService.getSessions();
     if (sessions.length > 0) {
       planHistoryPane.displaySessions(sessions);
     }
