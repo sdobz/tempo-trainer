@@ -1,23 +1,24 @@
 # Playback
 
-Playback is currently implemented by `src/features/plan-play/metronome.js` and orchestrated by `DrillSessionManager` in `src/features/plan-play/drill-session-manager.js`.
+Playback is implemented by `src/features/music/playback-service.js`.
+It is orchestration-driven and rendering-only.
 
-## Current implementation
+## Current implementation [Phase 3]
 
-- `Metronome` is a scheduler around `AudioContext.currentTime`.
-- It keeps local state for:
-	- running/stopped status
-	- BPM and beat duration
-	- beats-per-measure
-	- next scheduled beat time
-- `DrillSessionManager` provides beat/measure callbacks and chooses click frequencies.
-- `scheduleClick(time, frequency)` synthesizes oscillator-based clicks.
+- `PlaybackService` is the canonical rendering owner.
+- Public interface:
+	- `renderClick(atTime, accentProfile)`
+	- `renderCue(cue, atTime)`
+	- `setClickProfile(profile)`
+- `DrillSessionManager` chooses click accents/frequencies and calls `playbackService.renderClick(...)`.
+- Calibration flow in `script.js` also uses the same `PlaybackService` instance.
+- `Metronome` remains as a temporary scheduler shim and forwards legacy `scheduleClick(...)` calls to `PlaybackService`.
 
 ## Responsibilities today
 
-- Audible beat playback during session run.
-- Measure progression signaling through callbacks.
-- Calibration click playback via a second metronome instance in `script.js`.
+- Sound rendering only.
+- Shared rendering path for drill clicks and calibration clicks.
+- Click profile configuration.
 
 Target boundary clarification:
 
@@ -45,9 +46,10 @@ It holds:
 
 ## Known seam
 
-**[Phase 0 compat]:**
-- `Metronome` still uses callbacks (`onBeat`, `onMeasureComplete`) instead of event contracts (remove Phase 3).
-- Two metronome instances managed from `script.js` (session and calibration); will move to dedicated services Phase 2–3.
+**[Phase 3 compat]:**
+- `Metronome` still schedules beats and invokes callbacks; this shim remains for compatibility.
+- Shim removal trigger: timeline/orchestration owns scheduling loop directly.
+- Shim deadline: no later than Phase 6.
 - `PlaybackState` uses custom subscriber (compatible design, no EventTarget needed for UI state).
 
 ## Migration target

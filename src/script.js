@@ -10,6 +10,7 @@ import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
 import ChartService from "./features/music/chart-service.js";
 import PerformanceService from "./features/music/performance-service.js";
 import TimelineService from "./features/music/timeline-service.js";
+import PlaybackService from "./features/music/playback-service.js";
 import "./features/plan-edit/plan-edit-pane.js";
 import "./features/plan-play/plan-play-pane.js";
 import "./features/plan-history/plan-history-pane.js";
@@ -50,11 +51,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Feature Instances ---
   const planLibrary = new PlanLibrary();
+  const playbackService = new PlaybackService();
   const metronome = new Metronome(
     /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
+    playbackService,
   );
   const calibrationMetronome = new Metronome(
     /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
+    playbackService,
   );
   const scorer = new Scorer(4, 0.5); // Will be configured when session starts
   const practiceSessionManager = new PracticeSessionManager();
@@ -88,11 +92,13 @@ document.addEventListener("DOMContentLoaded", () => {
     chartService,
     performanceService,
     timelineService,
+    playbackService,
   });
 
   const applyAudioContext = () => {
     const ctx = audioContextService.getContext();
     if (!ctx) return false;
+    playbackService.audioContext = ctx;
     metronome.audioContext = ctx;
     calibrationMetronome.audioContext = ctx;
     detectorManager.audioContext = ctx;
@@ -440,7 +446,7 @@ document.addEventListener("DOMContentLoaded", () => {
     calibrationMetronome.onBeat((beatInMeasure, time) => {
       if (!calibration.isCalibrating) return false;
       const freq = beatInMeasure === 0 ? 880.0 : 440.0;
-      calibrationMetronome.scheduleClick(time, freq);
+      playbackService.renderClick(time, { frequency: freq });
       calibration.registerExpectedBeat(time);
       return true;
     });
@@ -575,6 +581,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Create DrillSessionManager now that all components are ready
     drillSessionManager = new DrillSessionManager(
       metronome,
+      playbackService,
       scorer,
       timeline,
       calibration,
@@ -634,7 +641,6 @@ document.addEventListener("DOMContentLoaded", () => {
           alert("Microphone access is required before starting a session");
           return;
         }
-        timelineService.play();
         scorer.reset();
         await drillSessionManager.startSession(audioContext);
         planPlayPane.playbackState.update({ isPlaying: true });
@@ -646,7 +652,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     planPlayPane.addEventListener("session-stop", () => {
       drillSessionManager.stopSession();
-      timelineService.pause();
       planPlayPane.playbackState.update({ isPlaying: false });
     });
 

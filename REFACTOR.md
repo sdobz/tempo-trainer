@@ -96,7 +96,13 @@ Phase cannot close if docs describe behavior that no longer exists in code.
   - `timeline-visualization` consumes canonical timeline meter
   - SessionState timing fields retained as compatibility seam only
   - Timeline docs updated to reflect canonical ownership + seam removal target
-- **Phase 3–4**: NOT STARTED
+- **Phase 3 (Playback Rendering Split)**: ✅ COMPLETE
+  - `playback-service.js` added with render-only API (`renderClick`, `renderCue`, `setClickProfile`)
+  - Drill and calibration click paths both routed through `PlaybackService`
+  - Metronome converted to compatibility scheduler shim; rendering delegated to PlaybackService
+  - Timeline remains canonical transport owner; playback has no transport state
+  - `doc/features/browser/playback.md` updated for rendering-only ownership
+- **Phase 4**: NOT STARTED
 
 ## Phase 0: Contract Hardening (Non-breaking)
 

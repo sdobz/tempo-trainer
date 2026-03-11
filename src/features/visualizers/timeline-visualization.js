@@ -40,6 +40,8 @@ export default class TimelineVisualization extends BaseComponent {
     this._cleanupSession = null;
     /** @type {(() => void)|null} */
     this._cleanupTimeline = null;
+    /** @type {number|null} */
+    this._deferBuildRafId = null;
   }
 
   getTemplateUrl() {
@@ -106,6 +108,10 @@ export default class TimelineVisualization extends BaseComponent {
       this._cleanupTimeline();
       this._cleanupTimeline = null;
     }
+    if (this._deferBuildRafId !== null) {
+      cancelAnimationFrame(this._deferBuildRafId);
+      this._deferBuildRafId = null;
+    }
   }
 
   /**
@@ -162,9 +168,14 @@ export default class TimelineVisualization extends BaseComponent {
 
     // Defer build if viewport doesn't have dimensions (is hidden)
     if (viewportWidth === 0) {
+      // In tests/components not attached to DOM, defer loops can leak timers.
+      if (!this.isConnected) return;
       if (this._deferBuildCount > 5) return; // Prevent infinite loop in testing
       this._deferBuildCount = (this._deferBuildCount || 0) + 1;
-      requestAnimationFrame(() => this.build());
+      this._deferBuildRafId = requestAnimationFrame(() => {
+        this._deferBuildRafId = null;
+        this.build();
+      });
       return;
     }
     this._deferBuildCount = 0;

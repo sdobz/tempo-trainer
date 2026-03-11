@@ -113,9 +113,12 @@ We are migrating toward a DI-style service graph where:
 	- Emits `changed` and `transport` events for timing state transitions.
 4. `DetectorManager` (created in `src/script.js`, provided by `main`)
 	- Owns detector type/config, mic input bridge, device selection, hit listeners.
-5. `Metronome` + `Scorer` + `DrillSessionManager` (created in `src/script.js`)
-	- Coordinate playback, detection registration, per-session scoring, and completion flow.
-6. `PracticeSessionManager` + `PlanLibrary`
+5. `PlaybackService` (created in `src/script.js`, provided by `main`)
+	- Rendering-only audio service for clicks/cues.
+	- Used by both drill playback and calibration click paths.
+6. `Metronome` + `Scorer` + `DrillSessionManager` (created in `src/script.js`)
+	- Metronome remains a scheduling shim; DrillSessionManager coordinates run flow/scoring.
+7. `PracticeSessionManager` + `PlanLibrary`
 	- Persist history metrics and plan catalog (built-in and custom).
 
 ### Target service graph (migration direction)
@@ -126,9 +129,9 @@ We are migrating toward a DI-style service graph where:
 2. `timeline` service
 	- Consumes audio time
 	- Owns BPM, beats-per-measure, beat duration, and time-division mapping
-3. `playback` service (currently implemented as `Metronome`)
-	- Consumes timeline + audio
-	- Emits audible beat/measure events
+3. `playback` service (implemented as `PlaybackService`)
+	- Renders clicks/cues on request
+	- Does not own transport lifecycle
 4. `chart` service (currently implemented as `PlanLibrary` + session plan projection)
 	- Owns intended practice representation
 	- Owns selected chart as canonical state

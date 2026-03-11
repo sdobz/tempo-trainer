@@ -6,6 +6,7 @@
 class DrillSessionManager {
   /**
    * @param {Object} metronome - Metronome instance
+   * @param {import('../music/playback-service.js').default} playbackService
    * @param {Object} scorer - Scorer instance
    * @param {Object} timeline - Timeline visualization component
    * @param {Object} calibration - CalibrationDetector instance
@@ -16,6 +17,7 @@ class DrillSessionManager {
    */
   constructor(
     metronome,
+    playbackService,
     scorer,
     timeline,
     calibration,
@@ -25,6 +27,7 @@ class DrillSessionManager {
     timelineService,
   ) {
     this.metronome = metronome;
+    this.playbackService = playbackService;
     this.scorer = scorer;
     this.timeline = timeline;
     this.calibration = calibration;
@@ -126,7 +129,7 @@ class DrillSessionManager {
               ? downbeatFreq
               : beatFreq;
 
-        this.metronome.scheduleClick(time, freq);
+        this.playbackService.renderClick(time, { frequency: freq });
 
         const beatNumber = (beatInMeasure % this.metronome.beatsPerMeasure) + 1;
         const shouldShowBeat = measureType !== "silent";
@@ -229,6 +232,7 @@ class DrillSessionManager {
     this.runFinalized = false;
     this.isCompletingRun = false;
     this.timelineRunStartAudioTime = audioContext.currentTime;
+    this.timelineService?.seekToDivision(0);
 
     // Reset UI
     this.playbackState.update({ highlight: 0 });
@@ -236,6 +240,7 @@ class DrillSessionManager {
 
     // Start metronome
     this.metronome.start();
+    this.timelineService?.play();
 
     // Update status
     this.playbackState.update({ status: "Running..." });
@@ -254,6 +259,7 @@ class DrillSessionManager {
     this._finalizeRun(false);
 
     this.metronome.stop();
+    this.timelineService?.stop();
 
     // Clear UI
     this.playbackState.update({ highlight: -1 });
@@ -268,6 +274,7 @@ class DrillSessionManager {
   _handleDrillComplete() {
     this.isCompletingRun = true;
     this.metronome.stop();
+    this.timelineService?.stop();
 
     // Give extra time for final hits - need full late window plus some margin
     const finalHitGraceMs = Math.max(
