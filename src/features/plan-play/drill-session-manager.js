@@ -11,7 +11,7 @@ class DrillSessionManager {
    * @param {Object} timeline - Timeline visualization component
    * @param {Object} calibration - CalibrationDetector instance
    * @param {Object} micDetector - MicrophoneDetector / DetectorManager instance
-   * @param {import('../base/session-state.js').default} sessionState
+   * @param {import('../music/chart-service.js').default} chartService
    * @param {import('./playback-state.js').PlaybackState} playbackState
    * @param {import('../music/timeline-service.js').default} [timelineService]
    */
@@ -22,7 +22,7 @@ class DrillSessionManager {
     timeline,
     calibration,
     micDetector,
-    sessionState,
+    chartService,
     playbackState,
     timelineService,
   ) {
@@ -32,25 +32,29 @@ class DrillSessionManager {
     this.timeline = timeline;
     this.calibration = calibration;
     this.micDetector = micDetector;
-    this.sessionState = sessionState;
+    this.chartService = chartService;
     this.playbackState = playbackState;
     this.timelineService = timelineService ?? null;
 
-    // Local plan model — kept in sync with sessionState.plan
+    // Local plan model — kept in sync with selected chart projection.
     /** @type {Array<{type: string}>} */
     this._plan = [];
     /** @type {{ plan: Array<{type:string}>, segments: any[] }|null} */
     this._planData = null;
 
-    // Initialise from current sessionState plan if already set
-    if (this.sessionState.plan) {
-      this._updateLocalPlan(this.sessionState.plan);
+    const selectedChart = this.chartService?.getSelectedChart?.();
+    if (selectedChart) {
+      this._updateLocalPlan(this.chartService.projectChart(selectedChart));
     }
 
-    // Keep local model in sync when plan changes
-    this.sessionState.subscribe({
-      onPlanChange: (planData) => this._updateLocalPlan(planData),
-    });
+    this.chartService?.addEventListener(
+      "chart-selected",
+      (/** @type {CustomEvent<{ chart: any }>} */ event) => {
+        this._updateLocalPlan(
+          this.chartService.projectChart(event.detail.chart),
+        );
+      },
+    );
 
     // Session state
     this.currentMeasureInTotal = 0;
@@ -199,10 +203,8 @@ class DrillSessionManager {
    * @returns {Promise<void>}
    */
   async startSession(audioContext) {
-    const bpm = this.timelineService?.tempo ?? this.sessionState.bpm;
-    const beatsPerMeasure =
-      this.timelineService?.beatsPerMeasure ??
-      this.sessionState.beatsPerMeasure;
+    const bpm = this.timelineService?.tempo ?? 120;
+    const beatsPerMeasure = this.timelineService?.beatsPerMeasure ?? 4;
 
     // Stop calibration if running
     if (this.calibration && this.calibration.isCalibrating) {

@@ -7,7 +7,6 @@
 import BaseComponent from "../component/base-component.js";
 import { dispatchEvent, querySelector } from "../component/component-utils.js";
 import { PlaybackState, PlaybackContext } from "./playback-state.js";
-import { SessionStateContext } from "../base/session-state.js";
 import { TimelineServiceContext } from "../music/timeline-service.js";
 import "../visualizers/timeline-visualization.js";
 import "../visualizers/plan-visualizer.js";
@@ -47,9 +46,6 @@ export default class PlanPlayPane extends BaseComponent {
     // Subscribable playback state — provided to descendant visualizers via PlaybackContext
     this._playbackState = new PlaybackState();
 
-    // SessionState reference kept for compatibility seams.
-    /** @type {import('../base/session-state.js').default|null} */
-    this._sessionState = null;
     /** @type {import('../music/timeline-service.js').default|null} */
     this._timelineService = null;
 
@@ -131,11 +127,6 @@ export default class PlanPlayPane extends BaseComponent {
         this.setPlaying(state.isPlaying);
       }),
     );
-
-    // Keep SessionState reference only for compatibility seams.
-    this.consumeContext(SessionStateContext, (ss) => {
-      this._sessionState = ss;
-    });
 
     // [Phase 2] Canonical timing source is TimelineService.
     this.consumeContext(TimelineServiceContext, (timelineService) => {

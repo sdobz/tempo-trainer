@@ -6,7 +6,7 @@
 
 import BaseComponent from "../component/base-component.js";
 import { querySelector } from "../component/component-utils.js";
-import { SessionStateContext } from "../base/session-state.js";
+import { ChartServiceContext } from "../music/chart-service.js";
 import { TimelineServiceContext } from "../music/timeline-service.js";
 
 /** @typedef {{ type: string }} Measure */
@@ -37,7 +37,7 @@ export default class TimelineVisualization extends BaseComponent {
     this.beatsPerMeasure = 4;
     this.displayStartBeat = 0;
     /** @type {(() => void)|null} */
-    this._cleanupSession = null;
+    this._cleanupChart = null;
     /** @type {(() => void)|null} */
     this._cleanupTimeline = null;
     /** @type {number|null} */
@@ -63,20 +63,24 @@ export default class TimelineVisualization extends BaseComponent {
       return;
     }
 
-    // Consume SessionStateContext for drill plan compatibility seam.
-    this.consumeContext(SessionStateContext, (ss) => {
-      if (ss.plan?.plan) {
-        this.drillPlan = ss.plan.plan;
+    this.consumeContext(ChartServiceContext, (chartService) => {
+      const selected = chartService.getSelectedChart();
+      if (selected) {
+        this.drillPlan = chartService.projectChart(selected).plan;
       }
       this.build();
-      this._cleanupSession = ss.subscribe({
-        onPlanChange: (planData) => {
-          if (planData?.plan) {
-            this.drillPlan = planData.plan;
-          }
-          this.build();
-        },
-      });
+
+      const onSelected = (
+        /** @type {CustomEvent<{ chart: Object }>} */ event,
+      ) => {
+        this.drillPlan = chartService.projectChart(event.detail.chart).plan;
+        this.build();
+      };
+
+      chartService.addEventListener("chart-selected", onSelected);
+      this._cleanupChart = () => {
+        chartService.removeEventListener("chart-selected", onSelected);
+      };
     });
 
     // [Phase 2] Consume TimelineService for canonical meter ownership.
@@ -100,9 +104,9 @@ export default class TimelineVisualization extends BaseComponent {
   }
 
   onUnmount() {
-    if (this._cleanupSession) {
-      this._cleanupSession();
-      this._cleanupSession = null;
+    if (this._cleanupChart) {
+      this._cleanupChart();
+      this._cleanupChart = null;
     }
     if (this._cleanupTimeline) {
       this._cleanupTimeline();

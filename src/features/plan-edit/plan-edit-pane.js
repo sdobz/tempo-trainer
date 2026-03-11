@@ -10,8 +10,8 @@ import {
   dispatchEvent,
   querySelector,
 } from "../component/component-utils.js";
-import { SessionStateContext } from "../base/session-state.js";
 import { ChartServiceContext } from "../music/chart-service.js";
+import { TimelineServiceContext } from "../music/timeline-service.js";
 import "../visualizers/plan-visualizer.js";
 
 /**
@@ -45,10 +45,10 @@ export default class PlanEditPane extends BaseComponent {
 
     // Injected dependencies (set via context)
     this.planLibrary = null;
-    /** @type {import('../base/session-state.js').default|null} */
-    this.sessionState = null;
     /** @type {import('../music/chart-service.js').default|null} */
     this.chartService = null;
+    /** @type {import('../music/timeline-service.js').default|null} */
+    this.timelineService = null;
 
     // DOM element references (set in onMount)
     this.planLibrarySelect = null;
@@ -129,16 +129,15 @@ export default class PlanEditPane extends BaseComponent {
     this.startPlanPlayBtn = querySelector(this, "[data-start-plan-play-btn]");
     this.planQuickActions = querySelector(this, "[data-plan-quick-actions]");
 
-    // [Phase 1] Obtain contexts for SessionState and ChartService
-    this.consumeContext(SessionStateContext, (ss) => {
-      this.sessionState = ss;
-    });
     this.consumeContext(ChartServiceContext, (cs) => {
       this.chartService = cs;
       // Initialize plan library with charts from chartService
       if (cs) {
         this._populatePlanLibrary();
       }
+    });
+    this.consumeContext(TimelineServiceContext, (ts) => {
+      this.timelineService = ts;
     });
 
     // Bind event listeners
@@ -412,11 +411,10 @@ export default class PlanEditPane extends BaseComponent {
 
     this.planInfoDisplay.style.display = "block";
 
-    // [Phase 1] Select chart in ChartService (canonical owner) and update SessionState for backward compat
+    // Select chart in canonical chart service.
     if (this.chartService) {
       this.chartService.selectChart(plan);
     }
-    if (this.sessionState) this.sessionState.setPlan(planData);
 
     // Show/hide action buttons
     this.clonePlanBtn.style.display = "inline-block";
@@ -591,7 +589,7 @@ export default class PlanEditPane extends BaseComponent {
       description: this.planDescriptionInput.value,
       difficulty: this.planDifficultyInput.value || undefined,
       segments: this.editingSegments,
-      bpm: this.sessionState?.bpm ?? 120,
+      bpm: this.timelineService?.tempo ?? 120,
     };
 
     // Validate
@@ -688,7 +686,11 @@ export default class PlanEditPane extends BaseComponent {
 
     try {
       const planData = this._segmentsToPlanData(this.editingSegments);
-      if (this.sessionState) this.sessionState.setPlan(planData);
+      const editorViz =
+        this.planEditorSection?.querySelector("plan-visualizer");
+      if (editorViz && typeof editorViz.setDrillPlan === "function") {
+        editorViz.setDrillPlan(planData);
+      }
     } catch (e) {
       console.error("Failed to update visualization:", e);
     }
@@ -699,10 +701,6 @@ export default class PlanEditPane extends BaseComponent {
    */
   _onStartTraining() {
     if (this.currentPlan) {
-      // Ensure sessionState has the current plan before navigating
-      const planData = this.sessionState?.plan;
-      if (planData && this.sessionState) this.sessionState.setPlan(planData);
-
       // Emit navigation event
       dispatchEvent(this, "navigate", { pane: "plan-play" });
     }

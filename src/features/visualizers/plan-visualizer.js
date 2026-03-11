@@ -8,7 +8,7 @@
 import BaseComponent from "../component/base-component.js";
 import { querySelector } from "../component/component-utils.js";
 import { PlaybackContext } from "../plan-play/playback-state.js";
-import { SessionStateContext } from "../base/session-state.js";
+import { ChartServiceContext } from "../music/chart-service.js";
 
 /** @typedef {{ type: string }} Measure */
 /** @typedef {{ on: number, off: number, reps: number, startIndex: number }} DrillSegment */
@@ -37,7 +37,7 @@ export default class PlanVisualizer extends BaseComponent {
     /** @type {(() => void)|null} */
     this._cleanupPlayback = null;
     /** @type {(() => void)|null} */
-    this._cleanupSession = null;
+    this._cleanupChart = null;
   }
 
   getTemplateUrl() {
@@ -63,14 +63,21 @@ export default class PlanVisualizer extends BaseComponent {
     this.updateInteractiveState();
     this.render();
 
-    // Consume SessionStateContext for authoritative plan data
-    this.consumeContext(SessionStateContext, (ss) => {
-      if (ss.plan) this.setDrillPlan(ss.plan);
-      this._cleanupSession = ss.subscribe({
-        onPlanChange: (planData) => {
-          if (planData) this.setDrillPlan(planData);
-        },
-      });
+    // Consume ChartServiceContext for authoritative chart selection.
+    this.consumeContext(ChartServiceContext, (chartService) => {
+      const selected = chartService.getSelectedChart();
+      if (selected) this.setDrillPlan(chartService.projectChart(selected));
+
+      const onSelected = (
+        /** @type {CustomEvent<{chart: Object}>} */ event,
+      ) => {
+        this.setDrillPlan(chartService.projectChart(event.detail.chart));
+      };
+
+      chartService.addEventListener("chart-selected", onSelected);
+      this._cleanupChart = () => {
+        chartService.removeEventListener("chart-selected", onSelected);
+      };
     });
 
     // Consume PlaybackContext for runtime scores/highlight overlay
@@ -87,9 +94,9 @@ export default class PlanVisualizer extends BaseComponent {
       this._cleanupPlayback();
       this._cleanupPlayback = null;
     }
-    if (this._cleanupSession) {
-      this._cleanupSession();
-      this._cleanupSession = null;
+    if (this._cleanupChart) {
+      this._cleanupChart();
+      this._cleanupChart = null;
     }
   }
 
@@ -171,7 +178,7 @@ export default class PlanVisualizer extends BaseComponent {
 
     this.render();
 
-    // Notify ancestors that the plan changed (e.g. plan-edit-pane updates sessionState)
+    // Notify ancestors that the local edited plan changed.
     this.emit("plan-change", { plan: this.plan, segments: this.segments });
 
     return this.plan;

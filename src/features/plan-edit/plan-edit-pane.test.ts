@@ -135,20 +135,19 @@ Deno.test(
 );
 
 Deno.test(
-  "PlanEditPane: should propagate planData to sessionState on showPlanInfo",
+  "PlanEditPane: should select chart in chartService on showPlanInfo",
   async () => {
     const component = await createComponent();
 
-    // Inject a mock sessionState so the component can forward plan data
-    const mockSessionState = {
-      plan: null as any,
-      setPlan(p: any) {
-        this.plan = p;
+    const selected: any[] = [];
+    const mockChartService = {
+      selectChart(chart: any) {
+        selected.push(chart);
       },
     };
-    component.sessionState = mockSessionState as any;
+    component.chartService = mockChartService as any;
 
-    component._showPlanInfo({
+    const chart = {
       id: "p1",
       name: "Test",
       description: "",
@@ -158,21 +157,13 @@ Deno.test(
         { on: 1, off: 1, reps: 2 },
         { on: 2, off: 0, reps: 1 },
       ],
-    });
+    };
 
-    const planData = mockSessionState.plan;
-    assertEquals(planData !== null, true);
-    if (!planData) return;
-    assertEquals(Array.isArray(planData.plan), true);
-    assertEquals(Array.isArray(planData.segments), true);
-    // First entry is click-in
-    assertEquals(planData.plan[0].type, "click-in");
-    // User segments (excluding click-in) should match input
-    const userSegs = planData.segments.filter((s: any) => !s.isClickIn);
-    assertEquals(userSegs.length, 2);
-    assertEquals(userSegs[0].on, 1);
-    assertEquals(userSegs[0].off, 1);
-    assertEquals(userSegs[0].reps, 2);
+    component._showPlanInfo(chart);
+
+    assertEquals(selected.length, 1);
+    assertEquals(selected[0].id, "p1");
+    assertEquals(selected[0].name, "Test");
   },
 );
 

@@ -20,36 +20,24 @@ Deno.test("SessionState: EventTarget event emission on state changes", () => {
   assertEquals(events[0].detail.value, 3);
 });
 
-Deno.test("SessionState: backward-compatible subscribe() still works", () => {
+Deno.test("SessionState: emits changed events for each timing mutation", () => {
   const state = new SessionState(120, 4);
-  const received: { bpm?: number; beatsPerMeasure?: number } = {};
+  const events: Array<{ field: string; value: number }> = [];
 
-  const unsub = state.subscribe({
-    onBPMChange: (bpm) => {
-      received.bpm = bpm;
-    },
-    onBeatsPerMeasureChange: (n) => {
-      received.beatsPerMeasure = n;
-    },
+  state.addEventListener("changed", (event) => {
+    if (event instanceof CustomEvent) {
+      events.push(event.detail as { field: string; value: number });
+    }
   });
 
   state.setBPM(150);
-  assertEquals(received.bpm, 150);
-
   state.setBeatsPerMeasure(5);
-  assertEquals(received.beatsPerMeasure, 5);
 
-  // Verify both events and callbacks are emitted
-  const events: unknown[] = [];
-  state.addEventListener("changed", () => events.push(null));
-
-  state.setBPM(160);
-  assertEquals(received.bpm, 160);
-  assertEquals(events.length, 1); // Listener attached after earlier mutations
-
-  unsub();
-  state.setBPM(170);
-  assertEquals(received.bpm, 160); // Unchanged after unsub
+  assertEquals(events.length, 2);
+  assertEquals(events[0].field, "bpm");
+  assertEquals(events[0].value, 150);
+  assertEquals(events[1].field, "beatsPerMeasure");
+  assertEquals(events[1].value, 5);
 });
 
 Deno.test("SessionState: readonly properties match setters", () => {
@@ -57,13 +45,10 @@ Deno.test("SessionState: readonly properties match setters", () => {
 
   assertEquals(state.bpm, 100);
   assertEquals(state.beatsPerMeasure, 2);
-  assertEquals(state.plan, null);
 
   state.setBPM(200);
   state.setBeatsPerMeasure(8);
-  state.setPlan({ measures: [1, 2, 3] });
 
   assertEquals(state.bpm, 200);
   assertEquals(state.beatsPerMeasure, 8);
-  assertEquals(state.plan.measures.length, 3);
 });

@@ -31,13 +31,13 @@ export function startAppOrchestrator(mainRoot) {
 
   const {
     planLibrary,
+    chartService,
     metronome,
     calibrationMetronome,
     scorer,
     practiceSessionManager,
     audioContextService,
     paneManager,
-    sessionState,
     timelineService,
     playbackService,
     detectorManager,
@@ -504,7 +504,7 @@ export function startAppOrchestrator(mainRoot) {
       timeline,
       calibration,
       detectorManager,
-      sessionState,
+      chartService,
       planPlayPane.playbackState,
       timelineService,
     );
@@ -531,13 +531,22 @@ export function startAppOrchestrator(mainRoot) {
       },
     );
 
-    sessionState.subscribe({
-      onPlanChange: (planData) => {
-        const measures =
-          planData?.plan ?? (Array.isArray(planData) ? planData : []);
-        scorer.setDrillPlan(measures);
+    const applyChartPlanToScorer = (chart) => {
+      const projected = chartService.projectChart(chart);
+      scorer.setDrillPlan(projected.plan ?? []);
+    };
+
+    const selectedChart = chartService.getSelectedChart();
+    if (selectedChart) {
+      applyChartPlanToScorer(selectedChart);
+    }
+
+    chartService.addEventListener(
+      "chart-selected",
+      (/** @type {CustomEvent<{ chart: any }>} */ event) => {
+        applyChartPlanToScorer(event.detail.chart);
       },
-    });
+    );
 
     metronome.setBPM(timelineService.tempo);
     metronome.setTimeSignature(timelineService.beatsPerMeasure);
@@ -619,10 +628,6 @@ export function startAppOrchestrator(mainRoot) {
     let initialPane = "onboarding";
     if (hasCompletedOnboarding) {
       initialPane = hasCalibration ? "plan-play" : "onboarding";
-    }
-
-    if (sessionState.plan) {
-      sessionState.setPlan(sessionState.plan);
     }
 
     planPlayPane.reset();
