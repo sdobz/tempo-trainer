@@ -8,7 +8,7 @@ Code name: `plan-history-pane` (class `PlanHistoryPane`, element `<plan-history-
 
 - Sessions are saved via `PracticeSessionManager.saveSession(...)`.
 - `plan-history-pane` renders sessions from `PracticeSessionManager.getSessions()`.
-- User can retry a plan from history, delete sessions, or navigate back to editing/play.
+- User can retry a chart from history (emits `retry-chart` with `{ chart }` payload), delete sessions, or navigate back to editing/play.
 
 ## Metrics currently derived
 

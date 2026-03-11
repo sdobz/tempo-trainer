@@ -102,7 +102,21 @@ Phase cannot close if docs describe behavior that no longer exists in code.
   - Metronome converted to compatibility scheduler shim; rendering delegated to PlaybackService
   - Timeline remains canonical transport owner; playback has no transport state
   - `doc/features/browser/playback.md` updated for rendering-only ownership
-- **Phase 4**: NOT STARTED
+- **Phase 4 (Slim Orchestration)**: ✅ COMPLETE
+  - Service instantiation moved to `main.js` composition root with `getRuntime()` accessor
+  - App workflow extracted to `src/app-orchestrator.js`
+  - DOM startup extracted to `src/bootstrap.js`
+  - `index.html` entrypoint updated to `src/bootstrap.js`
+  - `src/script.js` deleted
+  - `doc/features/workflow/orchestration.md`, `doc/features/main.md`, `ARCHITECTURE.md` updated
+- **Phase 5 (Naming Unification)**: ✅ COMPLETE
+  - Pane events renamed: `plan-saved` → `chart-saved`, `retry-plan` → `retry-chart`
+  - Event payloads: `{ plan }` → `{ chart }` in cross-pane events
+  - Public methods renamed: `getCurrentPlan()` → `getCurrentChart()`, `selectPlanByObject()` → `selectChartByObject()`
+  - `app-orchestrator.js` updated to use new event/method names
+  - Tests updated to canonical chart naming
+  - `doc/features/workflow/chart-edit.md`, `chart-play.md`, `chart-review.md` use canonical naming consistently
+- **Phase 6**: NOT STARTED
 
 ## Phase 0: Contract Hardening (Non-breaking)
 

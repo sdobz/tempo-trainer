@@ -104,10 +104,10 @@ Deno.test(
 );
 
 Deno.test(
-  "PlanEditPane: getCurrentPlan should return null initially",
+  "PlanEditPane: getCurrentChart should return null initially",
   async () => {
     const component = await createComponent();
-    assertEquals(component.getCurrentPlan(), null);
+    assertEquals(component.getCurrentChart(), null);
   },
 );
 

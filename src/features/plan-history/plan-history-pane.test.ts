@@ -132,7 +132,7 @@ Deno.test(
 );
 
 Deno.test(
-  "PlanHistoryPane: emits retry-plan event with session plan",
+  "PlanHistoryPane: emits retry-chart event with session chart",
   async () => {
     const component = await createComponent();
     const sessions = [createSession()];
@@ -141,7 +141,7 @@ Deno.test(
 
     let fired = false;
     let detail: any = null;
-    component.addEventListener("retry-plan", ((event: CustomEvent) => {
+    component.addEventListener("retry-chart", ((event: CustomEvent) => {
       fired = true;
       detail = event.detail;
     }) as EventListener);
@@ -152,7 +152,7 @@ Deno.test(
     retryBtn.click();
 
     assertEquals(fired, true);
-    assertEquals(detail.plan.name, "Core Groove");
+    assertEquals(detail.chart.name, "Core Groove");
   },
 );
 

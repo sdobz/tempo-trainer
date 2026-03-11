@@ -1,18 +1,5 @@
 import StorageManager from "./features/base/storage-manager.js";
 import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
-<<<<<<< Updated upstream:src/script.js
-import ChartService from "./features/music/chart-service.js";
-import PerformanceService from "./features/music/performance-service.js";
-import TimelineService from "./features/music/timeline-service.js";
-import PlaybackService from "./features/music/playback-service.js";
-import "./features/plan-edit/plan-edit-pane.js";
-import "./features/plan-play/plan-play-pane.js";
-import "./features/plan-history/plan-history-pane.js";
-import PracticeSessionManager from "./features/plan-history/practice-session-manager.js";
-import "./features/onboarding/onboarding-pane.js";
-import "./features/audio/audio-context-overlay.js";
-=======
->>>>>>> Stashed changes:src/app-orchestrator.js
 import { getAllElements } from "./features/component/dom-utils.js";
 
 /** @typedef {import("./features/plan-edit/plan-edit-pane.js").default} PlanEditPane */
@@ -42,54 +29,6 @@ export function startAppOrchestrator(mainRoot) {
     document.querySelector("plan-play-pane")
   );
 
-<<<<<<< Updated upstream:src/script.js
-  // --- Feature Instances ---
-  const planLibrary = new PlanLibrary();
-  const playbackService = new PlaybackService();
-  const metronome = new Metronome(
-    /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
-    playbackService,
-  );
-  const calibrationMetronome = new Metronome(
-    /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
-    playbackService,
-  );
-  const scorer = new Scorer(4, 0.5); // Will be configured when session starts
-  const practiceSessionManager = new PracticeSessionManager();
-  const audioContextService = mainRoot.audioContextService;
-  const paneManager = new PaneManager();
-  const sessionState = new SessionState(); // [Phase 2 seam] plan compatibility + startup bridge only
-  const timelineService = new TimelineService({
-    // [Phase 2 bridge] Read legacy SessionState timing once at startup.
-    tempo: sessionState.bpm,
-    beatsPerMeasure: sessionState.beatsPerMeasure,
-  });
-
-  // [Phase 1] New service layer: chart-service and performance-service are canonical owners
-  // of selected chart and scoring/history respectively. SessionState becomes a bridge
-  // for BPM/beatsPerMeasure (until Phase 2).
-  const chartService = new ChartService();
-  const performanceService = new PerformanceService();
-
-  // Create DetectorManager and register as a global service before components mount.
-  // Components call Services.get("detectorManager") in their onMount() hooks, which
-  // run after template fetches complete — always after this synchronous registration.
-  const detectorManager = new DetectorManager(StorageManager);
-  detectorManager.setSessionBpm(timelineService.tempo);
-
-  let calibration;
-
-  // Provide shared services from the root component context.
-  mainRoot.setServices({
-    sessionState,
-    detectorManager,
-    chartService,
-    performanceService,
-    timelineService,
-    playbackService,
-  });
-
-=======
   const {
     planLibrary,
     metronome,
@@ -106,7 +45,6 @@ export function startAppOrchestrator(mainRoot) {
 
   let calibration;
 
->>>>>>> Stashed changes:src/app-orchestrator.js
   const applyAudioContext = () => {
     const ctx = audioContextService.getContext();
     if (!ctx) return false;
@@ -173,10 +111,10 @@ export function startAppOrchestrator(mainRoot) {
 
   const planHistoryReady = planHistoryPane.componentReady.then(() => {
     planHistoryPane.addEventListener(
-      "retry-plan",
+      "retry-chart",
       (/** @type {CustomEvent} */ event) => {
-        const { plan } = event.detail;
-        planEditPane.selectPlanByObject(plan);
+        const { chart } = event.detail;
+        planEditPane.selectChartByObject(chart);
         paneManager.navigate("plan-play");
       },
     );
@@ -631,7 +569,7 @@ export function startAppOrchestrator(mainRoot) {
     });
 
     drillSessionManager.onSessionComplete((sessionData) => {
-      const currentPlan = planEditPane.getCurrentPlan();
+      const currentPlan = planEditPane.getCurrentChart();
       const sessionPlan = currentPlan
         ? {
             id: currentPlan.id || "",

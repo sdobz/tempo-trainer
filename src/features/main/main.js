@@ -6,8 +6,6 @@ import { ChartServiceContext } from "../music/chart-service.js";
 import { PerformanceServiceContext } from "../music/performance-service.js";
 import { TimelineServiceContext } from "../music/timeline-service.js";
 import { PlaybackServiceContext } from "../music/playback-service.js";
-<<<<<<< Updated upstream
-=======
 import SessionState from "../base/session-state.js";
 import DetectorManager from "../microphone/detector-manager.js";
 import ChartService from "../music/chart-service.js";
@@ -19,41 +17,15 @@ import Scorer from "../plan-play/scorer.js";
 import PracticeSessionManager from "../plan-history/practice-session-manager.js";
 import PlanLibrary from "../plan-edit/plan-library.js";
 import PaneManager from "../base/pane-manager.js";
->>>>>>> Stashed changes
 import AudioContextManager, {
   AudioContextServiceContext,
 } from "../audio/audio-context-manager.js";
 
-<<<<<<< Updated upstream
-/** @typedef {import("../base/session-state.js").default} SessionState */
-/** @typedef {import("../microphone/detector-manager.js").default} DetectorManager */
-/** @typedef {import("../music/chart-service.js").default} ChartService */
-/** @typedef {import("../music/performance-service.js").default} PerformanceService */
-/** @typedef {import("../music/timeline-service.js").default} TimelineService */
-/** @typedef {import("../music/playback-service.js").default} PlaybackService */
-
-class MainComponent extends BaseComponent {
-  constructor() {
-    super();
-    /** @type {SessionState|null} */
-    this._sessionState = null;
-    /** @type {DetectorManager|null} */
-    this._detectorManager = null;
-    /** @type {ChartService|null} */
-    this._chartService = null;
-    /** @type {PerformanceService|null} */
-    this._performanceService = null;
-    /** @type {TimelineService|null} */
-    this._timelineService = null;
-    /** @type {PlaybackService|null} */
-    this._playbackService = null;
-=======
 class MainComponent extends BaseComponent {
   constructor() {
     super();
 
     // Root composition: instantiate canonical services here.
->>>>>>> Stashed changes
     this._audioContextService = new AudioContextManager();
 
     this._sessionState = new SessionState();
@@ -115,16 +87,6 @@ class MainComponent extends BaseComponent {
   }
 
   /**
-<<<<<<< Updated upstream
-   * @param {{
-   *   sessionState: SessionState,
-   *   detectorManager: DetectorManager,
-   *   chartService?: ChartService,
-   *   performanceService?: PerformanceService,
-   *   timelineService?: TimelineService,
-   *   playbackService?: PlaybackService
-   * }} services
-=======
    * Return orchestrator-facing runtime dependencies.
    */
   getRuntime() {
@@ -148,7 +110,6 @@ class MainComponent extends BaseComponent {
   /**
    * [Compat] Allow external overrides for selected services during migration.
    * @param {Partial<ReturnType<MainComponent['getRuntime']>>} services
->>>>>>> Stashed changes
    */
   setServices({
     sessionState,

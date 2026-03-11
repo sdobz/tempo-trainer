@@ -24,8 +24,8 @@ import "../visualizers/plan-visualizer.js";
  * PlanEditPane component - manages plan library and editing
  *
  * Events emitted:
- * - 'plan-selected': When a plan is selected for playback
- * - 'plan-saved': When a plan is saved or updated
+ * - 'chart-selected': When a chart is selected for playback
+ * - 'chart-saved': When a chart is saved or updated
  * - 'navigate': When user wants to navigate (data: { pane: string })
  *
  * @extends BaseComponent
@@ -170,10 +170,10 @@ export default class PlanEditPane extends BaseComponent {
   // --- Public Methods ---
 
   /**
-   * Get the currently selected plan
+   * Get the currently selected chart
    * @returns {Object|null}
    */
-  getCurrentPlan() {
+  getCurrentChart() {
     return this.currentPlan;
   }
 
@@ -189,10 +189,11 @@ export default class PlanEditPane extends BaseComponent {
   }
 
   /**
-   * Select a plan by its object (used for retrying from history)
-   * @param {Object} planObject - Plan object with id and other properties
+   * Select a chart by its object (used for retrying from history)
+   * @param {Object} chart - Chart object with id and other properties
    */
-  selectPlanByObject(planObject) {
+  selectChartByObject(chart) {
+    const planObject = chart;
     if (!planObject || !planObject.id) return;
 
     const plan = this.chartService
@@ -615,7 +616,7 @@ export default class PlanEditPane extends BaseComponent {
       this._showPlanInfo(savedPlan);
 
       // Emit event
-      dispatchEvent(this, "plan-saved", { plan: savedPlan });
+      dispatchEvent(this, "chart-saved", { chart: savedPlan });
     } catch (e) {
       console.error("Failed to save plan:", e);
       alert("Failed to save plan");

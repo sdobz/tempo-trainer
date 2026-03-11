@@ -35,7 +35,7 @@ import "../visualizers/timeline-visualization.js";
  * PlanHistoryPane component - manages practice session history display
  *
  * Events emitted:
- * - 'retry-plan': When user clicks retry button (data: { plan: SessionPlan })
+ * - 'retry-chart': When user clicks retry button (data: { chart: SessionPlan })
  * - 'navigate': When user wants to navigate (data: { pane: string })
  * - 'delete-session': When user clicks delete button (data: { sessionId: string })
  *
@@ -156,7 +156,7 @@ export default class PlanHistoryPane extends BaseComponent {
           const sessionId = btnEl.dataset.sessionId;
           const session = this.sessions.find((s) => s.id === sessionId);
           if (session && session.plan) {
-            dispatchEvent(this, "retry-plan", { plan: session.plan });
+            dispatchEvent(this, "retry-chart", { chart: session.plan });
           }
         }),
       );
