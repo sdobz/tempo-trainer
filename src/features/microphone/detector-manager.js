@@ -201,7 +201,7 @@ class DetectorManager extends EventTarget {
 
   /**
    * Update session BPM for adaptive refractory scaling.
-   * This value is driven by SessionState and treated as runtime truth.
+   * [Phase 2] This value is driven by TimelineService and treated as runtime truth.
    * @param {number} bpm
    */
   setSessionBpm(bpm) {

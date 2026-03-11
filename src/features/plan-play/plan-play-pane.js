@@ -8,6 +8,7 @@ import BaseComponent from "../component/base-component.js";
 import { dispatchEvent, querySelector } from "../component/component-utils.js";
 import { PlaybackState, PlaybackContext } from "./playback-state.js";
 import { SessionStateContext } from "../base/session-state.js";
+import { TimelineServiceContext } from "../music/timeline-service.js";
 import "../visualizers/timeline-visualization.js";
 import "../visualizers/plan-visualizer.js";
 import "../base/app-notification.js";
@@ -23,7 +24,7 @@ import "../base/app-notification.js";
  * PlanPlayPane component - manages training session playback
  *
  * Events emitted:
- * - 'session-start': When start button is clicked (data: { bpm, beatsPerMeasure })
+ * - 'session-start': When start button is clicked
  * - 'session-stop': When stop button is clicked
  * - 'navigate': When user wants to navigate (data: { pane: string })
  *
@@ -46,9 +47,11 @@ export default class PlanPlayPane extends BaseComponent {
     // Subscribable playback state — provided to descendant visualizers via PlaybackContext
     this._playbackState = new PlaybackState();
 
-    // SessionState reference obtained via consumeContext (wired in onMount)
+    // SessionState reference kept for compatibility seams.
     /** @type {import('../base/session-state.js').default|null} */
     this._sessionState = null;
+    /** @type {import('../music/timeline-service.js').default|null} */
+    this._timelineService = null;
 
     // Direct timeline ref for imperative playback operations (centerAt, addDetection, etc.)
     /** @type {any} */
@@ -129,30 +132,52 @@ export default class PlanPlayPane extends BaseComponent {
       }),
     );
 
-    // Consume SessionStateContext — wire BPM into the pane's own display
+    // Keep SessionState reference only for compatibility seams.
     this.consumeContext(SessionStateContext, (ss) => {
       this._sessionState = ss;
-      // Initialise from current session state
-      this.setBPM(ss.bpm);
-      this._subscriptionCleanups.push(
-        ss.subscribe({
-          onBPMChange: (bpm) => this.setBPM(bpm),
-        }),
-      );
     });
 
-    // BPM / time-signature input listeners — update SessionState so all consumers see the change
+    // [Phase 2] Canonical timing source is TimelineService.
+    this.consumeContext(TimelineServiceContext, (timelineService) => {
+      this._timelineService = timelineService;
+      const snapshot = timelineService.getSnapshot();
+      this.setBPM(snapshot.tempo);
+      this.setTimeSignature(`${snapshot.beatsPerMeasure}/4`);
+
+      const onTimelineChanged = (
+        /** @type {CustomEvent<{field: string, value: unknown}>} */ event,
+      ) => {
+        if (event.detail.field === "tempo") {
+          this.setBPM(/** @type {number} */ (event.detail.value));
+        }
+        if (event.detail.field === "beatsPerMeasure") {
+          this.setTimeSignature(
+            `${/** @type {number} */ (event.detail.value)}/4`,
+          );
+        }
+      };
+
+      timelineService.addEventListener("changed", onTimelineChanged);
+      this._subscriptionCleanups.push(() => {
+        timelineService.removeEventListener("changed", onTimelineChanged);
+      });
+    });
+
+    // BPM / time-signature input listeners — update TimelineService as canonical owner.
     this.listen(this.bpmInput, "input", () => {
       const bpm = parseInt(this.bpmInput.value, 10);
-      if (!isNaN(bpm) && this._sessionState) this._sessionState.setBPM(bpm);
+      if (!isNaN(bpm) && this._timelineService) {
+        this._timelineService.setTempo(bpm);
+      }
     });
     this.listen(this.timeSignatureSelect, "change", () => {
       const beatsPerMeasure = parseInt(
         this.timeSignatureSelect.value.split("/")[0],
         10,
       );
-      if (!isNaN(beatsPerMeasure) && this._sessionState)
-        this._sessionState.setBeatsPerMeasure(beatsPerMeasure);
+      if (!isNaN(beatsPerMeasure) && this._timelineService) {
+        this._timelineService.setBeatsPerMeasure(beatsPerMeasure);
+      }
     });
 
     // Bind event listeners

@@ -12,6 +12,7 @@ class DrillSessionManager {
    * @param {Object} micDetector - MicrophoneDetector / DetectorManager instance
    * @param {import('../base/session-state.js').default} sessionState
    * @param {import('./playback-state.js').PlaybackState} playbackState
+   * @param {import('../music/timeline-service.js').default} [timelineService]
    */
   constructor(
     metronome,
@@ -21,6 +22,7 @@ class DrillSessionManager {
     micDetector,
     sessionState,
     playbackState,
+    timelineService,
   ) {
     this.metronome = metronome;
     this.scorer = scorer;
@@ -29,6 +31,7 @@ class DrillSessionManager {
     this.micDetector = micDetector;
     this.sessionState = sessionState;
     this.playbackState = playbackState;
+    this.timelineService = timelineService ?? null;
 
     // Local plan model — kept in sync with sessionState.plan
     /** @type {Array<{type: string}>} */
@@ -187,14 +190,16 @@ class DrillSessionManager {
 
   /**
    * Starts a new drill session.
-   * Reads current BPM and beatsPerMeasure from the shared SessionState so there
-   * is a single source of truth — no need to pass them as arguments.
+   * Reads current BPM and beatsPerMeasure from TimelineService when available.
+   * SessionState is only a compatibility fallback.
    * @param {AudioContext} audioContext - Web Audio API context
    * @returns {Promise<void>}
    */
   async startSession(audioContext) {
-    const bpm = this.sessionState.bpm;
-    const beatsPerMeasure = this.sessionState.beatsPerMeasure;
+    const bpm = this.timelineService?.tempo ?? this.sessionState.bpm;
+    const beatsPerMeasure =
+      this.timelineService?.beatsPerMeasure ??
+      this.sessionState.beatsPerMeasure;
 
     // Stop calibration if running
     if (this.calibration && this.calibration.isCalibrating) {

@@ -7,6 +7,7 @@
 import BaseComponent from "../component/base-component.js";
 import { querySelector } from "../component/component-utils.js";
 import { SessionStateContext } from "../base/session-state.js";
+import { TimelineServiceContext } from "../music/timeline-service.js";
 
 /** @typedef {{ type: string }} Measure */
 
@@ -37,6 +38,8 @@ export default class TimelineVisualization extends BaseComponent {
     this.displayStartBeat = 0;
     /** @type {(() => void)|null} */
     this._cleanupSession = null;
+    /** @type {(() => void)|null} */
+    this._cleanupTimeline = null;
   }
 
   getTemplateUrl() {
@@ -58,12 +61,11 @@ export default class TimelineVisualization extends BaseComponent {
       return;
     }
 
-    // Consume SessionStateContext for plan and beatsPerMeasure
+    // Consume SessionStateContext for drill plan compatibility seam.
     this.consumeContext(SessionStateContext, (ss) => {
       if (ss.plan?.plan) {
         this.drillPlan = ss.plan.plan;
       }
-      this.beatsPerMeasure = ss.beatsPerMeasure;
       this.build();
       this._cleanupSession = ss.subscribe({
         onPlanChange: (planData) => {
@@ -72,11 +74,26 @@ export default class TimelineVisualization extends BaseComponent {
           }
           this.build();
         },
-        onBeatsPerMeasureChange: (n) => {
-          this.beatsPerMeasure = n;
-          this.build();
-        },
       });
+    });
+
+    // [Phase 2] Consume TimelineService for canonical meter ownership.
+    this.consumeContext(TimelineServiceContext, (timelineService) => {
+      this.beatsPerMeasure = timelineService.beatsPerMeasure;
+      this.build();
+
+      const onChanged = (
+        /** @type {CustomEvent<{field: string, value: unknown}>} */ event,
+      ) => {
+        if (event.detail.field !== "beatsPerMeasure") return;
+        this.beatsPerMeasure = /** @type {number} */ (event.detail.value);
+        this.build();
+      };
+
+      timelineService.addEventListener("changed", onChanged);
+      this._cleanupTimeline = () => {
+        timelineService.removeEventListener("changed", onChanged);
+      };
     });
   }
 
@@ -84,6 +101,10 @@ export default class TimelineVisualization extends BaseComponent {
     if (this._cleanupSession) {
       this._cleanupSession();
       this._cleanupSession = null;
+    }
+    if (this._cleanupTimeline) {
+      this._cleanupTimeline();
+      this._cleanupTimeline = null;
     }
   }
 

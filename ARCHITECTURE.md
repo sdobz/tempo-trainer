@@ -79,5 +79,5 @@ No additional wiring layer is needed by default. Introduce a third layer only if
 
 - `script.js` still owns substantial wiring and some mixed responsibilities.
 - Plan/chart naming remains partially split between code and docs.
-- `SessionState` still exists in runtime as a legacy mirror; timeline/chart are target canonical owners.
+- `SessionState` still exists in runtime as a legacy mirror; timeline is now canonical for tempo/meter and chart is canonical for selection/catalog.
 - Some legacy callback/delegate surfaces remain and are being normalized to contract-first service boundaries.

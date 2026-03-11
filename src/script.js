@@ -9,6 +9,7 @@ import PaneManager from "./features/base/pane-manager.js";
 import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
 import ChartService from "./features/music/chart-service.js";
 import PerformanceService from "./features/music/performance-service.js";
+import TimelineService from "./features/music/timeline-service.js";
 import "./features/plan-edit/plan-edit-pane.js";
 import "./features/plan-play/plan-play-pane.js";
 import "./features/plan-history/plan-history-pane.js";
@@ -59,7 +60,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const practiceSessionManager = new PracticeSessionManager();
   const audioContextService = mainRoot.audioContextService;
   const paneManager = new PaneManager();
-  const sessionState = new SessionState(); // owns BPM, beatsPerMeasure
+  const sessionState = new SessionState(); // [Phase 2 seam] plan compatibility + startup bridge only
+  const timelineService = new TimelineService({
+    // [Phase 2 bridge] Read legacy SessionState timing once at startup.
+    tempo: sessionState.bpm,
+    beatsPerMeasure: sessionState.beatsPerMeasure,
+  });
 
   // [Phase 1] New service layer: chart-service and performance-service are canonical owners
   // of selected chart and scoring/history respectively. SessionState becomes a bridge
@@ -71,7 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Components call Services.get("detectorManager") in their onMount() hooks, which
   // run after template fetches complete — always after this synchronous registration.
   const detectorManager = new DetectorManager(StorageManager);
-  detectorManager.setSessionBpm(sessionState.bpm);
+  detectorManager.setSessionBpm(timelineService.tempo);
 
   let calibration;
 
@@ -81,6 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
     detectorManager,
     chartService,
     performanceService,
+    timelineService,
   });
 
   const applyAudioContext = () => {
@@ -417,7 +424,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // NOTE: BPM/time-sig input listeners now live inside plan-play-pane (via consumeContext).
 
   function getCalibrationBeatPositionFromAudioTime(audioTime) {
-    const beatDuration = sessionState.beatDuration;
+    const beatDuration = timelineService.beatDuration;
     return Math.max(
       0,
       (audioTime - calibrationTimelineRunStartAudioTime) / beatDuration,
@@ -428,8 +435,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!calibrationMetronome.audioContext || !calibration) return;
 
     calibrationMetronome.stop();
-    calibrationMetronome.setBPM(sessionState.bpm);
-    calibrationMetronome.setTimeSignature(sessionState.beatsPerMeasure);
+    calibrationMetronome.setBPM(timelineService.tempo);
+    calibrationMetronome.setTimeSignature(timelineService.beatsPerMeasure);
     calibrationMetronome.onBeat((beatInMeasure, time) => {
       if (!calibration.isCalibrating) return false;
       const freq = beatInMeasure === 0 ? 880.0 : 440.0;
@@ -450,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const activeCalibrationTimeline = resolveCalibrationTimeline();
     if (!activeCalibrationTimeline) return;
 
-    const beatsPerMeasure = sessionState.beatsPerMeasure;
+    const beatsPerMeasure = timelineService.beatsPerMeasure;
     const measureType = calibration?.isCalibrating ? "click" : "silent";
     const plan = Array.from(
       { length: CALIBRATION_TIMELINE_WINDOW_MEASURES },
@@ -467,7 +474,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function maybeRebaseCalibrationTimeline(absoluteBeatPosition) {
     if (!resolveCalibrationTimeline()) return;
 
-    const beatsPerMeasure = sessionState.beatsPerMeasure;
+    const beatsPerMeasure = timelineService.beatsPerMeasure;
     const currentMeasure = Math.floor(absoluteBeatPosition / beatsPerMeasure);
     const minVisibleMeasure =
       calibrationTimelineWindowStartMeasure +
@@ -574,30 +581,49 @@ document.addEventListener("DOMContentLoaded", () => {
       detectorManager,
       sessionState,
       planPlayPane.playbackState,
+      timelineService,
     );
 
-    // Wire SessionState subscribers — single fan-out for BPM and time signature.
-    // plan-play-pane self-wires planData and beatsPerMeasure via consumeContext.
+    // [Phase 2] TimelineService is canonical for tempo/meter fan-out.
+    timelineService.addEventListener(
+      "changed",
+      (/** @type {CustomEvent} */ event) => {
+        const { field, value } = event.detail;
+        if (field === "tempo") {
+          const bpm = /** @type {number} */ (value);
+          metronome.setBPM(bpm);
+          calibrationMetronome.setBPM(bpm);
+          scorer.setBeatDuration(60.0 / bpm);
+          if (calibration) calibration.setBeatDuration(60.0 / bpm);
+          detectorManager.setSessionBpm(bpm);
+        }
+        if (field === "beatsPerMeasure") {
+          const n = /** @type {number} */ (value);
+          metronome.setTimeSignature(n);
+          calibrationMetronome.setTimeSignature(n);
+          scorer.setBeatsPerMeasure(n);
+          if (calibration) calibration.setBeatsPerMeasure(n);
+        }
+      },
+    );
+
+    // [Phase 2 seam] SessionState still carries plan data until chart/timeline convergence.
     sessionState.subscribe({
-      onBPMChange: (bpm) => {
-        metronome.setBPM(bpm);
-        calibrationMetronome.setBPM(bpm);
-        scorer.setBeatDuration(60.0 / bpm);
-        if (calibration) calibration.setBeatDuration(60.0 / bpm);
-        detectorManager.setSessionBpm(bpm);
-      },
-      onBeatsPerMeasureChange: (n) => {
-        metronome.setTimeSignature(n);
-        calibrationMetronome.setTimeSignature(n);
-        scorer.setBeatsPerMeasure(n);
-        if (calibration) calibration.setBeatsPerMeasure(n);
-      },
       onPlanChange: (planData) => {
         const measures =
           planData?.plan ?? (Array.isArray(planData) ? planData : []);
         scorer.setDrillPlan(measures);
       },
     });
+
+    // Apply initial timeline values once so dependent modules are in sync.
+    metronome.setBPM(timelineService.tempo);
+    metronome.setTimeSignature(timelineService.beatsPerMeasure);
+    calibrationMetronome.setBPM(timelineService.tempo);
+    calibrationMetronome.setTimeSignature(timelineService.beatsPerMeasure);
+    scorer.setBeatDuration(timelineService.beatDuration);
+    scorer.setBeatsPerMeasure(timelineService.beatsPerMeasure);
+    detectorManager.setSessionBpm(timelineService.tempo);
 
     // Register session-start/stop here — drillSessionManager is guaranteed to be
     // defined at this point (constructed above), eliminating the late-binding hazard.
@@ -608,6 +634,7 @@ document.addEventListener("DOMContentLoaded", () => {
           alert("Microphone access is required before starting a session");
           return;
         }
+        timelineService.play();
         scorer.reset();
         await drillSessionManager.startSession(audioContext);
         planPlayPane.playbackState.update({ isPlaying: true });
@@ -619,6 +646,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     planPlayPane.addEventListener("session-stop", () => {
       drillSessionManager.stopSession();
+      timelineService.pause();
       planPlayPane.playbackState.update({ isPlaying: false });
     });
 
@@ -646,8 +674,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const fullSessionData = {
         ...sessionData,
         plan: sessionPlan,
-        bpm: planPlayPane.getBPM(),
-        timeSignature: planPlayPane.timeSignatureSelect.value,
+        bpm: timelineService.tempo,
+        timeSignature: `${timelineService.beatsPerMeasure}/4`,
       };
 
       const session = practiceSessionManager.saveSession(fullSessionData);

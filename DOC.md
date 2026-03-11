@@ -104,13 +104,18 @@ We are migrating toward a DI-style service graph where:
 	- Exposed through root context.
 2. `SessionState` (created in `src/script.js`, provided by `main`)
 	- Legacy state holder during migration.
-	- Timing and selected-chart ownership are being moved out to timeline/chart services.
+	- Timing ownership has moved to timeline service.
+	- Selected chart ownership has moved to chart service.
+	- Still carries compatibility mirror fields and legacy plan projection seam.
 	- Fan-out currently uses subscribe handlers.
-3. `DetectorManager` (created in `src/script.js`, provided by `main`)
+3. `TimelineService` (created in `src/script.js`, provided by `main`)
+	- Canonical owner of tempo, meter, transport, and position.
+	- Emits `changed` and `transport` events for timing state transitions.
+4. `DetectorManager` (created in `src/script.js`, provided by `main`)
 	- Owns detector type/config, mic input bridge, device selection, hit listeners.
-4. `Metronome` + `Scorer` + `DrillSessionManager` (created in `src/script.js`)
+5. `Metronome` + `Scorer` + `DrillSessionManager` (created in `src/script.js`)
 	- Coordinate playback, detection registration, per-session scoring, and completion flow.
-5. `PracticeSessionManager` + `PlanLibrary`
+6. `PracticeSessionManager` + `PlanLibrary`
 	- Persist history metrics and plan catalog (built-in and custom).
 
 ### Target service graph (migration direction)

@@ -45,7 +45,7 @@ Deno.test("SessionState: backward-compatible subscribe() still works", () => {
 
   state.setBPM(160);
   assertEquals(received.bpm, 160);
-  assertEquals(events.length, 3); // Already 1 from above, +2 more
+  assertEquals(events.length, 1); // Listener attached after earlier mutations
 
   unsub();
   state.setBPM(170);

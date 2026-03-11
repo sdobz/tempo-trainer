@@ -10,7 +10,9 @@ export const SessionStateContext = createContext("session-state", null);
 /**
  * SessionState — single source of truth for session-scoped shared values.
  *
- * Owns: BPM, beatsPerMeasure, drill plan data.
+ * [Phase 2 seam] Canonical timing ownership moved to TimelineService.
+ * SessionState retains BPM/beatsPerMeasure as compatibility mirrors and
+ * still carries drill plan data for legacy consumers.
  *
  * Consumers subscribe once; mutations call `setBPM()`, `setBeatsPerMeasure()`,
  * or `setPlan()`, which notify all registered handlers automatically.
@@ -83,11 +85,11 @@ class SessionState extends EventTarget {
   }
 
   // ---------------------------------------------------------------------------
-  // Setters — each notifies relevant subscribers
+  // Setters — notify compatibility subscribers
   // ---------------------------------------------------------------------------
 
   /**
-   * Update BPM and notify subscribers.
+   * [Phase 2 seam] Update mirrored BPM and notify compatibility subscribers.
    * @param {number} bpm
    */
   setBPM(bpm) {
@@ -100,7 +102,7 @@ class SessionState extends EventTarget {
   }
 
   /**
-   * Update beats-per-measure and notify subscribers.
+   * [Phase 2 seam] Update mirrored meter and notify compatibility subscribers.
    * @param {number} n
    */
   setBeatsPerMeasure(n) {

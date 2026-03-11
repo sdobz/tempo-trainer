@@ -30,7 +30,8 @@ Primary references:
 
 ### Current implementation hotspots
 - `src/script.js` is a large orchestrator + domain glue.
-- `SessionState` owns BPM/meter/plan mirror (`src/features/base/session-state.js`).
+- `SessionState` now serves as a compatibility mirror for legacy plan/timing consumers (`src/features/base/session-state.js`).
+- `TimelineService` is canonical owner of tempo/meter/transport/position (`src/features/music/timeline-service.js`).
 - `Metronome` mixes scheduling/transport with rendering (`src/features/plan-play/metronome.js`).
 - Performance is split across scorer/history (`src/features/plan-play/scorer.js`, `src/features/plan-history/practice-session-manager.js`).
 - Detector still uses callbacks/delegate patterns (`src/features/microphone/detector-manager.js`).
@@ -88,7 +89,14 @@ Phase cannot close if docs describe behavior that no longer exists in code.
   - MainComponent updated to provide both services
   - Documentation updated: chart.md, performance.md
   - All Phase 1 files compile without errors
-- **Phase 2–4**: NOT STARTED
+- **Phase 2 (Timeline Ownership Extraction)**: ✅ COMPLETE
+  - `timeline-service.js` added and provided via root context
+  - Tempo/meter fan-out moved to TimelineService event subscription in `script.js`
+  - Detector BPM input now follows timeline changes (not SessionState)
+  - `timeline-visualization` consumes canonical timeline meter
+  - SessionState timing fields retained as compatibility seam only
+  - Timeline docs updated to reflect canonical ownership + seam removal target
+- **Phase 3–4**: NOT STARTED
 
 ## Phase 0: Contract Hardening (Non-breaking)
 

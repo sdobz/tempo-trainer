@@ -4,44 +4,57 @@ Timeline is the domain that translates raw time into musical divisions (beat, me
 
 Timeline is the canonical owner of tempo, meter, transport state, and time-division mapping.
 
-## Current implementation
+## Current implementation [Phase 2]
 
-- Runtime semantics are still partially distributed in legacy code:
-	- `SessionState` (`src/features/base/session-state.js`) still stores tempo/meter as migration debt.
-	- `Metronome` (`src/features/plan-play/metronome.js`) still derives beat duration internally.
-	- timeline rendering lives in `src/features/visualizers/timeline-visualization.js`.
-- Main timeline UI is `src/features/visualizers/timeline-visualization.js`.
-- It renders:
-	- measure groups (`click-in`, `silent`, etc.)
-	- beat grid
-	- expected beat markers
-	- detected hit markers
-- `DrillSessionManager.updateTimelineScroll(...)` drives centering during playback.
+- **Canonical owner**: `src/features/music/timeline-service.js` (TimelineService)
+- **State**: `tempo`, `beatsPerMeasure`, `transportState`, `position`
+- **Commands**: `setTempo`, `setBeatsPerMeasure`, `play`, `pause`, `stop`, `seekToDivision`
+- **Event contract**: `changed` (coarse patch), `transport` (state transition)
+
+### Current consumers
+
+- `plan-play-pane` consumes `TimelineServiceContext` for BPM/time-signature UI.
+- `timeline-visualization` consumes `TimelineServiceContext` for canonical meter (`beatsPerMeasure`).
+- `script.js` subscribes to timeline changes and fans out updates to metronome/scorer/calibration/detector.
+- `detector-manager` receives BPM via `setSessionBpm` from timeline updates.
+
+### Rendering/runtime notes
+
+- Main timeline UI remains `src/features/visualizers/timeline-visualization.js`.
+- It renders measure groups, beat grid, expected beat markers, and detected hit markers.
+- `DrillSessionManager.updateTimelineScroll(...)` still drives centering during playback.
 - Calibration uses a separate timeline window managed in `script.js`.
 
 ## Inputs
 
 - Audio clock time (`AudioContext.currentTime`).
-- Session timing configuration (BPM, beats-per-measure).
+- Session timing configuration (BPM, beats-per-measure) from TimelineService.
 - Chart/plan measure structure used for division labeling.
 - Calibration offset used to map observed hit times.
 
 ## Outputs
 
-- Beat duration and measure/beat mapping helpers (currently implicit across modules).
+- Beat duration and measure/beat mapping helpers (`timelineService.beatDuration`, division position).
 - Beat positions for scroll/visualization.
-- Future domain events for tempo/meter/time-map changes.
+- Domain events for tempo/meter/transport transitions.
 
 ## Known seam
 
-Legacy runtime still duplicates timing logic in `SessionState`, `Metronome`, and `script.js`.
-This is an implementation seam, not an ownership model.
+- `SessionState` still exposes mirrored `bpm`/`beatsPerMeasure` for compatibility.
+- The migration seam is one-way startup bridge: initial timing values are read once from SessionState.
+- SessionState timing mirror removal target: Phase 4.
 
 ## Migration target
 
-- Keep timeline as the sole timing owner.
-- Remove timing ownership from `SessionState` and `Metronome`.
-- Keep `timeline-visualization` as a pure renderer consuming timeline outputs.
+Achieved in Phase 2 for canonical ownership:
+
+- Timeline is sole canonical timing owner.
+- SessionState timing fields are compatibility mirrors only.
+- `timeline-visualization` consumes timeline meter as canonical input.
+
+Remaining seam:
+
+- `Metronome` still performs scheduling internals and will be split in Phase 3.
 
 ## Minimal design target
 
