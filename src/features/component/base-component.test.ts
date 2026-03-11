@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import "../base/setup-dom.ts"; // Setup DOM environment first
+import "../component/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals } from "../base/assert.ts";
 
 // ---------------------------------------------------------------------------
@@ -22,7 +22,9 @@ if (!customElements.get("test-component-base")) {
 }
 
 async function createComponent(): Promise<InstanceType<typeof TestComponent>> {
-  const el = document.createElement("test-component-base") as InstanceType<typeof TestComponent>;
+  const el = document.createElement("test-component-base") as InstanceType<
+    typeof TestComponent
+  >;
   document.body.appendChild(el);
   await el.componentReady;
   return el;
@@ -42,20 +44,27 @@ Deno.test("BaseComponent: setState merges state", async () => {
 Deno.test("BaseComponent: setState calls onStateChange", async () => {
   const el = await createComponent();
   let called = false;
-  el.onStateChange = () => { called = true; };
+  el.onStateChange = () => {
+    called = true;
+  };
   el.setState({ x: 1 });
   assertEquals(called, true);
 });
 
-Deno.test("BaseComponent: setState passes old and new state to onStateChange", async () => {
-  const el = await createComponent();
-  el.setState({ count: 0 });
-  let captured: { old: any; next: any } | null = null;
-  el.onStateChange = (old, next) => { captured = { old, next }; };
-  el.setState({ count: 1 });
-  assertEquals(captured!.old.count, 0);
-  assertEquals(captured!.next.count, 1);
-});
+Deno.test(
+  "BaseComponent: setState passes old and new state to onStateChange",
+  async () => {
+    const el = await createComponent();
+    el.setState({ count: 0 });
+    let captured: { old: any; next: any } | null = null;
+    el.onStateChange = (old, next) => {
+      captured = { old, next };
+    };
+    el.setState({ count: 1 });
+    assertEquals(captured!.old.count, 0);
+    assertEquals(captured!.next.count, 1);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // setState — mount guard
@@ -69,7 +78,9 @@ Deno.test("BaseComponent: setState is a no-op after unmount", async () => {
   document.body.removeChild(el);
 
   let onStateChangeCalled = false;
-  el.onStateChange = () => { onStateChangeCalled = true; };
+  el.onStateChange = () => {
+    onStateChangeCalled = true;
+  };
   el.setState({ x: 99 });
 
   // Still old value, onStateChange not called
@@ -81,25 +92,28 @@ Deno.test("BaseComponent: setState is a no-op after unmount", async () => {
 // setState — re-entrance guard
 // ---------------------------------------------------------------------------
 
-Deno.test("BaseComponent: setState during onStateChange queues and flushes update", async () => {
-  const el = await createComponent();
-  el.setState({ count: 0 });
-  let calls = 0;
+Deno.test(
+  "BaseComponent: setState during onStateChange queues and flushes update",
+  async () => {
+    const el = await createComponent();
+    el.setState({ count: 0 });
+    let calls = 0;
 
-  el.onStateChange = (_old, next) => {
-    calls++;
-    if (next.count === 0) {
-      // Trigger a re-entrant setState
-      el.setState({ count: 1 });
-    }
-  };
+    el.onStateChange = (_old, next) => {
+      calls++;
+      if (next.count === 0) {
+        // Trigger a re-entrant setState
+        el.setState({ count: 1 });
+      }
+    };
 
-  el.setState({ count: 0 }); // Should trigger onStateChange, then flush pending {count:1}
+    el.setState({ count: 0 }); // Should trigger onStateChange, then flush pending {count:1}
 
-  // onStateChange should have been called twice total (once for count=0, once for count=1)
-  assertEquals(calls, 2);
-  assertEquals(el.state.count, 1);
-});
+    // onStateChange should have been called twice total (once for count=0, once for count=1)
+    assertEquals(calls, 2);
+    assertEquals(el.state.count, 1);
+  },
+);
 
 Deno.test("BaseComponent: setState does not recurse infinitely", async () => {
   const el = await createComponent();
@@ -130,7 +144,9 @@ Deno.test("BaseComponent: listen() binds event listener", async () => {
   let fired = false;
   const btn = document.createElement("button");
 
-  el.listen(btn, "click", () => { fired = true; });
+  el.listen(btn, "click", () => {
+    fired = true;
+  });
   btn.click();
 
   assertEquals(fired, true);
@@ -141,7 +157,9 @@ Deno.test("BaseComponent: listen() removes listener on unmount", async () => {
   let fired = false;
   const btn = document.createElement("button");
 
-  el.listen(btn, "click", () => { fired = true; });
+  el.listen(btn, "click", () => {
+    fired = true;
+  });
 
   // Unmount
   document.body.removeChild(el);
@@ -152,39 +170,49 @@ Deno.test("BaseComponent: listen() removes listener on unmount", async () => {
   assertEquals(fired, false);
 });
 
-Deno.test("BaseComponent: listen() returned cleanup function works immediately", async () => {
-  const el = await createComponent();
-  let fired = false;
-  const btn = document.createElement("button");
+Deno.test(
+  "BaseComponent: listen() returned cleanup function works immediately",
+  async () => {
+    const el = await createComponent();
+    let fired = false;
+    const btn = document.createElement("button");
 
-  const cleanup = el.listen(btn, "click", () => { fired = true; });
-  cleanup();
-  btn.click();
+    const cleanup = el.listen(btn, "click", () => {
+      fired = true;
+    });
+    cleanup();
+    btn.click();
 
-  assertEquals(fired, false);
-});
+    assertEquals(fired, false);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // emit()
 // ---------------------------------------------------------------------------
 
-Deno.test("BaseComponent: emit() dispatches a CustomEvent that bubbles", async () => {
-  const el = await createComponent();
-  let receivedDetail: any = null;
+Deno.test(
+  "BaseComponent: emit() dispatches a CustomEvent that bubbles",
+  async () => {
+    const el = await createComponent();
+    let receivedDetail: any = null;
 
-  document.body.addEventListener("test-event", (e: Event) => {
-    receivedDetail = (e as CustomEvent).detail;
-  });
+    document.body.addEventListener("test-event", (e: Event) => {
+      receivedDetail = (e as CustomEvent).detail;
+    });
 
-  el.emit("test-event", { value: 42 });
+    el.emit("test-event", { value: 42 });
 
-  assertEquals(receivedDetail?.value, 42);
-});
+    assertEquals(receivedDetail?.value, 42);
+  },
+);
 
 Deno.test("BaseComponent: emit() works without detail", async () => {
   const el = await createComponent();
   let fired = false;
-  document.body.addEventListener("bare-event", () => { fired = true; });
+  document.body.addEventListener("bare-event", () => {
+    fired = true;
+  });
   el.emit("bare-event");
   assertEquals(fired, true);
 });
@@ -193,26 +221,36 @@ Deno.test("BaseComponent: emit() works without detail", async () => {
 // onShow() / onHide()
 // ---------------------------------------------------------------------------
 
-Deno.test("BaseComponent: onShow and onHide are callable virtual methods", async () => {
-  const el = await createComponent();
-  let showCalled = false;
-  let hideCalled = false;
+Deno.test(
+  "BaseComponent: onShow and onHide are callable virtual methods",
+  async () => {
+    const el = await createComponent();
+    let showCalled = false;
+    let hideCalled = false;
 
-  el.onShow = () => { showCalled = true; };
-  el.onHide = () => { hideCalled = true; };
+    el.onShow = () => {
+      showCalled = true;
+    };
+    el.onHide = () => {
+      hideCalled = true;
+    };
 
-  el.onShow();
-  el.onHide();
+    el.onShow();
+    el.onHide();
 
-  assertEquals(showCalled, true);
-  assertEquals(hideCalled, true);
-});
+    assertEquals(showCalled, true);
+    assertEquals(hideCalled, true);
+  },
+);
 
 // ---------------------------------------------------------------------------
 // AbortController — initialization
 // ---------------------------------------------------------------------------
 
-Deno.test("BaseComponent: _initAbortController exists on instance", async () => {
-  const el = await createComponent();
-  assertEquals(el._initAbortController instanceof AbortController, true);
-});
+Deno.test(
+  "BaseComponent: _initAbortController exists on instance",
+  async () => {
+    const el = await createComponent();
+    assertEquals(el._initAbortController instanceof AbortController, true);
+  },
+);

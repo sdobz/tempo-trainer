@@ -2,7 +2,7 @@
  * PaneManager manages hash-based pane navigation and callbacks.
  */
 
-import { getAllElements, getElementByID } from "./dom-utils.js";
+import { getAllElements, getElementByID } from "../component/dom-utils.js";
 
 class PaneManager {
   /**
@@ -81,12 +81,13 @@ class PaneManager {
    */
   _buildHash(paneName, params = {}) {
     let hash = paneName;
-    const paramEntries = Object.entries(params).filter(([, v]) =>
-      v !== null && v !== undefined
+    const paramEntries = Object.entries(params).filter(
+      ([, v]) => v !== null && v !== undefined,
     );
     if (paramEntries.length > 0) {
-      const queryString = new URLSearchParams(Object.fromEntries(paramEntries))
-        .toString();
+      const queryString = new URLSearchParams(
+        Object.fromEntries(paramEntries),
+      ).toString();
       hash += `?${queryString}`;
     }
     return hash;
@@ -132,8 +133,8 @@ class PaneManager {
       const outgoingEl = document.getElementById(`pane-${this._previousPane}`);
       if (outgoingEl) {
         outgoingEl.querySelectorAll("*").forEach((el) => {
-          if (typeof (/** @type {any} */ (el)).onHide === "function") {
-            (/** @type {any} */ (el)).onHide();
+          if (typeof /** @type {any} */ (el).onHide === "function") {
+            /** @type {any} */ (el).onHide();
           }
         });
       }
@@ -157,8 +158,8 @@ class PaneManager {
 
     // Notify incoming pane components
     currentPaneEl.querySelectorAll("*").forEach((el) => {
-      if (typeof (/** @type {any} */ (el)).onShow === "function") {
-        (/** @type {any} */ (el)).onShow();
+      if (typeof /** @type {any} */ (el).onShow === "function") {
+        /** @type {any} */ (el).onShow();
       }
     });
 

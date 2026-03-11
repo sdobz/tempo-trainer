@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import "../base/setup-dom.ts"; // Setup DOM environment first
+import "../component/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals } from "../base/assert.ts";
 import { DetectorManagerContext } from "../microphone/detector-manager.js";
 

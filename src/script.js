@@ -7,6 +7,8 @@ import Scorer from "./features/plan-play/scorer.js";
 import PlanLibrary from "./features/plan-edit/plan-library.js";
 import PaneManager from "./features/base/pane-manager.js";
 import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
+import ChartService from "./features/music/chart-service.js";
+import PerformanceService from "./features/music/performance-service.js";
 import "./features/plan-edit/plan-edit-pane.js";
 import "./features/plan-play/plan-play-pane.js";
 import "./features/plan-history/plan-history-pane.js";
@@ -57,7 +59,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const practiceSessionManager = new PracticeSessionManager();
   const audioContextService = mainRoot.audioContextService;
   const paneManager = new PaneManager();
-  const sessionState = new SessionState(); // owns BPM, beatsPerMeasure, drill plan
+  const sessionState = new SessionState(); // owns BPM, beatsPerMeasure
+
+  // [Phase 1] New service layer: chart-service and performance-service are canonical owners
+  // of selected chart and scoring/history respectively. SessionState becomes a bridge
+  // for BPM/beatsPerMeasure (until Phase 2).
+  const chartService = new ChartService();
+  const performanceService = new PerformanceService();
 
   // Create DetectorManager and register as a global service before components mount.
   // Components call Services.get("detectorManager") in their onMount() hooks, which
@@ -68,7 +76,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let calibration;
 
   // Provide shared services from the root component context.
-  mainRoot.setServices({ sessionState, detectorManager });
+  mainRoot.setServices({
+    sessionState,
+    detectorManager,
+    chartService,
+    performanceService,
+  });
 
   const applyAudioContext = () => {
     const ctx = audioContextService.getContext();

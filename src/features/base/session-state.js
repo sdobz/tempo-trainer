@@ -94,7 +94,9 @@ class SessionState extends EventTarget {
     this._bpm = bpm;
     this._notify("onBPMChange", bpm);
     // [Phase 0 compat shim] Emit EventTarget event. Remove after all consumers use events: target=Phase 4.
-    this.dispatchEvent(new CustomEvent("changed", { detail: { field: "bpm", value: bpm } }));
+    this.dispatchEvent(
+      new CustomEvent("changed", { detail: { field: "bpm", value: bpm } }),
+    );
   }
 
   /**
@@ -105,7 +107,11 @@ class SessionState extends EventTarget {
     this._beatsPerMeasure = n;
     this._notify("onBeatsPerMeasureChange", n);
     // [Phase 0 compat shim] Emit EventTarget event. Remove after all consumers use events: target=Phase 4.
-    this.dispatchEvent(new CustomEvent("changed", { detail: { field: "beatsPerMeasure", value: n } }));
+    this.dispatchEvent(
+      new CustomEvent("changed", {
+        detail: { field: "beatsPerMeasure", value: n },
+      }),
+    );
   }
 
   /**
@@ -116,7 +122,11 @@ class SessionState extends EventTarget {
     this._plan = planData;
     this._notify("onPlanChange", planData);
     // [Phase 0 compat shim] Emit EventTarget event. Remove after all consumers use events: target=Phase 4.
-    this.dispatchEvent(new CustomEvent("changed", { detail: { field: "plan", value: planData } }));
+    this.dispatchEvent(
+      new CustomEvent("changed", {
+        detail: { field: "plan", value: planData },
+      }),
+    );
   }
 
   // ---------------------------------------------------------------------------

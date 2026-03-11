@@ -3,66 +3,80 @@
 Chart is the canonical domain term for practice structure.
 Legacy code names (`plan-*`, `PlanLibrary`, `planData`) are aliases and migration debt.
 
-## Current implementation
+## Current implementation [Phase 1]
 
-- Persistent chart catalog is currently managed by `src/features/plan-edit/plan-library.js` (legacy name).
-- Runtime selected chart is currently mirrored through `SessionState.plan` (`src/features/base/session-state.js`) as migration debt.
-- Timeline and scorer consume a flattened measure array (`planData.plan`) at playback time (legacy field name).
+- **Canonical owner**: `src/features/music/chart-service.js` (ChartService)
+- **Persistent catalog**: Managed by ChartService, which composes PlanLibrary internally
+- **Runtime selected chart**: Owned by ChartService.getSelectedChart() (canonical) + SessionState.plan (backward compatibility during Phase 2)
+- **Consumers**: Panes receive charts through ChartServiceContext and call service methods
 
 ## Owned data
 
 - Chart identity and metadata (`id`, `name`, `description`, `difficulty`, `tags`).
 - Segment structure (`on`, `off`, `reps`).
-- Derived drill measures used for playback.
+- Derived drill measures used for playback (`projectChart()` output).
+- Selected chart state.
 
 ## Storage
 
-- Chart catalog persistence is currently implemented by `PlanLibrary` and stored via browser persistence (`StorageManager`).
-- Chart domain owns chart schema semantics; persistence only provides storage mechanics.
+- ChartService composes PlanLibrary internally; chart catalog is persisted via browser localStorage through StorageManager.
+- Chart domain owns schema semantics; persistence layer is encapsulated.
+
+## Service interface
+
+### Public API
+
+```javascript
+// Query
+getAllCharts() → Chart[]
+getCustomCharts() → Chart[]
+getChartById(chartId) → Chart | null
+getSelectedChart() → Chart | null
+
+// Commands
+selectChart(chart) → void   // Emits "chart-selected" event
+saveChart(chart) → Chart    // Emits "chart-saved" event
+deleteChart(chartId) → void // Emits "chart-deleted" event
+cloneChart(sourceId, newName) → Chart
+
+// Projection
+projectChart(chart) → { plan: Measure[], segments: Segment[] }
+```
+
+### Events
+
+- `chart-selected` { detail: { chart } }
+- `chart-saved` { detail: { chart } }
+- `chart-deleted` { detail: { chartId } }
+
+### Context
+
+- `ChartServiceContext` — provided by MainComponent, consumed by panes
 
 ## Providers and consumers
 
-- `plan-edit-pane` (legacy name) creates/edits/selects charts.
-- `plan-play-pane` and visualizers consume selected chart through legacy session wiring.
-- `DrillSessionManager` and `Scorer` consume runtime drill measures.
-- `PracticeSessionManager` stores the chart snapshot with each session record.
+- **Provider**: `src/features/main/main.js` (MainComponent)
+- **Consumers**: 
+  - `plan-edit-pane` ← ChartServiceContext (CRUD operations)
+  - `plan-play-pane` ← via PlaybackState and SessionState (backward compat)
+  - Visualizers ← chart data passed through playback state
+- **Internal**: DrillSessionManager and Scorer consume measure arrays, not charts directly
 
-## Known seam
+## Compatibility layer
 
-Legacy naming and ownership mirrors still exist in code (`plan-*`, `SessionState.plan`).
+**Phase 0/1 Bridge**: SessionState.plan still mirrors selected chart for backward compatibility.
+- set by: plan-edit-pane after chartService.selectChart()
+- consumed by: descendants who subscribe to SessionState
+- **Removal**: Phase 2 when timeline becomes tempo owner; Phase 4 when SessionState is eliminated
 
-## Migration target
-
-Use one term (`chart`) and one owner (chart service) across docs and runtime.
-
-## Minimal design target
-
-### Canonical state
-
-- `selectedChartId`
-- `selectedChart`
-- `chartCatalogRevision` (increments when catalog content changes)
-
-### Commands
-
-- `selectChart(id)`
-- `saveChart(chart)`
-- `deleteChart(id)`
-- `projectToMeasures(id | chart)`
-
-### Notifications
-
-- One coarse invalidation notification (`changed`/`patched`) for selection/catalog changes.
-- No dedicated fine-grained events by default.
-- `fault` for asynchronous persistence failures.
-
-### Invariants
+## Invariants
 
 - Selected chart is always either null or present in catalog.
 - Projection output is deterministic for a given chart definition.
-- No non-chart service owns selected chart as canonical state.
+- ChartService is the sole canonical owner of selected chart state.
 
-### Error handling
+## Error handling
 
-- Validation failures throw synchronously.
-- Persistence failures emit `fault` and leave in-memory state consistent.
+- Chart ID validation fails synchronously with exceptions.
+- Save/delete failures are logged; state remains consistent.
+- Future: async failures may emit fault events (undefined in Phase 1).

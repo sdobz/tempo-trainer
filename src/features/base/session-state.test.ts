@@ -25,8 +25,12 @@ Deno.test("SessionState: backward-compatible subscribe() still works", () => {
   const received: { bpm?: number; beatsPerMeasure?: number } = {};
 
   const unsub = state.subscribe({
-    onBPMChange: (bpm) => { received.bpm = bpm; },
-    onBeatsPerMeasureChange: (n) => { received.beatsPerMeasure = n; },
+    onBPMChange: (bpm) => {
+      received.bpm = bpm;
+    },
+    onBeatsPerMeasureChange: (n) => {
+      received.beatsPerMeasure = n;
+    },
   });
 
   state.setBPM(150);

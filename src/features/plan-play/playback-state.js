@@ -11,11 +11,11 @@
  * (plan-visualizer, timeline-visualization) via the WCCG context protocol.
  */
 
-import { createContext } from "../base/context.js";
+import { createContext } from "../component/context.js";
 
 /**
  * Context token.  Import the same reference in provider and consumer.
- * @type {import('../base/context.js').Context<PlaybackState|null>}
+ * @type {import('../component/context.js').Context<PlaybackState|null>}
  */
 export const PlaybackContext = createContext("playback", null);
 
@@ -56,7 +56,10 @@ export class PlaybackState {
    * @returns {PlaybackSnapshot}
    */
   getSnapshot() {
-    return { ...this._state };
+    return {
+      ...this._state,
+      scores: [...this._state.scores], // Deep copy arrays to prevent mutation
+    };
   }
 
   /**

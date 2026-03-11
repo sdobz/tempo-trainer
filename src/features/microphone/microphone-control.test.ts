@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import "../base/setup-dom.ts";
+import "../component/setup-dom.ts";
 import { assertEquals } from "../base/assert.ts";
 import { DetectorManagerContext } from "./detector-manager.js";
 
@@ -182,20 +182,13 @@ Deno.test(
   },
 );
 
-Deno.test(
-  "MicrophoneControl: delegate onHit should add hit entry",
-  async () => {
-    const component = await createComponent();
-    if (!component.hitsList) return;
-
-    const before = component.hitsList.children.length;
-    mockManager.delegate.onHit();
-    assertEquals(component.hitsList.children.length, before + 1);
-
-    // Clear pending removal timers to avoid leak detection
-    component.onUnmount();
-  },
-);
+Deno.test("MicrophoneControl: delegate onHit should be callable", async () => {
+  const component = await createComponent();
+  // Hit visualization now lives in timeline components via shared hit events
+  // Just verify the callback is callable without error
+  mockManager.delegate.onHit();
+  component.onUnmount();
+});
 
 Deno.test(
   "MicrophoneControl: delegate onDevicesChanged should render options",
@@ -228,7 +221,6 @@ Deno.test(
     assertEquals(component.peakHold !== null, true);
     assertEquals(component.sensitivityLine !== null, true);
     assertEquals(component.sensitivityLabel !== null, true);
-    assertEquals(component.hitsList !== null, true);
   },
 );
 

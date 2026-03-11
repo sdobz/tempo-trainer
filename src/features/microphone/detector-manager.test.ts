@@ -295,24 +295,21 @@ Deno.test("DetectorManager: emits 'hit' EventTarget events on hits", () => {
   assertEquals(hits[0].detail.time, 100.5);
 });
 
-Deno.test(
-  "DetectorManager: emits 'changed' events on setSensitivity",
-  () => {
-    const storage = new MockStorageManager();
-    const manager = new DetectorManager(storage);
-    const changes: CustomEvent[] = [];
+Deno.test("DetectorManager: emits 'changed' events on setSensitivity", () => {
+  const storage = new MockStorageManager();
+  const manager = new DetectorManager(storage);
+  const changes: CustomEvent[] = [];
 
-    manager.addEventListener("changed", (ev) => {
-      if (ev instanceof CustomEvent) changes.push(ev);
-    });
+  manager.addEventListener("changed", (ev) => {
+    if (ev instanceof CustomEvent) changes.push(ev);
+  });
 
-    manager.setSensitivity(0.7);
+  manager.setSensitivity(0.7);
 
-    assertEquals(changes.length, 1);
-    assertEquals(changes[0].detail.field, "sensitivity");
-    assertEquals(changes[0].detail.value, 0.7);
-  },
-);
+  assertEquals(changes.length, 1);
+  assertEquals(changes[0].detail.field, "sensitivity");
+  assertEquals(changes[0].detail.value, 0.7);
+});
 
 Deno.test(
   "DetectorManager: hit event and addHitListener both fire (compat)",

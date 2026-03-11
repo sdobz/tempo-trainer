@@ -1,12 +1,16 @@
 import BaseComponent from "../component/base-component.js";
 import { SessionStateContext } from "../base/session-state.js";
 import { DetectorManagerContext } from "../microphone/detector-manager.js";
+import { ChartServiceContext } from "../music/chart-service.js";
+import { PerformanceServiceContext } from "../music/performance-service.js";
 import AudioContextManager, {
   AudioContextServiceContext,
 } from "../audio/audio-context-manager.js";
 
 /** @typedef {import("../base/session-state.js").default} SessionState */
 /** @typedef {import("../microphone/detector-manager.js").default} DetectorManager */
+/** @typedef {import("../music/chart-service.js").default} ChartService */
+/** @typedef {import("../music/performance-service.js").default} PerformanceService */
 
 class MainComponent extends BaseComponent {
   constructor() {
@@ -15,6 +19,10 @@ class MainComponent extends BaseComponent {
     this._sessionState = null;
     /** @type {DetectorManager|null} */
     this._detectorManager = null;
+    /** @type {ChartService|null} */
+    this._chartService = null;
+    /** @type {PerformanceService|null} */
+    this._performanceService = null;
     this._audioContextService = new AudioContextManager();
   }
 
@@ -29,6 +37,11 @@ class MainComponent extends BaseComponent {
   onMount() {
     this.provideContext(SessionStateContext, () => this._sessionState);
     this.provideContext(DetectorManagerContext, () => this._detectorManager);
+    this.provideContext(ChartServiceContext, () => this._chartService);
+    this.provideContext(
+      PerformanceServiceContext,
+      () => this._performanceService,
+    );
     this.provideContext(
       AudioContextServiceContext,
       () => this._audioContextService,
@@ -44,13 +57,27 @@ class MainComponent extends BaseComponent {
   }
 
   /**
-   * @param {{ sessionState: SessionState, detectorManager: DetectorManager }} services
+   * @param {{
+   *   sessionState: SessionState,
+   *   detectorManager: DetectorManager,
+   *   chartService?: ChartService,
+   *   performanceService?: PerformanceService
+   * }} services
    */
-  setServices({ sessionState, detectorManager }) {
+  setServices({
+    sessionState,
+    detectorManager,
+    chartService,
+    performanceService,
+  }) {
     this._sessionState = sessionState;
     this._detectorManager = detectorManager;
+    if (chartService) this._chartService = chartService;
+    if (performanceService) this._performanceService = performanceService;
     this.notifyContext(SessionStateContext);
     this.notifyContext(DetectorManagerContext);
+    if (chartService) this.notifyContext(ChartServiceContext);
+    if (performanceService) this.notifyContext(PerformanceServiceContext);
   }
 }
 

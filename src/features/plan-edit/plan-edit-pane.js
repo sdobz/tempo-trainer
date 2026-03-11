@@ -11,6 +11,7 @@ import {
   querySelector,
 } from "../component/component-utils.js";
 import { SessionStateContext } from "../base/session-state.js";
+import { ChartServiceContext } from "../music/chart-service.js";
 import "../visualizers/plan-visualizer.js";
 
 /**
@@ -42,10 +43,12 @@ export default class PlanEditPane extends BaseComponent {
     /** @type {Array<() => void>} */
     this._segmentEditorCleanups = [];
 
-    // Injected dependencies (set externally)
+    // Injected dependencies (set via context)
     this.planLibrary = null;
     /** @type {import('../base/session-state.js').default|null} */
     this.sessionState = null;
+    /** @type {import('../music/chart-service.js').default|null} */
+    this.chartService = null;
 
     // DOM element references (set in onMount)
     this.planLibrarySelect = null;
@@ -126,9 +129,16 @@ export default class PlanEditPane extends BaseComponent {
     this.startPlanPlayBtn = querySelector(this, "[data-start-plan-play-btn]");
     this.planQuickActions = querySelector(this, "[data-plan-quick-actions]");
 
-    // Obtain SessionStateContext so we can update the shared plan
+    // [Phase 1] Obtain contexts for SessionState and ChartService
     this.consumeContext(SessionStateContext, (ss) => {
       this.sessionState = ss;
+    });
+    this.consumeContext(ChartServiceContext, (cs) => {
+      this.chartService = cs;
+      // Initialize plan library with charts from chartService
+      if (cs) {
+        this._populatePlanLibrary();
+      }
     });
 
     // Bind event listeners
@@ -172,6 +182,9 @@ export default class PlanEditPane extends BaseComponent {
    * @returns {Array}
    */
   getAllPlans() {
+    if (this.chartService) {
+      return this.chartService.getAllCharts();
+    }
     return this.planLibrary ? this.planLibrary.getAllPlans() : [];
   }
 
@@ -182,7 +195,10 @@ export default class PlanEditPane extends BaseComponent {
   selectPlanByObject(planObject) {
     if (!planObject || !planObject.id) return;
 
-    const plan = this.planLibrary.getPlanById(planObject.id);
+    const plan = this.chartService
+      ? this.chartService.getChartById(planObject.id)
+      : this.planLibrary?.getPlanById(planObject.id);
+
     if (plan) {
       this.planLibrarySelect.value = plan.id || "";
       this._showPlanInfo(plan);
@@ -213,9 +229,10 @@ export default class PlanEditPane extends BaseComponent {
    * Populate the plan library dropdown
    */
   _populatePlanLibrary() {
-    if (!this.planLibrary) return;
+    const plans = this.chartService
+      ? this.chartService.getAllCharts()
+      : this.planLibrary?.getAllPlans() || [];
 
-    const plans = this.planLibrary.getAllPlans();
     this.planLibrarySelect.innerHTML =
       '<option value="">Select a plan...</option>';
 
@@ -231,7 +248,9 @@ export default class PlanEditPane extends BaseComponent {
     const planId = params.get("plan");
     if (planId) {
       this.planLibrarySelect.value = planId;
-      const plan = this.planLibrary.getPlanById(planId);
+      const plan = this.chartService
+        ? this.chartService.getChartById(planId)
+        : this.planLibrary?.getPlanById(planId);
       if (plan) {
         this._showPlanInfo(plan);
       }
@@ -248,7 +267,9 @@ export default class PlanEditPane extends BaseComponent {
       return;
     }
 
-    const plan = this.planLibrary.getPlanById(this.planLibrarySelect.value);
+    const plan = this.chartService
+      ? this.chartService.getChartById(this.planLibrarySelect.value)
+      : this.planLibrary?.getPlanById(this.planLibrarySelect.value);
     if (plan) {
       this._showPlanInfo(plan);
       this.updateUrlWithPlan(plan.id || null);
@@ -390,7 +411,10 @@ export default class PlanEditPane extends BaseComponent {
 
     this.planInfoDisplay.style.display = "block";
 
-    // Update sessionState so descendant visualizers see the change via SessionStateContext
+    // [Phase 1] Select chart in ChartService (canonical owner) and update SessionState for backward compat
+    if (this.chartService) {
+      this.chartService.selectChart(plan);
+    }
     if (this.sessionState) this.sessionState.setPlan(planData);
 
     // Show/hide action buttons
@@ -554,7 +578,7 @@ export default class PlanEditPane extends BaseComponent {
    * Handle "Save Plan" button
    */
   _onSavePlan() {
-    if (!this.planLibrary) return;
+    if (!this.chartService && !this.planLibrary) return;
 
     // Built-in plans are immutable; if this path is reached unexpectedly,
     // save as a new custom plan instead of mutating built-in identity.
@@ -580,7 +604,11 @@ export default class PlanEditPane extends BaseComponent {
     }
 
     try {
-      const savedPlan = this.planLibrary.savePlan(planData);
+      // [Phase 1] Use chartService when available
+      const savedPlan = this.chartService
+        ? this.chartService.saveChart(planData)
+        : this.planLibrary.savePlan(planData);
+
       this._hidePlanEditor();
       this._populatePlanLibrary();
       this.planLibrarySelect.value = savedPlan.id || "";
@@ -612,19 +640,21 @@ export default class PlanEditPane extends BaseComponent {
    * Handle "Delete Plan" button
    */
   _onDeletePlan() {
-    if (
-      !this.planLibrary ||
-      !this.editingPlan?.id ||
-      this.editingPlan.isBuiltIn
-    )
-      return;
+    if (!this.editingPlan?.id || this.editingPlan.isBuiltIn) return;
+    if (!this.chartService && !this.planLibrary) return;
 
     if (!confirm(`Delete "${this.editingPlan.name}"?`)) {
       return;
     }
 
     try {
-      this.planLibrary.deletePlan(this.editingPlan.id);
+      // [Phase 1] Use chartService when available
+      if (this.chartService) {
+        this.chartService.deleteChart(this.editingPlan.id);
+      } else {
+        this.planLibrary.deletePlan(this.editingPlan.id);
+      }
+
       this._hidePlanEditor();
       this._populatePlanLibrary();
       this.planLibrarySelect.value = "";

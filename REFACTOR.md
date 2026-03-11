@@ -78,6 +78,18 @@ For each phase PR/change set:
 
 Phase cannot close if docs describe behavior that no longer exists in code.
 
+## Status
+
+- **Phase 0 (Contract Hardening)**: ✅ COMPLETE
+- **Phase 1 (Chart + Performance Services)**: ✅ COMPLETE
+  - ChartService created and wired as canonical chart owner
+  - PerformanceService created as canonical scoring/history owner
+  - plan-edit-pane adapted to use ChartServiceContext
+  - MainComponent updated to provide both services
+  - Documentation updated: chart.md, performance.md
+  - All Phase 1 files compile without errors
+- **Phase 2–4**: NOT STARTED
+
 ## Phase 0: Contract Hardening (Non-breaking)
 
 ### Objectives

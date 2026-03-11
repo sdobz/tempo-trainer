@@ -2,70 +2,109 @@
 
 Performance is the observed user output during and after a run.
 
-## Current implementation
+## Current implementation [Phase 1]
 
-Performance is split across two modules:
+**Canonical owner**: `src/features/music/performance-service.js` (PerformanceService)
 
-- `src/features/plan-play/scorer.js`
-	- Session-time hit registration and measure scoring.
-	- Maintains `measureHits` and computes overall score.
-- `src/features/plan-history/practice-session-manager.js`
-	- Persists completed sessions.
-	- Derives metrics (drift, missed measures, rhythm variance, consistency, completion).
+PerformanceService composes two internal subsystems:
 
-## Inputs
+- **Scorer** (`src/features/plan-play/scorer.js`)
+  - Session-time hit registration and measure scoring
+  - Maintains `measureHits` array and computes overall score per measure
+  - Math-only; no state mutations outside of hit registration
+  
+- **Session manager** (`src/features/plan-history/practice-session-manager.js`)
+  - Persists completed sessions to localStorage
+  - Derives metrics (drift, missed, rhythm variance, consistency, completion)
+  - Internal dependency; not exposed in public API
 
-- Detector hit timings (`DetectorManager.onHit` path through `DrillSessionManager`).
-- Session timing config (BPM and beats-per-measure from timeline service; currently mirrored in legacy `SessionState`).
-- Chart measures active for the run (currently provided through legacy `planData.plan` wiring).
+## Service interface
 
-## Outputs
+### Public API
 
-- Live score updates through playback state.
-- Final session record with chart snapshot and derived metrics.
-- History/statistics views in plan history pane.
+```javascript
+// Configuration
+configure(beatsPerMeasure, beatDuration) → void
+setDrillPlan(measures) → void
+
+// Live hit recording
+registerHit(beatPosition) → void           // Emits "hit" event
+finalizeMeasure(measureIndex) → void       // Emits "measure-finalized" event
+reset() → void                              // Clear for new session
+
+// Score retrieval (immutable during session)
+getScores() → number[]                      // All measure scores 0-99
+getScore(measureIndex) → number            // Single measure score
+getOverallScore() → number                 // Average non-click-in score (0-99)
+
+// Session persistence
+recordSession(sessionData) → void           // Save + derive metrics, emit "session-ended"
+
+// History queries
+getSessions() → Session[]                   // All saved sessions (newest first)
+getSessionsForChart(chartId) → Session[]   // Sessions for specific chart
+getSession(sessionId) → Session | null     // Single session
+
+// Cleanup
+deleteSession(sessionId) → void
+clearAllSessions() → void
+getOverallStats() → Object                 // Aggregate statistics
+```
+
+### Events
+
+- `hit` { detail: { beatPosition: number } } — hit registered during live playback
+- `measure-finalized` { detail: { measureIndex: number, score: number } } — measure completed and scored
+- `session-ended` { detail: { sessionData: Session } } — session persisted and metrics derived
+
+### Context
+
+- `PerformanceServiceContext` — provided by MainComponent, consumed by panes and managers
+
+## Data flow
+
+1. **During playback**:
+   - DetectorManager emits hit times
+   - DrillSessionManager calls `performanceService.registerHit(time)`
+   - DrillSessionManager calls `performanceService.finalizeMeasure(index)` at measure boundary
+   - Scores update playback state for UI
+
+2. **On session complete**:
+   - DrillSessionManager calls `performanceService.recordSession(sessionData)`
+   - PerformanceService derives metrics via internal PracticeSessionManager
+   - Event emitted; history pane receives update
+
+3. **On history view**:
+   - PlanHistoryPane calls `performanceService.getSessions()`
+   - Displays records with derived metrics
+
+## Input dependencies
+
+- Detector hit timings (from DetectorManager through DrillSessionManager)
+- Session timing config: BPM and beats-per-measure (from SessionState; Phase 2→timeline-service)
+- Chart measures/plan structure (passed to `setDrillPlan()`)
 
 ## Storage
 
-- Performance history persistence is owned by `PracticeSessionManager`.
-- Storage transport uses browser persistence (`StorageManager`).
-- Performance domain owns session record shape and derived metric semantics.
+- Session persistence is internal to PerformanceService
+- Transport: browser localStorage via StorageManager (limited to ~100 sessions)
+- Performance domain owns session record schema and metric derivation
 
-## Known seam
+## Compatibility layer
 
-Performance ownership is split between runtime scoring and persistence analytics, coordinated in `script.js`.
+**Phase 0/1 Bridge**: DrillSessionManager still takes direct scorer instance.
+- set by: script.js passes scorer to DrillSessionManager constructor
+- consumed by: DrillSessionManager for timing-critical hit registration
+- **Removal target**: Phase 2+ when DrillSessionManager migrated to call performanceService API directly
 
-## Migration target
+## Invariants
 
-Introduce a single context-visible performance domain API while keeping scorer math and history storage internally separated.
+- Scoring state within a run is append-only until reset
+- Completed sessions are immutable once persisted
+- Overall score is computed as mean of non-click-in measure scores
 
-## Minimal design target
+## Error handling
 
-### Canonical state
-
-- `currentRun` summary (status, per-measure scores, overall score)
-- `lastCompletedSession` summary
-
-### Commands
-
-- `startRun(context)`
-- `registerHit(hitTime)`
-- `finalizeMeasure(index)`
-- `completeRun(meta)`
-- `discardRun()`
-
-### Notifications
-
-- One coarse invalidation notification (`changed`/`patched`) for score/progress updates.
-- One optional edge notification `run-completed` if a consumer must react immediately without diffing.
-- `fault` for asynchronous persistence/analysis failures.
-
-### Invariants
-
-- Scoring state for the active run is append-only with measure finalization boundaries.
-- Completed sessions are immutable records once persisted.
-
-### Error handling
-
-- Validation failures throw synchronously.
-- Persistence/derivation failures emit `fault`; run state remains queryable.
+- Configuration validation throws synchronously
+- Persistence failures log and leave in-memory state queryable
+- Future: async failures may emit fault events (reserved for Phase 2+)
