@@ -1,5 +1,6 @@
 import StorageManager from "./features/base/storage-manager.js";
 import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
+import CalibrationOrchestrator from "./features/calibration/calibration-orchestrator.js";
 import { getAllElements } from "./features/component/dom-utils.js";
 
 /** @typedef {import("./features/plan-edit/plan-edit-pane.js").default} PlanEditPane */
@@ -15,7 +16,6 @@ import { getAllElements } from "./features/component/dom-utils.js";
  * @param {TempoTrainerMain} mainRoot
  */
 export function startAppOrchestrator(mainRoot) {
-  // --- DOM Elements ---
   const onboardingPane = /** @type {OnboardingPane} */ (
     document.querySelector("onboarding-pane")
   );
@@ -40,32 +40,15 @@ export function startAppOrchestrator(mainRoot) {
     detectorManager,
   } = mainRoot.getRuntime();
 
-  let calibration;
-
-  // Wait for components to be ready
   let timeline;
-  let calibrationTimeline;
-  let drillSessionManager;
+  /** @type {DrillSessionManager|null} */
+  let drillSessionManager = null;
+  /** @type {CalibrationOrchestrator|null} */
+  let calibrationOrchestrator = null;
   let playPreviewActivationCleanup = null;
   let playPreviewActivationInFlight = false;
 
-  const CALIBRATION_TIMELINE_WINDOW_MEASURES = 64;
-  const CALIBRATION_TIMELINE_REBASE_MARGIN_MEASURES = 8;
-  let calibrationTimelineWindowStartMeasure = 0;
-  let calibrationTimelineRunStartAudioTime = 0;
-  let calibrationTimelineActive = false;
-  let calibrationTimelineRafId = null;
-
-  const onboardingReady = onboardingPane.componentReady.then(() => {
-    if (onboardingPane.calibrationControl) {
-      calibration = onboardingPane.calibration;
-    }
-
-    const timelineEl = resolveCalibrationTimeline();
-    if (timelineEl?.componentReady) {
-      return timelineEl.componentReady;
-    }
-  });
+  const onboardingReady = onboardingPane.componentReady;
 
   const planEditReady = planEditPane.componentReady;
 
@@ -137,25 +120,6 @@ export function startAppOrchestrator(mainRoot) {
     },
   );
 
-  const removeHitListener = detectorManager.addHitListener((hitAudioTime) => {
-    const activeCalibrationTimeline = resolveCalibrationTimeline();
-
-    timeline?.flashNowLine?.();
-    activeCalibrationTimeline?.flashNowLine?.();
-
-    if (!activeCalibrationTimeline) {
-      return;
-    }
-
-    if (!calibrationTimelineActive) {
-      startCalibrationTimeline();
-    }
-
-    const beatPosition = getCalibrationBeatPositionFromAudioTime(hitAudioTime);
-    maybeRebaseCalibrationTimeline(beatPosition);
-    activeCalibrationTimeline.addDetection(beatPosition);
-  });
-
   async function ensurePlayPreviewMonitoring() {
     if (playPreviewActivationInFlight) return;
     if (detectorManager.isRunning) return;
@@ -196,39 +160,6 @@ export function startAppOrchestrator(mainRoot) {
     };
   }
 
-  onboardingPane.addEventListener(
-    "calibration-start-request",
-    async (/** @type {CustomEvent} */ event) => {
-      if (calibration && calibration.isCalibrating) return;
-      if (!audioContextService.getContext()) {
-        alert("Microphone access is required before calibration");
-        event.preventDefault();
-        return;
-      }
-
-      try {
-        if (!detectorManager.isRunning) {
-          await detectorManager.start();
-        }
-      } catch {
-        alert("Web Audio API is not supported in this browser");
-        event.preventDefault();
-      }
-    },
-  );
-
-  onboardingPane.addEventListener("calibration-state-changed", () => {
-    if (calibration?.isCalibrating) {
-      resolveCalibrationTimeline()?.clearDetections?.();
-      startCalibrationMetronome();
-    } else {
-      stopCalibrationMetronome();
-    }
-
-    if (!calibrationTimeline || !calibrationTimelineActive) return;
-    buildCalibrationTimelineWindow(calibrationTimelineWindowStartMeasure);
-  });
-
   planEditPane.addEventListener(
     "navigate",
     (/** @type {CustomEvent} */ event) => {
@@ -267,19 +198,7 @@ export function startAppOrchestrator(mainRoot) {
       playPreviewActivationCleanup?.();
 
       await onboardingReady;
-      onboardingPane.refreshSetupStatus();
-
-      if (!audioContextService.getContext()) return;
-
-      if (!detectorManager.isRunning) {
-        try {
-          await detectorManager.start();
-        } catch (err) {
-          console.error("Failed to start microphone detector:", err);
-        }
-      }
-
-      startCalibrationTimeline();
+      await calibrationOrchestrator?.enterOnboarding();
 
       const params = paneManager.getCurrentParams();
       if (params.target === "calibration") {
@@ -305,18 +224,10 @@ export function startAppOrchestrator(mainRoot) {
           calibrationButton.focus();
         }
       }
-    } else if (
-      pane !== "plan-play" &&
-      detectorManager.isRunning &&
-      calibration &&
-      !calibration.isCalibrating
-    ) {
-      stopCalibrationTimeline();
-      stopCalibrationMetronome();
-      detectorManager.stop();
+    } else if (pane !== "plan-play") {
+      calibrationOrchestrator?.leaveOnboarding({ stopDetector: true });
     } else {
-      stopCalibrationTimeline();
-      stopCalibrationMetronome();
+      calibrationOrchestrator?.leaveOnboarding({ stopDetector: false });
       playPreviewActivationCleanup?.();
     }
   };
@@ -331,152 +242,6 @@ export function startAppOrchestrator(mainRoot) {
     });
   });
 
-  function getCalibrationBeatPositionFromAudioTime(audioTime) {
-    const beatDuration = timelineService.beatDuration;
-    return Math.max(
-      0,
-      (audioTime - calibrationTimelineRunStartAudioTime) / beatDuration,
-    );
-  }
-
-  const calibrationTickListener = (event) => {
-    if (!calibration || !calibration.isCalibrating) return;
-    const { beatInMeasure, time } = event.detail;
-    const freq = beatInMeasure === 0 ? 880.0 : 440.0;
-    playbackService.renderClick(time, { frequency: freq });
-    calibration.registerExpectedBeat(time);
-  };
-
-  function startCalibrationMetronome() {
-    if (!timelineService || !calibration) return;
-
-    timelineService.removeEventListener("tick", calibrationTickListener);
-    timelineService.addEventListener("tick", calibrationTickListener);
-
-    timelineService.stop();
-    timelineService.seekToDivision(0);
-    timelineService.play();
-
-    const audioContext = audioContextService.getContext();
-    if (audioContext) {
-      calibrationTimelineRunStartAudioTime = audioContext.currentTime;
-    }
-  }
-
-  function stopCalibrationMetronome() {
-    if (!timelineService) return;
-    timelineService.removeEventListener("tick", calibrationTickListener);
-    timelineService.stop();
-  }
-
-  function buildCalibrationTimelineWindow(startMeasure) {
-    const activeCalibrationTimeline = resolveCalibrationTimeline();
-    if (!activeCalibrationTimeline) return;
-
-    const beatsPerMeasure = timelineService.beatsPerMeasure;
-    const measureType = calibration?.isCalibrating ? "click" : "silent";
-    const plan = Array.from(
-      { length: CALIBRATION_TIMELINE_WINDOW_MEASURES },
-      () => ({ type: measureType }),
-    );
-
-    activeCalibrationTimeline.setBeatsPerMeasure(beatsPerMeasure);
-    activeCalibrationTimeline.setDisplayStartBeat(
-      startMeasure * beatsPerMeasure,
-    );
-    activeCalibrationTimeline.setDrillPlan(plan);
-  }
-
-  function maybeRebaseCalibrationTimeline(absoluteBeatPosition) {
-    if (!resolveCalibrationTimeline()) return;
-
-    const beatsPerMeasure = timelineService.beatsPerMeasure;
-    const currentMeasure = Math.floor(absoluteBeatPosition / beatsPerMeasure);
-    const minVisibleMeasure =
-      calibrationTimelineWindowStartMeasure +
-      CALIBRATION_TIMELINE_REBASE_MARGIN_MEASURES;
-    const maxVisibleMeasure =
-      calibrationTimelineWindowStartMeasure +
-      CALIBRATION_TIMELINE_WINDOW_MEASURES -
-      CALIBRATION_TIMELINE_REBASE_MARGIN_MEASURES;
-
-    if (
-      currentMeasure >= minVisibleMeasure &&
-      currentMeasure <= maxVisibleMeasure
-    ) {
-      return;
-    }
-
-    const nextWindowStartMeasure = Math.max(
-      0,
-      currentMeasure - Math.floor(CALIBRATION_TIMELINE_WINDOW_MEASURES / 2),
-    );
-
-    if (nextWindowStartMeasure === calibrationTimelineWindowStartMeasure) {
-      return;
-    }
-
-    calibrationTimelineWindowStartMeasure = nextWindowStartMeasure;
-    buildCalibrationTimelineWindow(calibrationTimelineWindowStartMeasure);
-  }
-
-  function calibrationTimelineLoop() {
-    if (!calibrationTimelineActive) return;
-
-    const audioContext = audioContextService.getContext();
-    const activeCalibrationTimeline = resolveCalibrationTimeline();
-    if (audioContext && activeCalibrationTimeline) {
-      const beatPosition = getCalibrationBeatPositionFromAudioTime(
-        audioContext.currentTime,
-      );
-      maybeRebaseCalibrationTimeline(beatPosition);
-      activeCalibrationTimeline.centerAt(beatPosition);
-    }
-
-    calibrationTimelineRafId = requestAnimationFrame(calibrationTimelineLoop);
-  }
-
-  function startCalibrationTimeline() {
-    const activeCalibrationTimeline = resolveCalibrationTimeline();
-    if (!activeCalibrationTimeline || calibrationTimelineActive) return;
-
-    const audioContext = audioContextService.getContext();
-    calibrationTimelineRunStartAudioTime = audioContext?.currentTime ?? 0;
-    calibrationTimelineWindowStartMeasure = 0;
-    calibrationTimelineActive = true;
-
-    buildCalibrationTimelineWindow(calibrationTimelineWindowStartMeasure);
-    activeCalibrationTimeline.clearDetections();
-
-    calibrationTimelineRafId = requestAnimationFrame(calibrationTimelineLoop);
-  }
-
-  function stopCalibrationTimeline() {
-    calibrationTimelineActive = false;
-    if (calibrationTimelineRafId) {
-      cancelAnimationFrame(calibrationTimelineRafId);
-      calibrationTimelineRafId = null;
-    }
-  }
-
-  function resolveCalibrationTimeline() {
-    if (calibrationTimeline && calibrationTimeline.isConnected) {
-      return calibrationTimeline;
-    }
-
-    calibrationTimeline = onboardingPane.querySelector(
-      "[data-calibration-timeline]",
-    );
-
-    if (!calibrationTimeline && onboardingPane.calibrationControl) {
-      calibrationTimeline = onboardingPane.calibrationControl.querySelector(
-        "[data-calibration-timeline]",
-      );
-    }
-
-    return calibrationTimeline;
-  }
-
   async function init() {
     await Promise.all([
       onboardingReady,
@@ -485,16 +250,38 @@ export function startAppOrchestrator(mainRoot) {
       planHistoryReady,
     ]);
 
+    calibrationOrchestrator = new CalibrationOrchestrator({
+      onboardingPane,
+      planTimeline: timeline,
+      timelineService,
+      playbackService,
+      audioContextService,
+      detectorManager,
+    });
+
     drillSessionManager = new DrillSessionManager(
       playbackService,
       scorer,
-      timeline,
-      calibration,
       detectorManager,
       chartService,
       planPlayPane.playbackState,
       timelineService,
     );
+
+    drillSessionManager.setVisualizer(timeline);
+    const calibration = calibrationOrchestrator.getCalibration();
+    drillSessionManager.setCalibration(calibration);
+    if (calibration?.getCalibratedBeatPosition) {
+      drillSessionManager.setBeatPositionMapper(
+        (hitAudioTime, runStartAudioTime, beatDuration) =>
+          calibration.getCalibratedBeatPosition(
+            hitAudioTime,
+            runStartAudioTime,
+            beatDuration,
+          ),
+      );
+    }
+    drillSessionManager.attach(planPlayPane, { audioContextService });
 
     const applyChartPlanToScorer = (chart) => {
       const projected = chartService.projectChart(chart);
@@ -512,27 +299,6 @@ export function startAppOrchestrator(mainRoot) {
         applyChartPlanToScorer(event.detail.chart);
       },
     );
-
-    planPlayPane.addEventListener("session-start", async () => {
-      try {
-        const audioContext = audioContextService.getContext();
-        if (!audioContext) {
-          alert("Microphone access is required before starting a session");
-          return;
-        }
-        scorer.reset();
-        await drillSessionManager.startSession(audioContext);
-        planPlayPane.playbackState.update({ isPlaying: true });
-      } catch (error) {
-        console.error("Failed to start session:", error);
-        alert("Web Audio API is not supported in this browser");
-      }
-    });
-
-    planPlayPane.addEventListener("session-stop", () => {
-      drillSessionManager.stopSession();
-      planPlayPane.playbackState.update({ isPlaying: false });
-    });
 
     drillSessionManager.onSessionComplete((sessionData) => {
       const currentPlan = planEditPane.getCurrentChart();
@@ -613,7 +379,7 @@ export function startAppOrchestrator(mainRoot) {
   updateTimelineScroll();
 
   globalThis.addEventListener("beforeunload", () => {
-    removeHitListener();
-    stopCalibrationTimeline();
+    drillSessionManager?.detach();
+    calibrationOrchestrator?.dispose();
   });
 }

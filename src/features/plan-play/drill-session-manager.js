@@ -7,8 +7,6 @@ class DrillSessionManager {
   /**
    * @param {import('../music/playback-service.js').default} playbackService
    * @param {Object} scorer - Scorer instance
-   * @param {Object} timeline - Timeline visualization component
-   * @param {Object} calibration - CalibrationDetector instance
    * @param {Object} micDetector - MicrophoneDetector / DetectorManager instance
    * @param {import('../music/chart-service.js').default} chartService
    * @param {import('./playback-state.js').PlaybackState} playbackState
@@ -17,8 +15,6 @@ class DrillSessionManager {
   constructor(
     playbackService,
     scorer,
-    timeline,
-    calibration,
     micDetector,
     chartService,
     playbackState,
@@ -26,18 +22,24 @@ class DrillSessionManager {
   ) {
     this.playbackService = playbackService;
     this.scorer = scorer;
-    this.timeline = timeline;
-    this.calibration = calibration;
     this.micDetector = micDetector;
     this.chartService = chartService;
     this.playbackState = playbackState;
     this.timelineService = timelineService ?? null;
 
-    // Local plan model — kept in sync with selected chart projection.
-    /** @type {Array<{type: string}>} */
-    this._plan = [];
+    /** @type {Object|null} */
+    this.calibration = null;
+    /** @type {Object|null} */
+    this.timeline = null;
+
+    /** @type {(hitAudioTime: number, runStartAudioTime: number, beatDuration: number) => number} */
+    this._beatPositionMapper = (hitAudioTime, runStartAudioTime, beatDuration) =>
+      Math.max(0, (hitAudioTime - runStartAudioTime) / beatDuration);
+
     /** @type {{ plan: Array<{type:string}>, segments: any[] }|null} */
     this._planData = null;
+    /** @type {Array<{type: string}>} */
+    this._plan = [];
 
     const selectedChart = this.chartService?.getSelectedChart?.();
     if (selectedChart) {
@@ -53,15 +55,89 @@ class DrillSessionManager {
       },
     );
 
-    // Session state
     this.currentMeasureInTotal = 0;
 
-    // Timeline event listeners (bound for easy removal)
     this._tickListener = this._onTimelineTick.bind(this);
     this._measureCompleteListener = this._onMeasureComplete.bind(this);
 
-    // Setup internal callbacks
     this._setupHitDetectorCallback();
+
+    this._sessionStartHandler = null;
+    this._sessionStopHandler = null;
+    this._attachedPane = null;
+  }
+
+  /** @param {Object|null} visualizer */
+  setVisualizer(visualizer) {
+    this.timeline = visualizer;
+  }
+
+  /** @param {Object|null} calibration */
+  setCalibration(calibration) {
+    this.calibration = calibration;
+  }
+
+  /**
+   * @param {(hitAudioTime: number, runStartAudioTime: number, beatDuration: number) => number} mapper
+   */
+  setBeatPositionMapper(mapper) {
+    this._beatPositionMapper = mapper;
+  }
+
+  /**
+   * Attach pane event handlers for session start/stop.
+   * @param {EventTarget & { playbackState: import('./playback-state.js').PlaybackState }} planPlayPane
+   * @param {{ audioContextService: { getContext(): AudioContext|null } }} deps
+   */
+  attach(planPlayPane, deps) {
+    this.detach();
+
+    this._attachedPane = planPlayPane;
+
+    this._sessionStartHandler = async () => {
+      try {
+        const audioContext = deps.audioContextService.getContext();
+        if (!audioContext) {
+          alert("Microphone access is required before starting a session");
+          return;
+        }
+
+        this.scorer.reset();
+        await this.startSession(audioContext);
+        planPlayPane.playbackState.update({ isPlaying: true });
+      } catch (error) {
+        console.error("Failed to start session:", error);
+        alert("Web Audio API is not supported in this browser");
+      }
+    };
+
+    this._sessionStopHandler = () => {
+      this.stopSession();
+      planPlayPane.playbackState.update({ isPlaying: false });
+    };
+
+    planPlayPane.addEventListener("session-start", this._sessionStartHandler);
+    planPlayPane.addEventListener("session-stop", this._sessionStopHandler);
+  }
+
+  /** Remove pane event handlers for session start/stop. */
+  detach() {
+    if (!this._attachedPane) return;
+    if (this._sessionStartHandler) {
+      this._attachedPane.removeEventListener(
+        "session-start",
+        this._sessionStartHandler,
+      );
+    }
+    if (this._sessionStopHandler) {
+      this._attachedPane.removeEventListener(
+        "session-stop",
+        this._sessionStopHandler,
+      );
+    }
+    this._attachedPane = null;
+    this._sessionStartHandler = null;
+    this._sessionStopHandler = null;
   }
 
   /**
@@ -139,8 +215,9 @@ class DrillSessionManager {
       if (
         !this.timelineService ||
         this.timelineService.transportState === "stopped"
-      )
+      ) {
         return;
+      }
       this.playbackState.update({
         beat: {
           beatNum: beatNumber,
@@ -155,7 +232,7 @@ class DrillSessionManager {
    * Handles timeline measure-complete event - advances scoring.
    * @private
    */
-  _onMeasureComplete(event) {
+  _onMeasureComplete(_event) {
     if (this.isCompletingRun) return;
 
     this.currentMeasureInTotal++;
@@ -174,28 +251,26 @@ class DrillSessionManager {
    * Sets up microphone detector callback for hit routing.
    */
   _setupHitDetectorCallback() {
-    if (this.micDetector) {
-      this.micDetector.onHit((/** @type {number} */ hitAudioTime) => {
-        // Accept hits during normal run or during completion grace period
-        const isPlaying = this.timelineService?.transportState === "playing";
-        if (isPlaying || this.isCompletingRun) {
-          const beatDuration = this.timelineService?.beatDuration ?? 0.5;
-          const detectedBeatPosition =
-            this.calibration.getCalibratedBeatPosition(
-              hitAudioTime,
-              this.timelineRunStartAudioTime,
-              beatDuration,
-            );
+    if (!this.micDetector) return;
 
-          this.timeline.addDetection(detectedBeatPosition);
-          this.scorer.registerHit(detectedBeatPosition);
-        }
+    this.micDetector.onHit((/** @type {number} */ hitAudioTime) => {
+      const isPlaying = this.timelineService?.transportState === "playing";
+      if (isPlaying || this.isCompletingRun) {
+        const beatDuration = this.timelineService?.beatDuration ?? 0.5;
+        const detectedBeatPosition = this._beatPositionMapper(
+          hitAudioTime,
+          this.timelineRunStartAudioTime,
+          beatDuration,
+        );
 
-        if (this.calibration.isCalibrating) {
-          this.calibration.registerHit(hitAudioTime);
-        }
-      });
-    }
+        this.timeline?.addDetection?.(detectedBeatPosition);
+        this.scorer.registerHit(detectedBeatPosition);
+      }
+
+      if (this.calibration?.isCalibrating) {
+        this.calibration.registerHit(hitAudioTime);
+      }
+    });
   }
 
   /**
@@ -208,26 +283,18 @@ class DrillSessionManager {
     const bpm = this.timelineService?.tempo ?? 120;
     const beatsPerMeasure = this.timelineService?.beatsPerMeasure ?? 4;
 
-    // Stop calibration if running
-    if (this.calibration && this.calibration.isCalibrating) {
+    if (this.calibration?.isCalibrating) {
       this.calibration.stop("Calibration stopped: drill start requested.");
     }
 
-    // Start microphone if not running
     if (this.micDetector && !this.micDetector.isRunning) {
       await this.micDetector.start();
     }
 
-    // Configure all components from session state
     this.scorer.setBeatsPerMeasure(beatsPerMeasure);
     this.scorer.setBeatDuration(60.0 / bpm);
-    this.timeline.setBeatsPerMeasure(beatsPerMeasure);
-    if (this.calibration) {
-      this.calibration.setBeatsPerMeasure(beatsPerMeasure);
-      this.calibration.setBeatDuration(60.0 / bpm);
-    }
+    this.timeline?.setBeatsPerMeasure?.(beatsPerMeasure);
 
-    // Subscribe to timeline tick events
     if (this.timelineService) {
       this.timelineService.addEventListener("tick", this._tickListener);
       this.timelineService.addEventListener(
@@ -236,7 +303,6 @@ class DrillSessionManager {
       );
     }
 
-    // Reset session state
     this.scorer.reset();
     this.currentMeasureInTotal = 0;
     this.runStartedAt = Date.now();
@@ -245,14 +311,11 @@ class DrillSessionManager {
     this.timelineRunStartAudioTime = audioContext.currentTime;
     this.timelineService?.seekToDivision(0);
 
-    // Reset UI
     this.playbackState.update({ highlight: 0 });
-    this.timeline.centerAt(0);
+    this.timeline?.centerAt?.(0);
 
-    // Start timeline (which will start scheduling beats)
     this.timelineService?.play();
 
-    // Update status
     this.playbackState.update({ status: "Running..." });
   }
 
@@ -265,7 +328,6 @@ class DrillSessionManager {
       this.completionTimeoutId = undefined;
     }
 
-    // Unsubscribe from timeline events
     if (this.timelineService) {
       this.timelineService.removeEventListener("tick", this._tickListener);
       this.timelineService.removeEventListener(
@@ -278,9 +340,7 @@ class DrillSessionManager {
     this._finalizeRun(false);
     this.timelineService?.stop();
 
-    // Clear UI
     this.playbackState.update({ highlight: -1 });
-
     this.playbackState.update({ status: "Stopped." });
   }
 
@@ -292,7 +352,6 @@ class DrillSessionManager {
     this.isCompletingRun = true;
     this.timelineService?.stop();
 
-    // Unsubscribe from timeline events
     if (this.timelineService) {
       this.timelineService.removeEventListener("tick", this._tickListener);
       this.timelineService.removeEventListener(
@@ -301,7 +360,6 @@ class DrillSessionManager {
       );
     }
 
-    // Give extra time for final hits - need full late window plus some margin
     const finalHitGraceMs = Math.max(
       300,
       Math.round(
@@ -338,19 +396,15 @@ class DrillSessionManager {
   _finalizeRun(completed) {
     if (this.runFinalized || this._getPlanLength() === 0) return null;
 
-    // Finalize all measures
     for (let index = 0; index < this._getPlanLength(); index++) {
       this.scorer.finalizeMeasure(index);
     }
     this._updateScoreDisplay();
 
-    // Calculate session duration
     const elapsedSeconds = this.runStartedAt
       ? Math.max(0, Math.round((Date.now() - this.runStartedAt) / 1000))
       : 0;
 
-    // Build session data object
-    // NOTE: Only store hits and plan; scores are recomputed on display
     const sessionData = {
       completed,
       durationSeconds: elapsedSeconds,
@@ -361,7 +415,6 @@ class DrillSessionManager {
 
     this.runFinalized = true;
 
-    // Notify completion callback
     if (this.sessionCompleteCallback) {
       this.sessionCompleteCallback(sessionData);
     }
@@ -387,17 +440,13 @@ class DrillSessionManager {
    */
   updateTimelineScroll(audioContext) {
     const isPlaying = this.timelineService?.transportState === "playing";
-    if (
-      (isPlaying || this.isCompletingRun) &&
-      audioContext &&
-      this.calibration
-    ) {
-      const beatPosition = this.calibration.getCalibratedBeatPosition(
+    if ((isPlaying || this.isCompletingRun) && audioContext) {
+      const beatPosition = this._beatPositionMapper(
         audioContext.currentTime,
         this.timelineRunStartAudioTime,
         this.timelineService?.beatDuration ?? 0.5,
       );
-      this.timeline.centerAt(beatPosition);
+      this.timeline?.centerAt?.(beatPosition);
     }
   }
 

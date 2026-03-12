@@ -106,7 +106,9 @@ export default class CalibrationControl extends BaseComponent {
         this.listen(timelineService, "changed", (event) => {
           const { field, value } = /** @type {CustomEvent} */ (event).detail;
           if (field === "tempo") {
-            this.calibration?.setBeatDuration(60.0 / /** @type {number} */ (value));
+            this.calibration?.setBeatDuration(
+              60.0 / /** @type {number} */ (value),
+            );
           }
           if (field === "beatsPerMeasure") {
             this.calibration?.setBeatsPerMeasure(/** @type {number} */ (value));
