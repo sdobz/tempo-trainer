@@ -6,9 +6,9 @@ Chart play is the active practice run from "start" to completion/stop.
 
 1. User enters `plan-play-pane` (class `PlanPlayPane`, element `<plan-play-pane>`).
 2. `plan-play-pane` emits `session-start`.
-3. `app-orchestrator.js` validates audio context and starts `DrillSessionManager`.
-4. `DrillSessionManager` coordinates metronome, detector, scorer, and timeline updates.
-5. On completion, session data is saved through `PracticeSessionManager` and shown in history.
+3. `app-orchestrator.js` validates audio context and starts `SessionManager`.
+4. `SessionManager` coordinates metronome, detector, scorer, and timeline updates.
+5. On completion, session data is saved through `TrainingManager` and shown in history.
 
 ## Inputs
 

@@ -65,13 +65,13 @@ getOverallStats() → Object                 // Aggregate statistics
 
 1. **During playback**:
    - DetectorManager emits hit times
-   - DrillSessionManager calls `performanceService.registerHit(time)`
-   - DrillSessionManager calls `performanceService.finalizeMeasure(index)` at measure boundary
+   - SessionManager calls `performanceService.registerHit(time)`
+   - SessionManager calls `performanceService.finalizeMeasure(index)` at measure boundary
    - Scores update playback state for UI
 
 2. **On session complete**:
-   - DrillSessionManager calls `performanceService.recordSession(sessionData)`
-   - PerformanceService derives metrics via internal PracticeSessionManager
+   - SessionManager calls `performanceService.recordSession(sessionData)`
+   - PerformanceService derives metrics via internal TrainingManager
    - Event emitted; history pane receives update
 
 3. **On history view**:
@@ -80,7 +80,7 @@ getOverallStats() → Object                 // Aggregate statistics
 
 ## Input dependencies
 
-- Detector hit timings (from DetectorManager through DrillSessionManager)
+- Detector hit timings (from DetectorManager through SessionManager)
 - Session timing config: BPM and beats-per-measure (from SessionState; Phase 2→timeline-service)
 - Chart measures/plan structure (passed to `setDrillPlan()`)
 
@@ -92,10 +92,10 @@ getOverallStats() → Object                 // Aggregate statistics
 
 ## Compatibility layer
 
-**Phase 0/1 Bridge**: DrillSessionManager still takes direct scorer instance.
-- set by: script.js passes scorer to DrillSessionManager constructor
-- consumed by: DrillSessionManager for timing-critical hit registration
-- **Removal target**: Phase 2+ when DrillSessionManager migrated to call performanceService API directly
+**Phase 0/1 Bridge**: SessionManager still takes direct scorer instance.
+- set by: script.js passes scorer to SessionManager constructor
+- consumed by: SessionManager for timing-critical hit registration
+- **Removal target**: Phase 2+ when SessionManager migrated to call performanceService API directly
 
 ## Invariants
 

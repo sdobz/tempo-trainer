@@ -22,7 +22,7 @@ Timeline is the canonical owner of tempo, meter, transport state, and time-divis
 
 - Main timeline UI remains `src/features/visualizers/timeline-visualization.js`.
 - It renders measure groups, beat grid, expected beat markers, and detected hit markers.
-- `DrillSessionManager.updateTimelineScroll(...)` still drives centering during playback.
+- `SessionManager.updateTimelineScroll(...)` still drives centering during playback.
 - Calibration uses a separate timeline window managed in `script.js`.
 
 ## Inputs

@@ -1,5 +1,16 @@
 /**
- * Scorer manages the scoring system for measuring hit accuracy against expected beats.
+ * Scorer is the canonical live scoring engine for a single practice run.
+ *
+ * It owns:
+ * - Hit registration: maps incoming beat positions to the nearest expected beat in a measure
+ * - Measure finalization: computes a per-measure score (0–99) when the measure ends
+ * - Session-level aggregation: overall score, all scores array
+ * - The authoritative scoring formula (see static {@link Scorer.scoreFromErrorMs})
+ *
+ * Callers should snapshot {@link Scorer#getAllScores} and {@link Scorer#measureHits}
+ * when finalizing a run and include them in SessionData so downstream consumers
+ * (TrainingManager, PlanHistoryPane) can use the already-computed scores
+ * rather than recomputing from raw hits.
  */
 /** @typedef {{ type: string }} Measure */
 class Scorer {
@@ -50,7 +61,8 @@ class Scorer {
   reset() {
     this.measureScores = Array.from(
       { length: this.drillPlan.length },
-      (_unused, index) => this.drillPlan[index]?.type === "click-in" ? null : 0,
+      (_unused, index) =>
+        this.drillPlan[index]?.type === "click-in" ? null : 0,
     );
     this.measureHits = Array.from({ length: this.drillPlan.length }, () => []);
     this.finalizedMeasures = Array.from(
@@ -82,8 +94,8 @@ class Scorer {
       return;
     }
 
-    const hits = [...(this.measureHits[measureIndex] || [])].sort((a, b) =>
-      a - b
+    const hits = [...(this.measureHits[measureIndex] || [])].sort(
+      (a, b) => a - b,
     );
 
     if (hits.length === 0) {
@@ -167,7 +179,7 @@ class Scorer {
 
   /**
    * Canonical scoring function. Single authoritative implementation used by
-   * both the live scorer and historical analysis (PracticeSessionManager).
+   * both the live scorer and historical analysis (TrainingManager).
    * Returns a score 0–99 for a given timing error in milliseconds.
    *
    * @param {number} errorMs - Timing error in milliseconds (absolute value)
@@ -175,7 +187,11 @@ class Scorer {
    * @param {number} [maxScorableErrorMs=220] - Errors above this threshold score 0
    * @returns {number} Score 0–99
    */
-  static scoreFromErrorMs(errorMs, bestFeasibleErrorMs = 18, maxScorableErrorMs = 220) {
+  static scoreFromErrorMs(
+    errorMs,
+    bestFeasibleErrorMs = 18,
+    maxScorableErrorMs = 220,
+  ) {
     const adjustedErrorMs = Math.max(0, errorMs - bestFeasibleErrorMs);
     // Divide by the scorable range so the boundary (maxScorableErrorMs) normalises to exactly 1 → score 0
     const range = maxScorableErrorMs - bestFeasibleErrorMs;

@@ -60,7 +60,7 @@ projectChart(chart) → { plan: Measure[], segments: Segment[] }
   - `plan-edit-pane` ← ChartServiceContext (CRUD operations)
   - `plan-play-pane` ← via PlaybackState and SessionState (backward compat)
   - Visualizers ← chart data passed through playback state
-- **Internal**: DrillSessionManager and Scorer consume measure arrays, not charts directly
+- **Internal**: SessionManager and Scorer consume measure arrays, not charts directly
 
 ## Compatibility layer
 

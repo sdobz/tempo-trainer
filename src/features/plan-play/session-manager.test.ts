@@ -1,8 +1,8 @@
 import { assertEquals } from "../base/assert.ts";
-import DrillSessionManager from "./drill-session-manager.js";
+import SessionManager from "./session-manager.js";
 
 Deno.test(
-  "DrillSessionManager: attach wires session-start/session-stop",
+  "SessionManager: attach wires session-start/session-stop",
   async () => {
     const originalAlert = globalThis.alert;
     globalThis.alert = () => {};
@@ -33,7 +33,7 @@ Deno.test(
         registerHit(_n: number) {},
       };
 
-      const manager = new DrillSessionManager(
+      const manager = new SessionManager(
         { renderClick(_time: number, _opts: any) {} } as any,
         scorer as any,
         {

@@ -10,6 +10,7 @@ import {
   dispatchEvent,
   querySelector,
 } from "../component/component-utils.js";
+import Scorer from "../plan-play/scorer.js";
 import "../visualizers/plan-visualizer.js";
 import "../visualizers/timeline-visualization.js";
 
@@ -254,12 +255,16 @@ export default class PlanHistoryPane extends BaseComponent {
     const seconds = duration % 60;
     const recommendations = this._generateRecommendations(session, metrics);
 
-    // Compute scores from hits for display
-    const measureScores = this._computeScoresFromHits(
-      session.measureHits,
-      session.drillPlan,
-      session.bpm,
-    );
+    // Use scores captured by Scorer during playback; fall back to recomputing from
+    // raw hits only for sessions saved before measureScores was persisted.
+    const measureScores = session.measureScores?.length
+      ? session.measureScores
+      : this._computeScoresFromHits(
+          session.measureHits,
+          session.drillPlan,
+          session.bpm,
+          session.timeSignature,
+        );
 
     return `
       <div class="session-details">
@@ -635,11 +640,21 @@ export default class PlanHistoryPane extends BaseComponent {
    * @returns {number[]}
    * @private
    */
-  _computeScoresFromHits(measureHits, drillPlan, bpm) {
+  /**
+   * Legacy fallback: re-derive per-measure scores from raw hits.
+   * Used only for sessions stored before measureScores was persisted.
+   * New sessions carry measureScores from Scorer; callers should prefer those.
+   * @param {number[][]|undefined} measureHits
+   * @param {any} drillPlan
+   * @param {number} bpm
+   * @param {string} [timeSignature]
+   * @returns {(number|null)[]}
+   * @private
+   */
+  _computeScoresFromHits(measureHits, drillPlan, bpm, timeSignature) {
     if (!measureHits || !drillPlan) return [];
 
-    // Get measures array
-    let measures = [];
+    let measures = /** @type {{ type: string }[]} */ ([]);
     if (Array.isArray(drillPlan)) {
       measures = drillPlan;
     } else if (drillPlan.plan && Array.isArray(drillPlan.plan)) {
@@ -648,12 +663,12 @@ export default class PlanHistoryPane extends BaseComponent {
 
     if (measures.length === 0) return [];
 
-    // Scoring parameters (same as Scorer)
-    const bestFeasibleErrorMs = 18;
-    const maxScorableErrorMs = 220;
-    const beatDurationMs = 60000 / (bpm || 120); // Convert beat duration to ms
-    const beatsPerMeasure = 4; // Standard assumption
+    const beatDuration = 60.0 / (bpm || 120);
+    const beatsPerMeasure = timeSignature
+      ? parseInt(timeSignature.split("/")[0], 10)
+      : 4;
 
+    /** @type {(number|null)[]} */
     const scores = [];
 
     for (let measureIndex = 0; measureIndex < measures.length; measureIndex++) {
@@ -669,43 +684,22 @@ export default class PlanHistoryPane extends BaseComponent {
         continue;
       }
 
-      // Calculate score based on errors from expected beats
       let scoreSum = 0;
       const measureStartBeat = measureIndex * beatsPerMeasure;
 
       for (let beatOffset = 0; beatOffset < beatsPerMeasure; beatOffset++) {
         const expectedBeat = measureStartBeat + beatOffset;
-        const expectedBeatMs = expectedBeat * beatDurationMs;
-
-        // Find closest hit to this expected beat
-        let closestHitMs = null;
         let minDistance = Infinity;
-
         for (const hitBeat of hits) {
-          const hitMs = hitBeat * beatDurationMs;
-          const distance = Math.abs(hitMs - expectedBeatMs);
-          if (distance < minDistance) {
-            minDistance = distance;
-            closestHitMs = hitMs;
-          }
+          const distance = Math.abs(hitBeat - expectedBeat);
+          if (distance < minDistance) minDistance = distance;
         }
-
-        // Score this beat
-        if (closestHitMs !== null) {
-          const errorMs = Math.abs(closestHitMs - expectedBeatMs);
-          if (errorMs <= bestFeasibleErrorMs) {
-            scoreSum += 100;
-          } else if (errorMs <= maxScorableErrorMs) {
-            scoreSum += Math.round(100 * (1 - errorMs / maxScorableErrorMs));
-          }
-        }
+        scoreSum += Scorer.scoreFromErrorMs(minDistance * beatDuration * 1000);
       }
 
-      const measureScore = Math.max(
-        0,
-        Math.min(99, Math.round(scoreSum / beatsPerMeasure)),
+      scores.push(
+        Math.max(0, Math.min(99, Math.round(scoreSum / beatsPerMeasure))),
       );
-      scores.push(measureScore);
     }
 
     return scores;
@@ -747,12 +741,16 @@ export default class PlanHistoryPane extends BaseComponent {
               },
             });
 
-            // Compute and display scores from hits
-            const computedScores = this._computeScoresFromHits(
-              session.measureHits,
-              session.drillPlan,
-              session.bpm,
-            );
+            // Use scores captured by Scorer during playback; fall back to recomputing from
+            // raw hits only for sessions saved before measureScores was persisted.
+            const computedScores = session.measureScores?.length
+              ? session.measureScores
+              : this._computeScoresFromHits(
+                  session.measureHits,
+                  session.drillPlan,
+                  session.bpm,
+                  session.timeSignature,
+                );
             if (
               computedScores &&
               computedScores.length > 0 &&

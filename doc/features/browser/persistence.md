@@ -7,7 +7,7 @@ Browser persistence is the shared storage boundary used by multiple domains.
 - Backed by `StorageManager` (`src/features/base/storage-manager.js`).
 - Used by:
 	- `PlanLibrary` for custom plans
-	- `PracticeSessionManager` for session history
+	- `TrainingManager` for session history
 	- onboarding completion flags
 	- detector parameter/device persistence
 

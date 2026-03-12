@@ -76,6 +76,7 @@ import Scorer from "../plan-play/scorer.js";
  *   completed: boolean,
  *   durationSeconds: number,
  *   measureHits: number[][],
+ *   measureScores?: (number|null)[],
  *   drillPlan: DrillMeasure[],
  *   overallScore: number
  * }} SessionData
@@ -91,6 +92,7 @@ import Scorer from "../plan-play/scorer.js";
  *   completed: boolean,
  *   durationSeconds: number,
  *   measureHits: number[][],
+ *   measureScores: (number|null)[],
  *   drillPlan: DrillMeasure[],
  *   overallScore: number,
  *   metrics: SessionMetrics
@@ -111,12 +113,25 @@ import Scorer from "../plan-play/scorer.js";
  */
 
 /**
- * PracticeSessionManager handles persistent storage and analysis of practice sessions.
- * Derives drummer-specific metrics including timing consistency, hit accuracy, and recommendations.
+ * TrainingManager handles persistent storage and post-hoc analysis of
+ * completed practice sessions.
+ *
+ * **Boundary with Scorer:**
+ * Scorer owns live hit-tracking and score computation during playback. When a run
+ * ends, the session data includes `measureScores` (pre-computed by Scorer) and
+ * `measureHits` (raw timing data). TrainingManager persists both and derives
+ * drummer-specific insight metrics (drift, rhythm, missed, weak spots, consistency)
+ * from the raw hit data. It uses `measureScores` directly for score-based metrics
+ * (weak spots, consistency) rather than recomputing.
+ *
+ * The static {@link Scorer.scoreFromErrorMs} function remains the single source of
+ * truth for the score formula. Should `measureScores` be absent (sessions stored
+ * before this field was added), TrainingManager falls back to recomputing
+ * using that same static function.
  */
-class PracticeSessionManager {
+class TrainingManager {
   /**
-   * Creates a new PracticeSessionManager instance.
+   * Creates a new TrainingManager instance.
    * @param {object|null} [storage] - Optional storage implementation.
    *   Defaults to an adapter over the static StorageManager.
    *   Inject a mock in tests to avoid localStorage side effects.
@@ -157,6 +172,7 @@ class PracticeSessionManager {
 
       // Raw hit data
       measureHits: sessionData.measureHits, // Array of hit times per measure
+      measureScores: sessionData.measureScores ?? [], // Pre-computed by Scorer during playback
       drillPlan: sessionData.drillPlan, // The actual plan structure
       overallScore: sessionData.overallScore,
 
@@ -389,29 +405,43 @@ class PracticeSessionManager {
   }
 
   /**
-   * Computes measure scores from hit data using the canonical Scorer.scoreFromErrorMs function.
-   * @param {SessionData} sessionData - Session data with measureHits, drillPlan, and bpm
-   * @returns {number[]} Array of computed measure scores
+   * Returns per-measure scores for a session. Prefers scores already computed by
+   * Scorer during live playback (sessionData.measureScores). Falls back to
+   * re-deriving from raw measureHits only for sessions saved before measureScores
+   * was persisted.
+   * @param {SessionData} sessionData - Session data
+   * @returns {(number|null)[]} Array of per-measure scores
    * @private
    */
   _computeScoresFromHits(sessionData) {
-    const { measureHits, drillPlan, bpm } = sessionData;
+    // Prefer the authoritative scores captured by Scorer during playback.
+    if (sessionData.measureScores && sessionData.measureScores.length > 0) {
+      return sessionData.measureScores;
+    }
+
+    // Legacy fallback: re-derive from raw hits (for sessions stored without measureScores).
+    const { measureHits, drillPlan, bpm, timeSignature } = sessionData;
 
     if (!measureHits || !drillPlan) return [];
 
-    // Get measures array
-    let measures = [];
+    let measures = /** @type {DrillMeasure[]} */ ([]);
     if (Array.isArray(drillPlan)) {
       measures = drillPlan;
-    } else if (drillPlan.plan && Array.isArray(drillPlan.plan)) {
-      measures = drillPlan.plan;
+    } else if (
+      /** @type {any} */ (drillPlan).plan &&
+      Array.isArray(/** @type {any} */ (drillPlan).plan)
+    ) {
+      measures = /** @type {any} */ (drillPlan).plan;
     }
 
     if (measures.length === 0) return [];
 
     const beatDuration = 60.0 / (bpm || 120);
-    const beatsPerMeasure = 4;
+    const beatsPerMeasure = timeSignature
+      ? parseInt(timeSignature.split("/")[0], 10)
+      : 4;
 
+    /** @type {(number|null)[]} */
     const scores = [];
 
     for (let measureIndex = 0; measureIndex < measures.length; measureIndex++) {
@@ -443,11 +473,9 @@ class PracticeSessionManager {
         scoreSum += Scorer.scoreFromErrorMs(errorMs);
       }
 
-      const measureScore = Math.max(
-        0,
-        Math.min(99, Math.round(scoreSum / beatsPerMeasure)),
+      scores.push(
+        Math.max(0, Math.min(99, Math.round(scoreSum / beatsPerMeasure))),
       );
-      scores.push(measureScore);
     }
 
     return scores;
@@ -685,4 +713,4 @@ class PracticeSessionManager {
   }
 }
 
-export default PracticeSessionManager;
+export default TrainingManager;

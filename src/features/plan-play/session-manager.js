@@ -1,9 +1,9 @@
 /**
- * DrillSessionManager manages the drill session lifecycle and coordinates
+ * SessionManager manages the drill session lifecycle and coordinates
  * timeline, scorer, and drill plan during active sessions.
  */
 
-class DrillSessionManager {
+class SessionManager {
   /**
    * @param {import('../music/playback-service.js').default} playbackService
    * @param {Object} scorer - Scorer instance
@@ -33,8 +33,11 @@ class DrillSessionManager {
     this.timeline = null;
 
     /** @type {(hitAudioTime: number, runStartAudioTime: number, beatDuration: number) => number} */
-    this._beatPositionMapper = (hitAudioTime, runStartAudioTime, beatDuration) =>
-      Math.max(0, (hitAudioTime - runStartAudioTime) / beatDuration);
+    this._beatPositionMapper = (
+      hitAudioTime,
+      runStartAudioTime,
+      beatDuration,
+    ) => Math.max(0, (hitAudioTime - runStartAudioTime) / beatDuration);
 
     /** @type {{ plan: Array<{type:string}>, segments: any[] }|null} */
     this._planData = null;
@@ -409,6 +412,7 @@ class DrillSessionManager {
       completed,
       durationSeconds: elapsedSeconds,
       measureHits: this.scorer.measureHits,
+      measureScores: this.scorer.getAllScores(),
       drillPlan: this._planData,
       overallScore: this.scorer.getOverallScore(),
     };
@@ -469,4 +473,4 @@ class DrillSessionManager {
   }
 }
 
-export default DrillSessionManager;
+export default SessionManager;

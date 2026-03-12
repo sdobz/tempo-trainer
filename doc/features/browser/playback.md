@@ -10,7 +10,7 @@ It is orchestration-driven and rendering-only.
 	- `renderClick(atTime, accentProfile)`
 	- `renderCue(cue, atTime)`
 	- `setClickProfile(profile)`
-- `DrillSessionManager` chooses click accents/frequencies and calls `playbackService.renderClick(...)`.
+- `SessionManager` chooses click accents/frequencies and calls `playbackService.renderClick(...)`.
 - Calibration flow in `script.js` also uses the same `PlaybackService` instance.
 - `Metronome` remains as a temporary scheduler shim and forwards legacy `scheduleClick(...)` calls to `PlaybackService`.
 

@@ -1,5 +1,5 @@
 import StorageManager from "./features/base/storage-manager.js";
-import DrillSessionManager from "./features/plan-play/drill-session-manager.js";
+import SessionManager from "./features/plan-play/session-manager.js";
 import CalibrationOrchestrator from "./features/calibration/calibration-orchestrator.js";
 import { getAllElements } from "./features/component/dom-utils.js";
 
@@ -41,8 +41,8 @@ export function startAppOrchestrator(mainRoot) {
   } = mainRoot.getRuntime();
 
   let timeline;
-  /** @type {DrillSessionManager|null} */
-  let drillSessionManager = null;
+  /** @type {SessionManager|null} */
+  let sessionManager = null;
   /** @type {CalibrationOrchestrator|null} */
   let calibrationOrchestrator = null;
   let playPreviewActivationCleanup = null;
@@ -259,7 +259,7 @@ export function startAppOrchestrator(mainRoot) {
       detectorManager,
     });
 
-    drillSessionManager = new DrillSessionManager(
+    sessionManager = new SessionManager(
       playbackService,
       scorer,
       detectorManager,
@@ -268,11 +268,11 @@ export function startAppOrchestrator(mainRoot) {
       timelineService,
     );
 
-    drillSessionManager.setVisualizer(timeline);
+    sessionManager.setVisualizer(timeline);
     const calibration = calibrationOrchestrator.getCalibration();
-    drillSessionManager.setCalibration(calibration);
+    sessionManager.setCalibration(calibration);
     if (calibration?.getCalibratedBeatPosition) {
-      drillSessionManager.setBeatPositionMapper(
+      sessionManager.setBeatPositionMapper(
         (hitAudioTime, runStartAudioTime, beatDuration) =>
           calibration.getCalibratedBeatPosition(
             hitAudioTime,
@@ -281,7 +281,7 @@ export function startAppOrchestrator(mainRoot) {
           ),
       );
     }
-    drillSessionManager.attach(planPlayPane, { audioContextService });
+    sessionManager.attach(planPlayPane, { audioContextService });
 
     const applyChartPlanToScorer = (chart) => {
       const projected = chartService.projectChart(chart);
@@ -300,7 +300,7 @@ export function startAppOrchestrator(mainRoot) {
       },
     );
 
-    drillSessionManager.onSessionComplete((sessionData) => {
+    sessionManager.onSessionComplete((sessionData) => {
       const currentPlan = planEditPane.getCurrentChart();
       const sessionPlan = currentPlan
         ? {
@@ -371,15 +371,15 @@ export function startAppOrchestrator(mainRoot) {
 
   function updateTimelineScroll() {
     const audioContext = audioContextService.getContext();
-    if (drillSessionManager && audioContext) {
-      drillSessionManager.updateTimelineScroll(audioContext);
+    if (sessionManager && audioContext) {
+      sessionManager.updateTimelineScroll(audioContext);
     }
     requestAnimationFrame(updateTimelineScroll);
   }
   updateTimelineScroll();
 
   globalThis.addEventListener("beforeunload", () => {
-    drillSessionManager?.detach();
+    sessionManager?.detach();
     calibrationOrchestrator?.dispose();
   });
 }

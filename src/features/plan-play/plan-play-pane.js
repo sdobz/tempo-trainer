@@ -220,7 +220,7 @@ export default class PlanPlayPane extends BaseComponent {
   }
 
   /**
-   * Get the PlaybackState instance (used by DrillSessionManager).
+   * Get the PlaybackState instance (used by SessionManager).
    * @returns {PlaybackState}
    */
   get playbackState() {

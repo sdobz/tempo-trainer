@@ -1,5 +1,5 @@
 import { createContext } from "../component/context.js";
-import PracticeSessionManager from "../plan-history/practice-session-manager.js";
+import TrainingManager from "../plan-history/training-manager.js";
 
 /**
  * Context token. Provided by main composition root; consumed by panes during playback + history viewing.
@@ -29,8 +29,8 @@ export const PerformanceServiceContext = createContext(
 class PerformanceService extends EventTarget {
   constructor() {
     super();
-    /** @type {PracticeSessionManager} */
-    this._sessionManager = new PracticeSessionManager();
+    /** @type {TrainingManager} */
+    this._sessionManager = new TrainingManager();
   }
 
   /**

@@ -117,15 +117,15 @@ We are migrating toward a DI-style service graph where:
 5. `PlaybackService` (created in `src/script.js`, provided by `main`)
 	- Rendering-only audio service for clicks/cues.
 	- Used by both drill playback and calibration click paths.
-6. `Metronome` + `Scorer` + `DrillSessionManager` (created in `src/script.js`)
+6. `Metronome` + `Scorer` + `SessionManager` (created in `src/script.js`)
 =======
 5. `PlaybackService` (created in `src/features/main/main.js`, provided by `main`)
 	- Rendering-only audio service for clicks/cues.
 	- Used by both drill playback and calibration click paths.
-6. `Metronome` + `Scorer` + `DrillSessionManager` (root-created and orchestrator-wired)
+6. `Metronome` + `Scorer` + `SessionManager` (root-created and orchestrator-wired)
 >>>>>>> Stashed changes
-	- Metronome remains a scheduling shim; DrillSessionManager coordinates run flow/scoring.
-7. `PracticeSessionManager` + `PlanLibrary`
+	- Metronome remains a scheduling shim; SessionManager coordinates run flow/scoring.
+7. `TrainingManager` + `PlanLibrary`
 	- Persist history metrics and plan catalog (built-in and custom).
 
 ### Target service graph (migration direction)
@@ -143,7 +143,7 @@ We are migrating toward a DI-style service graph where:
 	- Owns intended practice representation
 	- Owns selected chart as canonical state
 	- Projects chart into timeline-ready measures
-5. `performance` service (currently split across `Scorer` + `PracticeSessionManager`)
+5. `performance` service (currently split across `Scorer` + `TrainingManager`)
 	- Captures and evaluates observed user performance
 	- Emits measure/session scoring updates
 6. `detector` service
