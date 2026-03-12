@@ -32,8 +32,6 @@ export function startAppOrchestrator(mainRoot) {
   const {
     chartService,
     performanceService,
-    metronome,
-    calibrationMetronome,
     scorer,
     audioContextService,
     paneManager,
@@ -48,8 +46,7 @@ export function startAppOrchestrator(mainRoot) {
     const ctx = audioContextService.getContext();
     if (!ctx) return false;
     playbackService.audioContext = ctx;
-    metronome.audioContext = ctx;
-    calibrationMetronome.audioContext = ctx;
+    timelineService.setAudioContext(ctx);
     detectorManager.audioContext = ctx;
     if (calibration) {
       calibration.audioContext = ctx;
@@ -358,26 +355,34 @@ export function startAppOrchestrator(mainRoot) {
     );
   }
 
-  function startCalibrationMetronome() {
-    if (!calibrationMetronome.audioContext || !calibration) return;
+  const calibrationTickListener = (event) => {
+    if (!calibration || !calibration.isCalibrating) return;
+    const { beatInMeasure, time } = event.detail;
+    const freq = beatInMeasure === 0 ? 880.0 : 440.0;
+    playbackService.renderClick(time, { frequency: freq });
+    calibration.registerExpectedBeat(time);
+  };
 
-    calibrationMetronome.stop();
-    calibrationMetronome.setBPM(timelineService.tempo);
-    calibrationMetronome.setTimeSignature(timelineService.beatsPerMeasure);
-    calibrationMetronome.onBeat((beatInMeasure, time) => {
-      if (!calibration.isCalibrating) return false;
-      const freq = beatInMeasure === 0 ? 880.0 : 440.0;
-      playbackService.renderClick(time, { frequency: freq });
-      calibration.registerExpectedBeat(time);
-      return true;
-    });
-    calibrationMetronome.start();
-    calibrationTimelineRunStartAudioTime = calibrationMetronome.nextNoteTime;
+  function startCalibrationMetronome() {
+    if (!timelineService || !calibration) return;
+
+    timelineService.removeEventListener("tick", calibrationTickListener);
+    timelineService.addEventListener("tick", calibrationTickListener);
+    
+    timelineService.stop();
+    timelineService.seekToDivision(0);
+    timelineService.play();
+    
+    const audioContext = audioContextService.getContext();
+    if (audioContext) {
+      calibrationTimelineRunStartAudioTime = audioContext.currentTime;
+    }
   }
 
   function stopCalibrationMetronome() {
-    if (!calibrationMetronome.isRunning) return;
-    calibrationMetronome.stop();
+    if (!timelineService) return;
+    timelineService.removeEventListener("tick", calibrationTickListener);
+    timelineService.stop();
   }
 
   function buildCalibrationTimelineWindow(startMeasure) {
@@ -497,7 +502,6 @@ export function startAppOrchestrator(mainRoot) {
     ]);
 
     drillSessionManager = new DrillSessionManager(
-      metronome,
       playbackService,
       scorer,
       timeline,
@@ -514,16 +518,12 @@ export function startAppOrchestrator(mainRoot) {
         const { field, value } = event.detail;
         if (field === "tempo") {
           const bpm = /** @type {number} */ (value);
-          metronome.setBPM(bpm);
-          calibrationMetronome.setBPM(bpm);
           scorer.setBeatDuration(60.0 / bpm);
           if (calibration) calibration.setBeatDuration(60.0 / bpm);
           detectorManager.setSessionBpm(bpm);
         }
         if (field === "beatsPerMeasure") {
           const n = /** @type {number} */ (value);
-          metronome.setTimeSignature(n);
-          calibrationMetronome.setTimeSignature(n);
           scorer.setBeatsPerMeasure(n);
           if (calibration) calibration.setBeatsPerMeasure(n);
         }
@@ -547,10 +547,6 @@ export function startAppOrchestrator(mainRoot) {
       },
     );
 
-    metronome.setBPM(timelineService.tempo);
-    metronome.setTimeSignature(timelineService.beatsPerMeasure);
-    calibrationMetronome.setBPM(timelineService.tempo);
-    calibrationMetronome.setTimeSignature(timelineService.beatsPerMeasure);
     scorer.setBeatDuration(timelineService.beatDuration);
     scorer.setBeatsPerMeasure(timelineService.beatsPerMeasure);
     detectorManager.setSessionBpm(timelineService.tempo);

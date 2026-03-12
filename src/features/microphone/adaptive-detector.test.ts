@@ -1,5 +1,4 @@
 import { assertEquals } from "../base/assert.ts";
-import SessionState from "../base/session-state.js";
 import { DEFAULT_ADAPTIVE_PARAMS } from "./detector-params.js";
 import AdaptiveDetector from "./adaptive-detector.js";
 import {
@@ -45,16 +44,14 @@ for (const fixture of fixtures) {
       );
 
       const fixedBpm = deriveFixedSessionBpm(expectedHits);
-      const sessionState = new SessionState();
-      sessionState.setBPM(fixedBpm);
-      assertEquals(sessionState.bpm, fixedBpm);
+      assertEquals(fixedBpm > 0, true);
 
       const detector = new AdaptiveDetector(
         audioSource as never,
         {
           ...DEFAULT_ADAPTIVE_PARAMS,
           sensitivity: fixture.sensitivity,
-          bpm: sessionState.bpm,
+          bpm: fixedBpm,
         } as never,
         {},
       );

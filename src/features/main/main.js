@@ -10,7 +10,6 @@ import ChartService from "../music/chart-service.js";
 import PerformanceService from "../music/performance-service.js";
 import TimelineService from "../music/timeline-service.js";
 import PlaybackService from "../music/playback-service.js";
-import Metronome from "../plan-play/metronome.js";
 import Scorer from "../plan-play/scorer.js";
 import PaneManager from "../base/pane-manager.js";
 import AudioContextManager, {
@@ -35,14 +34,6 @@ class MainComponent extends BaseComponent {
     this._detectorManager.setSessionBpm(this._timelineService.tempo);
 
     // Runtime dependencies consumed by orchestrator.
-    this._metronome = new Metronome(
-      /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
-      this._playbackService,
-    );
-    this._calibrationMetronome = new Metronome(
-      /** @type {AudioContext} */ (/** @type {unknown} */ (null)),
-      this._playbackService,
-    );
     this._scorer = new Scorer(4, 0.5);
     this._paneManager = new PaneManager();
   }
@@ -70,6 +61,10 @@ class MainComponent extends BaseComponent {
     );
 
     this.listen(this._audioContextService, "ready", () => {
+      const ctx = this._audioContextService.getContext();
+      if (ctx) {
+        this._timelineService.setAudioContext(ctx);
+      }
       this.notifyContext(AudioContextServiceContext);
     });
   }
@@ -88,8 +83,6 @@ class MainComponent extends BaseComponent {
       performanceService: this._performanceService,
       timelineService: this._timelineService,
       playbackService: this._playbackService,
-      metronome: this._metronome,
-      calibrationMetronome: this._calibrationMetronome,
       scorer: this._scorer,
       paneManager: this._paneManager,
       audioContextService: this._audioContextService,

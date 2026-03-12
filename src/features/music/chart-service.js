@@ -1,5 +1,33 @@
+import StorageManager from "../base/storage-manager.js";
 import { createContext } from "../component/context.js";
-import PlanLibrary from "../plan-edit/plan-library.js";
+
+/** @typedef {{ on: number, off: number, reps: number }} Segment */
+/**
+ * @typedef {{
+ *   id?: string,
+ *   name: string,
+ *   description?: string,
+ *   difficulty?: string,
+ *   segments: Segment[],
+ *   isBuiltIn?: boolean,
+ *   tags?: string[],
+ *   createdAt?: string,
+ *   updatedAt?: string
+ * }} Chart
+ */
+
+/**
+ * @typedef {{
+ *   totalMeasures: number,
+ *   playingMeasures: number,
+ *   restMeasures: number,
+ *   segments: number
+ * }} ChartStats
+ */
+
+/**
+ * @typedef {{ get(key: string, def?: string|null): string|null, set(key: string, value: unknown): boolean }} StorageLike
+ */
 
 /**
  * Context token. Provided by main composition root; consumed by panes that need chart selection/manipulation.
@@ -10,70 +38,162 @@ export const ChartServiceContext = createContext("chart-service", null);
 /**
  * ChartService — canonical owner of selected chart and chart catalog.
  *
- * Extracts chart ownership from SessionState + PlanLibrary.
- * Provides chart CRUD operations and event contracts for consumers.
- *
- * [Phase 1] This service is created to establish chart as an explicit domain boundary.
- * PlanLibrary remains an internal dependency for persistence and CRUD.
- * By Phase X, chart-service may also handle chart projections (e.g., beat rendering).
- *
  * Event contract:
- *   - "chart-selected": { detail: { chart: ChartObject } }
- *   - "chart-saved": { detail: { chart: ChartObject } }
+ *   - "chart-selected": { detail: { chart: Chart } }
+ *   - "chart-saved": { detail: { chart: Chart } }
  *   - "chart-deleted": { detail: { chartId: string } }
- *
- * Usage (in app orchestrator):
- *   const chartService = new ChartService();
- *   chartService.addEventListener("chart-selected", (e) => { ... });
- *   chartService.selectChart(builtInChart);
  */
 class ChartService extends EventTarget {
-  constructor() {
+  /**
+   * @param {StorageLike|null} [storage]
+   */
+  constructor(storage = null) {
     super();
-    /** @type {PlanLibrary} */
-    this._planLibrary = new PlanLibrary();
-    /** @type {Object|null} */
+    /** @type {StorageLike} */
+    this.storage = storage ?? {
+      get: (key, def = null) => StorageManager.get(key, def),
+      set: (key, value) => StorageManager.set(key, value),
+    };
+    this.storageKey = "tempoTrainer.customPlans";
+    /** @type {Chart[]} */
+    this.builtInCharts = this._getBuiltInCharts();
+    /** @type {Chart|null} */
     this._selectedChart = null;
   }
 
-  /**
-   * Get all available charts (built-in + custom).
-   * @returns {Object[]} Array of chart objects with id, name, segments, etc.
-   */
+  /** @returns {Chart[]} */
+  _getBuiltInCharts() {
+    return [
+      {
+        id: "beginner-simple",
+        name: "Beginner: Simple Pattern",
+        description: "1 measure on, 1 measure off - perfect for getting started",
+        difficulty: "Beginner",
+        segments: [{ on: 1, off: 1, reps: 8 }],
+        isBuiltIn: true,
+        tags: ["beginner", "simple"],
+      },
+      {
+        id: "beginner-extended",
+        name: "Beginner: Extended Pattern",
+        description: "2 measures on, 2 off - building endurance",
+        difficulty: "Beginner",
+        segments: [{ on: 2, off: 2, reps: 6 }],
+        isBuiltIn: true,
+        tags: ["beginner", "endurance"],
+      },
+      {
+        id: "intermediate-pyramid",
+        name: "Intermediate: Pyramid (1-4)",
+        description: "Classic pyramid pattern building from 1 to 4 measures",
+        difficulty: "Intermediate",
+        segments: [
+          { on: 1, off: 1, reps: 4 },
+          { on: 2, off: 2, reps: 4 },
+          { on: 3, off: 3, reps: 4 },
+          { on: 4, off: 4, reps: 4 },
+        ],
+        isBuiltIn: true,
+        tags: ["intermediate", "pyramid", "progression"],
+      },
+      {
+        id: "intermediate-quick",
+        name: "Intermediate: Quick Drill",
+        description: "Short, intense practice session",
+        difficulty: "Intermediate",
+        segments: [{ on: 1, off: 1, reps: 1 }],
+        isBuiltIn: true,
+        tags: ["intermediate", "quick", "warm-up"],
+      },
+      {
+        id: "advanced-pyramid",
+        name: "Advanced: Extended Pyramid (1-8)",
+        description: "Full pyramid pattern for advanced endurance training",
+        difficulty: "Advanced",
+        segments: [
+          { on: 1, off: 1, reps: 2 },
+          { on: 2, off: 2, reps: 2 },
+          { on: 3, off: 3, reps: 2 },
+          { on: 4, off: 4, reps: 2 },
+          { on: 5, off: 5, reps: 2 },
+          { on: 6, off: 6, reps: 2 },
+          { on: 7, off: 7, reps: 2 },
+          { on: 8, off: 8, reps: 2 },
+        ],
+        isBuiltIn: true,
+        tags: ["advanced", "pyramid", "endurance"],
+      },
+      {
+        id: "advanced-mixed",
+        name: "Advanced: Mixed Intervals",
+        description: "Varied rest periods to challenge your internal clock",
+        difficulty: "Advanced",
+        segments: [
+          { on: 4, off: 2, reps: 2 },
+          { on: 4, off: 4, reps: 2 },
+          { on: 4, off: 8, reps: 2 },
+          { on: 8, off: 4, reps: 2 },
+        ],
+        isBuiltIn: true,
+        tags: ["advanced", "intervals", "challenging"],
+      },
+      {
+        id: "expert-marathon",
+        name: "Expert: Marathon Session",
+        description: "Ultimate endurance challenge with long intervals",
+        difficulty: "Expert",
+        segments: [
+          { on: 8, off: 8, reps: 4 },
+          { on: 12, off: 4, reps: 2 },
+        ],
+        isBuiltIn: true,
+        tags: ["expert", "marathon", "endurance"],
+      },
+      {
+        id: "expert-precision",
+        name: "Expert: Precision Challenge",
+        description: "Short bursts requiring maximum focus and accuracy",
+        difficulty: "Expert",
+        segments: [
+          { on: 1, off: 7, reps: 8 },
+          { on: 2, off: 6, reps: 4 },
+        ],
+        isBuiltIn: true,
+        tags: ["expert", "precision", "focus"],
+      },
+    ];
+  }
+
+  /** @returns {Chart[]} */
   getAllCharts() {
-    return this._planLibrary.getAllPlans();
+    return [...this.builtInCharts, ...this.getCustomCharts()];
   }
 
-  /**
-   * Get custom (user-created) charts only.
-   * @returns {Object[]} Array of custom chart objects.
-   */
+  /** @returns {Chart[]} */
   getCustomCharts() {
-    return this._planLibrary.getCustomPlans();
+    const stored = this.storage.get(this.storageKey);
+    if (!stored) return [];
+
+    try {
+      const charts = JSON.parse(stored);
+      return Array.isArray(charts) ? charts : [];
+    } catch (error) {
+      console.error("Failed to parse custom charts:", error);
+      return [];
+    }
   }
 
-  /**
-   * Retrieve a single chart by ID.
-   * @param {string} chartId
-   * @returns {Object|null} Chart object or null if not found.
-   */
+  /** @param {string} chartId */
   getChartById(chartId) {
-    return this._planLibrary.getPlanById(chartId);
+    return this.getAllCharts().find((chart) => chart.id === chartId) ?? null;
   }
 
-  /**
-   * Get the currently selected chart.
-   * @returns {Object|null} Selected chart or null if none.
-   */
+  /** @returns {Chart|null} */
   getSelectedChart() {
     return this._selectedChart;
   }
 
-  /**
-   * Select a chart as the active one.
-   * Emits "chart-selected" event.
-   * @param {Object} chart Chart object to select.
-   */
+  /** @param {Chart} chart */
   selectChart(chart) {
     this._selectedChart = chart;
     this.dispatchEvent(
@@ -84,63 +204,174 @@ class ChartService extends EventTarget {
   }
 
   /**
-   * Save a chart (create or update).
-   * Emits "chart-saved" event.
-   * @param {Object} chart Chart object to save.
-   * @returns {Object} Saved chart (may have updated id/timestamp).
+   * @param {Chart} chart
+   * @returns {Chart}
    */
   saveChart(chart) {
-    const saved = this._planLibrary.savePlan(chart);
+    if (!chart.name || !chart.segments || chart.segments.length === 0) {
+      throw new Error("Chart must have a name and at least one segment");
+    }
+
+    const nextChart = {
+      ...chart,
+      id: chart.id ?? `custom-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+      isBuiltIn: false,
+      createdAt: chart.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const customCharts = this.getCustomCharts();
+    const existingIndex = customCharts.findIndex((c) => c.id === nextChart.id);
+    if (existingIndex >= 0) {
+      customCharts[existingIndex] = nextChart;
+    } else {
+      customCharts.push(nextChart);
+    }
+
+    this.storage.set(this.storageKey, JSON.stringify(customCharts));
+
     this.dispatchEvent(
       new CustomEvent("chart-saved", {
-        detail: { chart: saved },
+        detail: { chart: nextChart },
       }),
     );
-    return saved;
+
+    return nextChart;
   }
 
   /**
-   * Delete a chart by ID.
-   * Emits "chart-deleted" event.
-   * @param {string} chartId Chart ID to delete.
+   * @param {string} chartId
+   * @returns {boolean}
    */
   deleteChart(chartId) {
-    this._planLibrary.deletePlan(chartId);
+    const customCharts = this.getCustomCharts();
+    const filtered = customCharts.filter((chart) => chart.id !== chartId);
+    if (filtered.length === customCharts.length) {
+      return false;
+    }
+
+    this.storage.set(this.storageKey, JSON.stringify(filtered));
     this.dispatchEvent(
       new CustomEvent("chart-deleted", {
         detail: { chartId },
       }),
     );
+    return true;
   }
 
   /**
-   * Clone (duplicate) a chart with a new name.
-   * @param {string} sourceChartId ID of chart to clone.
-   * @param {string} newName Name for the new chart.
-   * @returns {Object} The cloned chart.
+   * @param {string} sourceChartId
+   * @param {string} [newName]
+   * @returns {Chart}
    */
   cloneChart(sourceChartId, newName) {
-    return this._planLibrary.clonePlan(sourceChartId, newName);
+    const source = this.getChartById(sourceChartId);
+    if (!source) {
+      throw new Error("Chart not found");
+    }
+
+    return this.saveChart({
+      name: newName || `${source.name} (Copy)`,
+      description: source.description || "",
+      difficulty: source.difficulty || "",
+      segments: JSON.parse(JSON.stringify(source.segments)),
+      tags: [...(source.tags || [])],
+    });
+  }
+
+  /**
+   * @param {Segment[]} segments
+   * @returns {string}
+   */
+  segmentsToString(segments) {
+    return segments.map((seg) => `${seg.on},${seg.off},${seg.reps}`).join(";");
+  }
+
+  /**
+   * @param {string} chartString
+   * @returns {Segment[]}
+   */
+  stringToSegments(chartString) {
+    /** @type {Segment[]} */
+    const segments = [];
+    const trimmed = chartString.trim();
+    if (!trimmed) return segments;
+
+    for (const step of trimmed.split(";")) {
+      const parts = step.trim().split(",").map((value) => parseInt(value.trim(), 10));
+      if (parts.length === 3 && !parts.some(Number.isNaN)) {
+        const [on, off, reps] = parts;
+        segments.push({ on, off, reps });
+      }
+    }
+
+    return segments;
+  }
+
+  /**
+   * @param {Segment[]} segments
+   * @returns {ChartStats}
+   */
+  calculateStats(segments) {
+    let totalMeasures = 0;
+    let playingMeasures = 0;
+    let restMeasures = 0;
+
+    for (const seg of segments) {
+      const measuresPerRep = seg.on + seg.off;
+      const totalForSegment = measuresPerRep * seg.reps;
+      totalMeasures += totalForSegment;
+      playingMeasures += seg.on * seg.reps;
+      restMeasures += seg.off * seg.reps;
+    }
+
+    return {
+      totalMeasures,
+      playingMeasures,
+      restMeasures,
+      segments: segments.length,
+    };
+  }
+
+  /**
+   * @param {Segment[]} segments
+   * @param {number} bpm
+   * @param {number} beatsPerMeasure
+   * @returns {number}
+   */
+  estimateDuration(segments, bpm, beatsPerMeasure) {
+    const stats = this.calculateStats(segments);
+    const beatsPerSecond = bpm / 60;
+    const totalBeats = (stats.totalMeasures + 1) * beatsPerMeasure;
+    return Math.ceil(totalBeats / beatsPerSecond);
+  }
+
+  /**
+   * @param {number} seconds
+   * @returns {string}
+   */
+  formatDuration(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, "0")}`;
   }
 
   /**
    * Get chart with full projection: plan array (measures) and catalog segments.
-   * Used for playback bootstrap and display.
-   * @param {Object} chart Chart object.
+   * @param {Chart|null|undefined} chart
    * @returns {{
-   *   plan: Array<{type: "click-in"|"silent"|"playing"}>,
-   *   segments: Array<{on: number, off: number, reps: number}>
-   * }} Projected chart data.
+   *   plan: Array<{on: number, off: number, reps: number}>,
+   *   segments: Segment[]
+   * }}
    */
   projectChart(chart) {
     if (!chart) {
       return { plan: [], segments: [] };
     }
+
     return {
       plan: chart.segments
-        ? this._planLibrary.stringToSegments(
-            this._planLibrary.segmentsToString(chart.segments),
-          )
+        ? this.stringToSegments(this.segmentsToString(chart.segments))
         : [],
       segments: chart.segments || [],
     };

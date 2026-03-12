@@ -9,16 +9,17 @@ export const TimelineServiceContext = createContext("timeline-service", null);
 /** @typedef {"stopped"|"playing"|"paused"} TransportState */
 
 /**
- * TimelineService — canonical owner for tempo, meter, transport, and position.
+ * TimelineService — canonical owner for tempo, meter, transport, position, and beat scheduling.
  *
  * Event contract:
  * - "changed": coarse state updates { field, value, state }
  * - "transport": transport transition updates { state }
+ * - "tick": beat tick event { beatInMeasure, time, timeUntilBeat }
  * - "fault": runtime failures { code, error }
  */
 class TimelineService extends EventTarget {
   /**
-   * @param {{ tempo?: number, beatsPerMeasure?: number }} [initial]
+   * @param {{ tempo?: number, beatsPerMeasure?: number, audioContext?: AudioContext }} [initial]
    */
   constructor(initial = {}) {
     super();
@@ -32,6 +33,22 @@ class TimelineService extends EventTarget {
     this._transportState = "stopped";
     /** @type {number} */
     this._position = 0;
+
+    // Scheduler state for beat emission
+    /** @type {AudioContext|null} */
+    this._audioContext = initial.audioContext ?? null;
+    /** @type {number} */
+    this._lookahead = 25.0; // ms
+    /** @type {number} */
+    this._scheduleAheadTime = 0.1; // seconds
+    /** @type {boolean} */
+    this._isScheduling = false;
+    /** @type {number|null} */
+    this._schedulerIntervalID = null;
+    /** @type {number} */
+    this._nextNoteTime = 0;
+    /** @type {number} */
+    this._currentBeatInMeasure = 0;
   }
 
   /** @returns {number} */
@@ -79,6 +96,22 @@ class TimelineService extends EventTarget {
   }
 
   /**
+   * Set the audio context (required for beat scheduling).
+   * @param {AudioContext|null} ctx
+   */
+  setAudioContext(ctx) {
+    this._audioContext = ctx;
+  }
+
+  /**
+   * Get the current audio time from the context (or 0 if no context).
+   * @returns {number}
+   */
+  getAudioTime() {
+    return this._audioContext?.currentTime ?? 0;
+  }
+
+  /**
    * @param {number} bpm
    */
   setTempo(bpm) {
@@ -100,13 +133,18 @@ class TimelineService extends EventTarget {
 
   play() {
     this._setTransportState("playing");
+    if (this._audioContext && !this._isScheduling) {
+      this._startScheduler();
+    }
   }
 
   pause() {
     this._setTransportState("paused");
+    this._stopScheduler();
   }
 
   stop() {
+    this._stopScheduler();
     this._setTransportState("stopped");
     this.seekToDivision(0);
   }
@@ -154,6 +192,89 @@ class TimelineService extends EventTarget {
         },
       }),
     );
+  }
+
+  /**
+   * Start the beat scheduler loop.
+   * @private
+   */
+  _startScheduler() {
+    if (!this._audioContext || this._isScheduling) return;
+
+    this._audioContext.resume();
+    this._isScheduling = true;
+    this._nextNoteTime = this._audioContext.currentTime + 0.1;
+    this._currentBeatInMeasure = 0;
+
+    this._schedulerIntervalID = setInterval(
+      () => this._scheduler(),
+      this._lookahead,
+    );
+  }
+
+  /**
+   * Stop the beat scheduler loop.
+   * @private
+   */
+  _stopScheduler() {
+    if (!this._isScheduling) return;
+
+    if (this._schedulerIntervalID) {
+      clearInterval(this._schedulerIntervalID);
+      this._schedulerIntervalID = null;
+    }
+
+    this._isScheduling = false;
+  }
+
+  /**
+   * Scheduler loop that processes and emits upcoming beat ticks.
+   * @private
+   */
+  _scheduler() {
+    if (!this._audioContext || !this._isScheduling) return;
+
+    while (
+      this._nextNoteTime <
+      this._audioContext.currentTime + this._scheduleAheadTime
+    ) {
+      const beatInMeasure = this._currentBeatInMeasure;
+      const time = this._nextNoteTime;
+      const timeUntilBeat = this._nextNoteTime - this._audioContext.currentTime;
+
+      // Emit tick event for subscribers
+      this.dispatchEvent(
+        new CustomEvent("tick", {
+          detail: {
+            beatInMeasure,
+            time,
+            timeUntilBeat,
+          },
+        }),
+      );
+
+      this._updateBeat();
+    }
+  }
+
+  /**
+   * Update beat position and check for measure completion.
+   * @private
+   */
+  _updateBeat() {
+    this._nextNoteTime += this.beatDuration;
+    this._currentBeatInMeasure++;
+
+    if (this._currentBeatInMeasure >= this._beatsPerMeasure) {
+      this._currentBeatInMeasure = 0;
+
+      // Emit measure-complete event
+      this.dispatchEvent(
+        new CustomEvent("measure-complete", {
+          detail: { measureStarted: true },
+        }),
+      );
+    }
   }
 
   /**
