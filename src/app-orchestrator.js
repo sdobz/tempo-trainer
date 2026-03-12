@@ -368,11 +368,11 @@ export function startAppOrchestrator(mainRoot) {
 
     timelineService.removeEventListener("tick", calibrationTickListener);
     timelineService.addEventListener("tick", calibrationTickListener);
-    
+
     timelineService.stop();
     timelineService.seekToDivision(0);
     timelineService.play();
-    
+
     const audioContext = audioContextService.getContext();
     if (audioContext) {
       calibrationTimelineRunStartAudioTime = audioContext.currentTime;

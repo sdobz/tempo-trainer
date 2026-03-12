@@ -67,7 +67,8 @@ class ChartService extends EventTarget {
       {
         id: "beginner-simple",
         name: "Beginner: Simple Pattern",
-        description: "1 measure on, 1 measure off - perfect for getting started",
+        description:
+          "1 measure on, 1 measure off - perfect for getting started",
         difficulty: "Beginner",
         segments: [{ on: 1, off: 1, reps: 8 }],
         isBuiltIn: true,
@@ -214,7 +215,9 @@ class ChartService extends EventTarget {
 
     const nextChart = {
       ...chart,
-      id: chart.id ?? `custom-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+      id:
+        chart.id ??
+        `custom-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
       isBuiltIn: false,
       createdAt: chart.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -298,7 +301,10 @@ class ChartService extends EventTarget {
     if (!trimmed) return segments;
 
     for (const step of trimmed.split(";")) {
-      const parts = step.trim().split(",").map((value) => parseInt(value.trim(), 10));
+      const parts = step
+        .trim()
+        .split(",")
+        .map((value) => parseInt(value.trim(), 10));
       if (parts.length === 3 && !parts.some(Number.isNaN)) {
         const [on, off, reps] = parts;
         segments.push({ on, off, reps });

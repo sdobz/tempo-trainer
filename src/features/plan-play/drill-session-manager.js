@@ -112,8 +112,7 @@ class DrillSessionManager {
    * @private
    */
   _onTimelineTick(event) {
-    const { beatInMeasure, time, timeUntilBeat } =
-      event.detail;
+    const { beatInMeasure, time, timeUntilBeat } = event.detail;
     const measureType = this._getMeasureType(this.currentMeasureInTotal);
 
     if (measureType === "silent") {
@@ -137,7 +136,11 @@ class DrillSessionManager {
     const shouldShowBeat = measureType !== "silent";
 
     setTimeout(() => {
-      if (!this.timelineService || this.timelineService.transportState === "stopped") return;
+      if (
+        !this.timelineService ||
+        this.timelineService.transportState === "stopped"
+      )
+        return;
       this.playbackState.update({
         beat: {
           beatNum: beatNumber,
@@ -227,7 +230,10 @@ class DrillSessionManager {
     // Subscribe to timeline tick events
     if (this.timelineService) {
       this.timelineService.addEventListener("tick", this._tickListener);
-      this.timelineService.addEventListener("measure-complete", this._measureCompleteListener);
+      this.timelineService.addEventListener(
+        "measure-complete",
+        this._measureCompleteListener,
+      );
     }
 
     // Reset session state
@@ -262,7 +268,10 @@ class DrillSessionManager {
     // Unsubscribe from timeline events
     if (this.timelineService) {
       this.timelineService.removeEventListener("tick", this._tickListener);
-      this.timelineService.removeEventListener("measure-complete", this._measureCompleteListener);
+      this.timelineService.removeEventListener(
+        "measure-complete",
+        this._measureCompleteListener,
+      );
     }
 
     this.isCompletingRun = false;
@@ -286,7 +295,10 @@ class DrillSessionManager {
     // Unsubscribe from timeline events
     if (this.timelineService) {
       this.timelineService.removeEventListener("tick", this._tickListener);
-      this.timelineService.removeEventListener("measure-complete", this._measureCompleteListener);
+      this.timelineService.removeEventListener(
+        "measure-complete",
+        this._measureCompleteListener,
+      );
     }
 
     // Give extra time for final hits - need full late window plus some margin
@@ -394,8 +406,9 @@ class DrillSessionManager {
    * @returns {boolean}
    */
   isSessionActive() {
-    return this.timelineService?.transportState === "playing" ||
-      this.isCompletingRun;
+    return (
+      this.timelineService?.transportState === "playing" || this.isCompletingRun
+    );
   }
 
   /**

@@ -7,18 +7,21 @@
 - Owns one `AudioContextManager` instance directly.
 - Instantiates core runtime and service dependencies in the root constructor.
 - Provides context tokens for:
-	- `SessionStateContext`
+	- `ChartServiceContext`
+	- `PerformanceServiceContext`
+	- `TimelineServiceContext`
+	- `PlaybackServiceContext`
 	- `DetectorManagerContext`
 	- `AudioContextServiceContext`
 - Exposes `getRuntime()` so app orchestration can consume root-owned runtime instances.
-- Retains `setServices(...)` as a compatibility override seam.
 - Calls `notifyContext(...)` when injected service instances change.
-- Listens for audio manager `ready` and notifies `AudioContextServiceContext` consumers.
+- Listens for audio manager `ready`, injects the shared `AudioContext` into timeline runtime, and notifies `AudioContextServiceContext` consumers.
 
 ## Ownership boundary
 
 - `main` is a context bridge and composition root shell.
 - It owns root context provisioning and root-level inter-service wiring.
+- It owns the browser audio runtime service and injects that runtime into detector/timeline consumers.
 - It does not orchestrate pane workflows, session lifecycle, or scoring.
 
 ## Known seam
