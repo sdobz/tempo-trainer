@@ -18,7 +18,7 @@ This means the project should be understood as two adjacent domains in this area
 - Its `currentTime` is the canonical timing source for click scheduling, drill playback sync, and timeline centering.
 - The app treats it as a shared infrastructure object, not per-component state.
 
-Microphone capture also depends on this boundary, but microphone capture is not a separate root service. It is an internal browser adapter used by the detector domain.
+Microphone capture also depends on this boundary, but microphone capture is not a separate root service. It is now owned directly by the browser audio runtime service.
 
 ## Boundary split
 
@@ -43,23 +43,17 @@ Those belong to detector/calibration/performance domains.
 
 ## Lifecycle in this codebase
 
-Lifecycle is split into one public service and one internal adapter:
+Lifecycle is centralized in one public root service:
 
 - Public root service: `src/features/audio/audio-context-manager.js`
-	- `ensureContext()` lazily creates the shared context on first use.
-	- If the context is `suspended`, it resumes it to satisfy browser user-gesture/audio policies.
-	- `getContext()` returns the current instance (or `null` if not created yet).
-	- Emits a `ready` event when context creation succeeds.
-
-- Internal browser-audio adapter currently implemented at: `src/features/microphone/audio-input-source.js`
-	- receives the shared `AudioContext`
+	- lazily creates and resumes the shared `AudioContext`
+	- owns selected device state and available device inventory
 	- acquires `getUserMedia` stream
 	- creates `MediaStreamSource` + `AnalyserNode`
-	- manages microphone device selection persistence
+	- exposes coarse state transitions through a discriminated-union state snapshot
+	- emits `ready`, `changed`, and `fault`
 
-`AudioInputSource` should be treated as browser-facing plumbing, even though it currently lives under the microphone/detector implementation tree.
-
-The detector domain should ideally see only a ready input/analyser source, not own browser device concerns as part of its semantic contract.
+The detector domain now depends directly on this browser audio runtime service for its input/analyser source.
 
 This design ensures there is one source of truth for audio state and avoids each feature creating its own context.
 
@@ -74,8 +68,8 @@ This design ensures there is one source of truth for audio state and avoids each
 - Timeline + playback runtime:
 	- `TimelineService` uses `currentTime` as the scheduling clock.
 	- `PlaybackService` uses the shared context to render scheduled clicks.
-- Microphone input and detector runtime: `src/features/microphone/audio-input-source.js` and `src/features/microphone/detector-manager.js`
-	- Browser audio plumbing creates and updates the input/analyser source.
+- Microphone input and detector runtime: `src/features/audio/audio-context-manager.js` and `src/features/microphone/detector-manager.js`
+	- Browser audio runtime creates and updates the input/analyser source.
 	- Detector runtime consumes that source to perform note detection.
 - Calibration/timeline sync: `src/app-orchestrator.js` and `src/features/calibration/calibration-detector.js`
 	- Uses `currentTime` as the reference for beat position and hit timing.
@@ -95,10 +89,28 @@ It is not the owner of detector semantics.
 
 It is the owner of browser audio device state.
 
-## Known seam
+## State machine
 
-- The public browser audio service is narrower than the conceptual browser boundary: device state and input-stream setup are currently implemented below detector code rather than exposed as browser-audio-owned behavior.
-- Current runtime API therefore leaks one browser concern (`selectDevice`) through `DetectorManager` even though the domain owner should be browser audio runtime.
+The browser audio runtime is modeled as a discriminated union state machine.
+
+### State variants
+
+- `uninitialized`
+	- no shared `AudioContext`
+	- no active input stream
+- `ready`
+	- shared `AudioContext` exists
+	- device inventory and selected device are known
+	- no active analyser/input stream
+- `input-ready`
+	- shared `AudioContext` exists
+	- active microphone stream and `AnalyserNode` exist
+- `unavailable`
+	- browser runtime capability is missing
+- `fault`
+	- browser/runtime operation failed asynchronously
+
+This keeps browser hardware truth in one service instead of splitting it across root service plus detector-side adapter.
 
 ## Migration target
 
@@ -110,10 +122,11 @@ It is the owner of browser audio device state.
 
 ### Canonical state
 
-- `contextState`: `uninitialized | ready | suspended | unavailable`
+- discriminated union state with `kind`
 - `context`: nullable `AudioContext` reference
 - `selectedDeviceId`
 - `availableDevices`
+- `analyserNode`
 
 ### Commands
 
@@ -121,14 +134,13 @@ It is the owner of browser audio device state.
 - `resume()`
 - `getAvailableDevices()`
 - `selectDevice(deviceId)`
-- `openInputStream()` or equivalent browser-input acquisition command
-
-Microphone stream acquisition is currently exposed through detector runtime, not through the root audio service surface. That is an implementation seam, not the ideal boundary.
+- `start()` to open microphone input/analyser
+- `stop()` to release the active input stream while preserving the shared `AudioContext`
 
 ### Notifications
 
-- One coarse invalidation notification (`changed`/`patched`) when readiness state changes.
-- Optional `devices-changed` notification when device inventory or selected device changes.
+- One coarse invalidation notification (`changed`) when the state machine transitions.
+- `ready` when the shared `AudioContext` first becomes available.
 - `fault` for asynchronous initialization/resume failures.
 
 ### Invariants
@@ -137,7 +149,7 @@ Microphone stream acquisition is currently exposed through detector runtime, not
 - Consumers do not create independent context instances.
 - `ensureContext()` is user-gesture-triggered by `audio-context-overlay`, not by arbitrary components.
 - Browser device selection is not detector semantics.
-- `AudioInputSource` is not a peer root service; it is browser-facing plumbing.
+- There is no separate microphone hardware service parallel to browser audio runtime.
 
 ### Error handling
 

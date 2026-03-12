@@ -21,7 +21,8 @@
 
 - `main` is a context bridge and composition root shell.
 - It owns root context provisioning and root-level inter-service wiring.
-- It owns the browser audio runtime service and injects that runtime into detector/timeline consumers.
+- It owns the browser audio runtime service and passes that service to detector runtime at construction.
+- It injects the shared audio clock into timeline runtime when audio becomes ready.
 - It does not orchestrate pane workflows, session lifecycle, or scoring.
 
 ## Known seam

@@ -19,9 +19,18 @@ export default class AudioContextOverlay extends BaseComponent {
     let audioService = null;
 
     const render = () => {
-      const hasContext = Boolean(audioService?.getContext?.());
-      this.dataset.ready = hasContext ? "true" : "false";
-      if (hasContext) {
+      const state = audioService?.getSnapshot?.();
+      const isReady = state?.kind === "ready" || state?.kind === "input-ready";
+      this.dataset.ready = isReady ? "true" : "false";
+      if (state?.kind === "fault") {
+        errorEl.textContent = "Microphone access is required to continue.";
+        return;
+      }
+      if (state?.kind === "unavailable") {
+        errorEl.textContent = state.message;
+        return;
+      }
+      if (isReady) {
         errorEl.textContent = "";
       }
     };
@@ -49,6 +58,7 @@ export default class AudioContextOverlay extends BaseComponent {
 
     this.consumeContext(AudioContextServiceContext, (service) => {
       audioService = service;
+      audioService?.addEventListener?.("changed", render);
       render();
     });
 

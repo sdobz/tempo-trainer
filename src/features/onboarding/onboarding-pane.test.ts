@@ -2,6 +2,7 @@
 import "../component/setup-dom.ts"; // Setup DOM environment first
 import { assertEquals } from "../base/assert.ts";
 import { DetectorManagerContext } from "../microphone/detector-manager.js";
+import { AudioContextServiceContext } from "../audio/audio-context-manager.js";
 
 // A single shared mock is sufficient since onboarding-pane only reads getParams() on mount.
 const mockDetectorManager = {
@@ -31,6 +32,23 @@ const mockDetectorManager = {
   onHit(_cb: Function) {},
 };
 
+const mockAudioService = {
+  getSnapshot() {
+    return {
+      kind: "ready",
+      selectedDeviceId: "",
+      availableDevices: [],
+      context: null,
+      analyserNode: null,
+    };
+  },
+  async getAvailableDevices() {
+    return [];
+  },
+  addEventListener() {},
+  removeEventListener() {},
+};
+
 // Dynamic import after mocks are set up
 const { default: OnboardingPane } = await import("./onboarding-pane.js");
 
@@ -43,9 +61,15 @@ async function createComponent() {
   >;
 
   element.addEventListener("context-request", (event: any) => {
-    if (event.context !== DetectorManagerContext) return;
-    event.stopPropagation();
-    event.callback(mockDetectorManager);
+    if (event.context === DetectorManagerContext) {
+      event.stopPropagation();
+      event.callback(mockDetectorManager);
+      return;
+    }
+    if (event.context === AudioContextServiceContext) {
+      event.stopPropagation();
+      event.callback(mockAudioService);
+    }
   });
   await element.componentReady;
 

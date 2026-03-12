@@ -11,6 +11,7 @@
 import BaseComponent from "../component/base-component.js";
 import { DetectorManagerContext } from "./detector-manager.js";
 import { querySelector } from "../component/component-utils.js";
+import { AudioContextServiceContext } from "../audio/audio-context-manager.js";
 
 /**
  * @typedef {Object} MicrophoneControlState
@@ -38,6 +39,10 @@ export default class MicrophoneControl extends BaseComponent {
     this._isAdjustingSensitivity = false;
     /** @type {import('./detector-manager.js').default|null} */
     this._detectorManager = null;
+    /** @type {import('../audio/audio-context-manager.js').default|null} */
+    this._audioService = null;
+    /** @type {(() => void)|null} */
+    this._audioChangedCleanup = null;
   }
 
   getTemplateUrl() {
@@ -71,7 +76,29 @@ export default class MicrophoneControl extends BaseComponent {
       this._detectorManager = dm;
       dm.setDelegate(this);
       this._setupUIEventListeners(dm);
-      this._populateDevices(dm);
+    });
+
+    this.consumeContext(AudioContextServiceContext, (audioService) => {
+      if (this._audioChangedCleanup) {
+        this._audioChangedCleanup();
+        this._audioChangedCleanup = null;
+      }
+
+      this._audioService = audioService;
+      if (!audioService) {
+        this._renderDeviceOptions([], "");
+        return;
+      }
+
+      const onChanged = () =>
+        this._renderHardwareState(audioService.getSnapshot());
+      audioService.addEventListener("changed", onChanged);
+      this._audioChangedCleanup = () => {
+        audioService.removeEventListener("changed", onChanged);
+      };
+
+      this._renderHardwareState(audioService.getSnapshot());
+      void audioService.getAvailableDevices();
     });
   }
 
@@ -79,6 +106,10 @@ export default class MicrophoneControl extends BaseComponent {
     // Remove self as delegate to stop receiving callbacks after unmount
     if (this._detectorManager) {
       this._detectorManager.setDelegate(null);
+    }
+    if (this._audioChangedCleanup) {
+      this._audioChangedCleanup();
+      this._audioChangedCleanup = null;
     }
     // Cancel any pending hit-dot removal timers
     this._hitTimers.forEach((id) => clearTimeout(id));
@@ -126,15 +157,6 @@ export default class MicrophoneControl extends BaseComponent {
     // Hit visualization now lives in timeline components via shared hit events.
   }
 
-  /**
-   * Device list updated (hardware event after getUserMedia).
-   * @param {Array<{deviceId: string, label: string}>} devices
-   * @param {string} selectedDeviceId
-   */
-  onDevicesChanged(devices, selectedDeviceId) {
-    this._renderDeviceOptions(devices, selectedDeviceId);
-  }
-
   // ---------------------------------------------------------------------------
   // Status
   // ---------------------------------------------------------------------------
@@ -175,10 +197,11 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   /** @private */
-  async _populateDevices(detectorManager) {
-    const devices = await detectorManager.getAvailableDevices();
-    const selectedId = detectorManager._audioInput?.selectedDeviceId ?? "";
-    this._renderDeviceOptions(devices, selectedId);
+  _renderHardwareState(state) {
+    this._renderDeviceOptions(
+      state.availableDevices ?? [],
+      state.selectedDeviceId ?? "",
+    );
   }
 
   /** @private */
@@ -203,9 +226,11 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   /** @private */
-  _onDeviceSelected(detectorManager) {
+  _onDeviceSelected(_detectorManager) {
     const deviceId = this.select.value;
-    if (deviceId) detectorManager.selectDevice(deviceId);
+    if (deviceId) {
+      void this._audioService?.selectDevice(deviceId);
+    }
   }
 
   /** @private */

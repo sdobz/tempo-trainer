@@ -47,7 +47,6 @@ export function startAppOrchestrator(mainRoot) {
     if (!ctx) return false;
     playbackService.audioContext = ctx;
     timelineService.setAudioContext(ctx);
-    detectorManager.audioContext = ctx;
     if (calibration) {
       calibration.audioContext = ctx;
     }

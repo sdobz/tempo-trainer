@@ -1,5 +1,3 @@
-import AudioInputSource from "./audio-input-source.js";
-
 /**
  * ThresholdDetector — RMS amplitude onset detection.
  *
@@ -7,7 +5,7 @@ import AudioInputSource from "./audio-input-source.js";
  * sensitivity-derived threshold. Simple and responsive; suitable for clear
  * single-hit instruments (drum pads, rimshots).
  *
- * Receives an AudioInputSource for hardware access and a DetectorParams object
+ * Receives a browser audio runtime adapter for hardware access and a DetectorParams object
  * for configuration. All emitted values are normalized to [0, 1].
  *
  * Delegate callbacks:
@@ -16,9 +14,17 @@ import AudioInputSource from "./audio-input-source.js";
  *   onThresholdChanged(pos: 0–1)     — threshold line position (= sensitivity)
  *   onHit()                          — hit detected
  */
+/**
+ * @typedef {{
+ *   start(options?: { fftSize?: number, smoothingTimeConstant?: number }): Promise<AnalyserNode>,
+ *   stop(): void,
+ *   analyserNode: AnalyserNode|null,
+ *   audioContext: AudioContext|null,
+ * }} DetectorAudioRuntime
+ */
 class ThresholdDetector {
   /**
-   * @param {AudioInputSource} audioInputSource
+   * @param {DetectorAudioRuntime} audioInputSource
    * @param {import("./detector-params.js").ThresholdDetectorParams} params
    * @param {Object} delegate
    */

@@ -1,4 +1,3 @@
-import AudioInputSource from "./audio-input-source.js";
 import { DEFAULT_ADAPTIVE_PARAMS } from "./detector-params.js";
 
 /**
@@ -26,7 +25,12 @@ import { DEFAULT_ADAPTIVE_PARAMS } from "./detector-params.js";
  */
 class AdaptiveDetector {
   /**
-   * @param {AudioInputSource} audioInputSource
+   * @param {{
+   *   start(options?: { fftSize?: number, smoothingTimeConstant?: number }): Promise<AnalyserNode>,
+   *   stop(): void,
+   *   analyserNode: AnalyserNode|null,
+   *   audioContext: AudioContext|null,
+   * }} audioInputSource
    * @param {import("./detector-params.js").AdaptiveDetectorParams} params
    * @param {Object} delegate
    */

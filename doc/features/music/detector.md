@@ -17,8 +17,6 @@ The detector domain begins after browser audio primitives exist.
 - Browser audio runtime provides: shared `AudioContext`, microphone stream, `AnalyserNode`, selected device state, and device inventory.
 - Detector domain provides: detector strategy selection, params, runtime control, and canonical hit timing output.
 
-`AudioInputSource` is therefore not a separate domain service. It is a browser-facing adapter currently used from inside `DetectorManager`.
-
 The detector should conceptually depend on "this is your input stream/analyser source", not on browser device-management semantics.
 
 ### [Phase 0] Event contract (NEW)
@@ -64,8 +62,6 @@ It owns:
 - BPM propagation for adaptive refractory behavior
 - detector-facing calibration timing inputs (observed hit times)
 
-It may temporarily forward browser device operations in the current implementation, but those are transport concerns from the browser boundary, not detector semantics.
-
 ## Service role
 
 - Detector service consumes browser audio runtime output (shared context + mic/analyser primitives).
@@ -73,7 +69,7 @@ It may temporarily forward browser device operations in the current implementati
 - It is the source of observed hit timestamps used by calibration and scoring.
 
 The detector service does not own `AudioContext` creation/resume. It depends on the browser audio service for that boundary.
-The detector service also does not conceptually own device inventory or device selection state, even if those commands currently transit through `DetectorManager`.
+The detector service also does not conceptually or concretely own device inventory or device selection state.
 
 ## Current signal surface
 
@@ -131,13 +127,6 @@ If `selectDevice(deviceId)` remains on `DetectorManager` in implementation, it s
 
 In current implementation, the manager is context-provided and constructed by `main`.
 
-Its internal browser-facing adapter (`AudioInputSource`) is not separately context-provided.
-
-Current seam:
-
-- `MicrophoneControl` currently reaches device operations through `DetectorManager`.
-- Target boundary is browser-audio-owned device state, with detector consuming the selected input source.
-
 ## Calibration
 
 Calibration in this project is detector-adjacent timing alignment:
@@ -146,5 +135,4 @@ Calibration in this project is detector-adjacent timing alignment:
 - expected side: scheduled reference beats
 - output: offset used to translate observed hits into musical time
 
-Current implementation still orchestrates calibration flow in `src/script.js`, but the detector domain owns the observed timing stream that calibration depends on.
 Current implementation orchestrates calibration flow in `src/app-orchestrator.js`, but the detector domain owns the observed timing stream that calibration depends on.

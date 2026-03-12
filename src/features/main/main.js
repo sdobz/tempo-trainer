@@ -30,7 +30,10 @@ class MainComponent extends BaseComponent {
     this._chartService = new ChartService();
     this._performanceService = new PerformanceService();
     this._playbackService = new PlaybackService();
-    this._detectorManager = new DetectorManager(StorageManager);
+    this._detectorManager = new DetectorManager(
+      this._audioContextService,
+      StorageManager,
+    );
     this._detectorManager.setSessionBpm(this._timelineService.tempo);
 
     // Runtime dependencies consumed by orchestrator.

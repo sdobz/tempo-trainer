@@ -2,6 +2,7 @@
 import "../component/setup-dom.ts";
 import { assertEquals } from "../base/assert.ts";
 import { DetectorManagerContext } from "./detector-manager.js";
+import { AudioContextServiceContext } from "../audio/audio-context-manager.js";
 
 // Must import after DOM setup
 const { default: MicrophoneControl } = await import("./microphone-control.js");
@@ -14,7 +15,6 @@ class MockDetectorManager {
   delegate: any = null;
   sensitivity = 0.594;
   isRunning = false;
-  _audioInput = { selectedDeviceId: "" };
   _params = { type: "threshold", sensitivity: 0.594, id: "default" };
 
   setDelegate(d: any) {
@@ -39,12 +39,52 @@ class MockDetectorManager {
   stop() {
     this.isRunning = false;
   }
+  onHit(_cb: Function) {}
+}
+
+class MockAudioService extends EventTarget {
+  state = {
+    kind: "uninitialized",
+    selectedDeviceId: "",
+    availableDevices: [] as Array<{ deviceId: string; label: string }>,
+    context: null,
+    analyserNode: null,
+  };
+
+  getSnapshot() {
+    return this.state;
+  }
+
+  getContext() {
+    return this.state.context;
+  }
 
   async getAvailableDevices(): Promise<any[]> {
-    return [];
+    return this.state.availableDevices;
   }
-  selectDevice(_id: string) {}
-  onHit(_cb: Function) {}
+
+  async selectDevice(deviceId: string) {
+    this.state = { ...this.state, selectedDeviceId: deviceId };
+    this.dispatchEvent(
+      new CustomEvent("changed", {
+        detail: { state: this.state },
+      }),
+    );
+  }
+
+  setDevices(devices: Array<{ deviceId: string; label: string }>, selectedId = "") {
+    this.state = {
+      ...this.state,
+      kind: "ready",
+      availableDevices: devices,
+      selectedDeviceId: selectedId,
+    };
+    this.dispatchEvent(
+      new CustomEvent("changed", {
+        detail: { state: this.state },
+      }),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -52,17 +92,25 @@ class MockDetectorManager {
 // ---------------------------------------------------------------------------
 
 let mockManager: MockDetectorManager;
+let mockAudioService: MockAudioService;
 
 async function createComponent() {
   mockManager = new MockDetectorManager();
+  mockAudioService = new MockAudioService();
 
   const element = document.createElement("microphone-control") as InstanceType<
     typeof MicrophoneControl
   >;
   element.addEventListener("context-request", (event: any) => {
-    if (event.context !== DetectorManagerContext) return;
-    event.stopPropagation();
-    event.callback(mockManager);
+    if (event.context === DetectorManagerContext) {
+      event.stopPropagation();
+      event.callback(mockManager);
+      return;
+    }
+    if (event.context === AudioContextServiceContext) {
+      event.stopPropagation();
+      event.callback(mockAudioService);
+    }
   });
   await element.componentReady;
   return element;
@@ -191,12 +239,12 @@ Deno.test("MicrophoneControl: delegate onHit should be callable", async () => {
 });
 
 Deno.test(
-  "MicrophoneControl: delegate onDevicesChanged should render options",
+  "MicrophoneControl: audio service changed event should render options",
   async () => {
     const component = await createComponent();
     if (!component.select) return;
 
-    mockManager.delegate.onDevicesChanged(
+    mockAudioService.setDevices(
       [
         { deviceId: "dev1", label: "Mic A" },
         { deviceId: "dev2", label: "Mic B" },
@@ -207,6 +255,28 @@ Deno.test(
     const select = component.select as HTMLSelectElement;
     assertEquals(select.options.length, 2);
     assertEquals(select.value, "dev1");
+  },
+);
+
+Deno.test(
+  "MicrophoneControl: selecting a device should call audio service",
+  async () => {
+    const component = await createComponent();
+    if (!component.select) return;
+    const select = component.select as HTMLSelectElement;
+
+    mockAudioService.setDevices(
+      [
+        { deviceId: "dev1", label: "Mic A" },
+        { deviceId: "dev2", label: "Mic B" },
+      ],
+      "dev1",
+    );
+
+    select.value = "dev2";
+    select.dispatchEvent(new Event("change"));
+
+    assertEquals(mockAudioService.getSnapshot().selectedDeviceId, "dev2");
   },
 );
 
