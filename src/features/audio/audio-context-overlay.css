@@ -67,6 +67,6 @@
   font-size: var(--font-size-sm);
 }
 
-:host([data-ready="true"]) .audio-context-overlay__gate {
+audio-context-overlay[data-ready="true"] .audio-context-overlay__gate {
   display: none;
 }

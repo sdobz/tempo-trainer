@@ -48,6 +48,23 @@ export function startAppOrchestrator(mainRoot) {
   let playPreviewActivationCleanup = null;
   let playPreviewActivationInFlight = false;
 
+  // When the user grants audio access via the overlay (first AudioContext creation),
+  // re-trigger the current pane's initialization that was skipped because the context
+  // was not yet available.
+  audioContextService.addEventListener("ready", async () => {
+    const currentPane = paneManager.getCurrentPane();
+    if (currentPane === "onboarding") {
+      await calibrationOrchestrator?.enterOnboarding();
+    } else if (currentPane === "plan-play" && !detectorManager.isRunning) {
+      playPreviewActivationCleanup?.();
+      try {
+        await detectorManager.start();
+      } catch {
+        // Will surface to user on session-start
+      }
+    }
+  });
+
   const onboardingReady = onboardingPane.componentReady;
 
   const planEditReady = planEditPane.componentReady;

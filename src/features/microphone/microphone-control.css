@@ -9,12 +9,12 @@
   gap: 1em;
 }
 
-:host([data-compact]) .microphone-control h3,
-:host([data-compact]) .microphone-control h3 {
+microphone-control[data-compact] .microphone-control h3,
+microphone-control[data-compact] .microphone-control h3 {
   display: none;
 }
 
-:host([data-compact]) .microphone-level {
+microphone-control[data-compact] .microphone-level {
   margin-bottom: 0.35em;
 }
 
