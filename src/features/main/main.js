@@ -34,10 +34,15 @@ class MainComponent extends BaseComponent {
       this._audioContextService,
       StorageManager,
     );
-    this._detectorManager.setSessionBpm(this._timelineService.tempo);
 
     // Runtime dependencies consumed by orchestrator.
-    this._scorer = new Scorer(4, 0.5);
+    this._scorer = new Scorer(
+      this._timelineService.beatsPerMeasure,
+      this._timelineService.beatDuration,
+    );
+    this._scorer.setBeatDuration(this._timelineService.beatDuration);
+    this._scorer.setBeatsPerMeasure(this._timelineService.beatsPerMeasure);
+    this._detectorManager.setSessionBpm(this._timelineService.tempo);
     this._paneManager = new PaneManager();
   }
 
@@ -66,9 +71,23 @@ class MainComponent extends BaseComponent {
     this.listen(this._audioContextService, "ready", () => {
       const ctx = this._audioContextService.getContext();
       if (ctx) {
+        this._playbackService.audioContext = ctx;
         this._timelineService.setAudioContext(ctx);
       }
       this.notifyContext(AudioContextServiceContext);
+    });
+
+    this.listen(this._timelineService, "changed", (event) => {
+      const { field, value } = /** @type {CustomEvent} */ (event).detail;
+      if (field === "tempo") {
+        const bpm = /** @type {number} */ (value);
+        this._scorer.setBeatDuration(60.0 / bpm);
+        this._detectorManager.setSessionBpm(bpm);
+      }
+      if (field === "beatsPerMeasure") {
+        const n = /** @type {number} */ (value);
+        this._scorer.setBeatsPerMeasure(n);
+      }
     });
   }
 

@@ -42,20 +42,6 @@ export function startAppOrchestrator(mainRoot) {
 
   let calibration;
 
-  const applyAudioContext = () => {
-    const ctx = audioContextService.getContext();
-    if (!ctx) return false;
-    playbackService.audioContext = ctx;
-    timelineService.setAudioContext(ctx);
-    if (calibration) {
-      calibration.audioContext = ctx;
-    }
-    return true;
-  };
-
-  audioContextService.addEventListener("ready", applyAudioContext);
-  applyAudioContext();
-
   // Wait for components to be ready
   let timeline;
   let calibrationTimeline;
@@ -73,7 +59,6 @@ export function startAppOrchestrator(mainRoot) {
   const onboardingReady = onboardingPane.componentReady.then(() => {
     if (onboardingPane.calibrationControl) {
       calibration = onboardingPane.calibration;
-      applyAudioContext();
     }
 
     const timelineEl = resolveCalibrationTimeline();
@@ -174,7 +159,7 @@ export function startAppOrchestrator(mainRoot) {
   async function ensurePlayPreviewMonitoring() {
     if (playPreviewActivationInFlight) return;
     if (detectorManager.isRunning) return;
-    if (!applyAudioContext()) return;
+    if (!audioContextService.getContext()) return;
 
     playPreviewActivationInFlight = true;
     try {
@@ -215,7 +200,7 @@ export function startAppOrchestrator(mainRoot) {
     "calibration-start-request",
     async (/** @type {CustomEvent} */ event) => {
       if (calibration && calibration.isCalibrating) return;
-      if (!applyAudioContext()) {
+      if (!audioContextService.getContext()) {
         alert("Microphone access is required before calibration");
         event.preventDefault();
         return;
@@ -284,7 +269,7 @@ export function startAppOrchestrator(mainRoot) {
       await onboardingReady;
       onboardingPane.refreshSetupStatus();
 
-      if (!applyAudioContext()) return;
+      if (!audioContextService.getContext()) return;
 
       if (!detectorManager.isRunning) {
         try {
@@ -511,24 +496,6 @@ export function startAppOrchestrator(mainRoot) {
       timelineService,
     );
 
-    timelineService.addEventListener(
-      "changed",
-      (/** @type {CustomEvent} */ event) => {
-        const { field, value } = event.detail;
-        if (field === "tempo") {
-          const bpm = /** @type {number} */ (value);
-          scorer.setBeatDuration(60.0 / bpm);
-          if (calibration) calibration.setBeatDuration(60.0 / bpm);
-          detectorManager.setSessionBpm(bpm);
-        }
-        if (field === "beatsPerMeasure") {
-          const n = /** @type {number} */ (value);
-          scorer.setBeatsPerMeasure(n);
-          if (calibration) calibration.setBeatsPerMeasure(n);
-        }
-      },
-    );
-
     const applyChartPlanToScorer = (chart) => {
       const projected = chartService.projectChart(chart);
       scorer.setDrillPlan(projected.plan ?? []);
@@ -545,10 +512,6 @@ export function startAppOrchestrator(mainRoot) {
         applyChartPlanToScorer(event.detail.chart);
       },
     );
-
-    scorer.setBeatDuration(timelineService.beatDuration);
-    scorer.setBeatsPerMeasure(timelineService.beatsPerMeasure);
-    detectorManager.setSessionBpm(timelineService.tempo);
 
     planPlayPane.addEventListener("session-start", async () => {
       try {

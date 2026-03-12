@@ -9,6 +9,8 @@ import BaseComponent from "../component/base-component.js";
 import { dispatchEvent, querySelector } from "../component/component-utils.js";
 import CalibrationDetector from "./calibration-detector.js";
 import StorageManager from "../base/storage-manager.js";
+import { TimelineServiceContext } from "../music/timeline-service.js";
+import { AudioContextServiceContext } from "../audio/audio-context-manager.js";
 import "../visualizers/timeline-visualization.js";
 
 /** @typedef {import("./calibration-detector.js").CalibrationDetectorDelegate} CalibrationDetectorDelegate */
@@ -48,6 +50,13 @@ export default class CalibrationControl extends BaseComponent {
     this.offsetInput = null;
     this.offsetDecBtn = null;
     this.offsetIncBtn = null;
+
+    /** @type {import('../music/timeline-service.js').default|null} */
+    this._timelineService = null;
+    /** @type {import('../audio/audio-context-manager.js').default|null} */
+    this._audioContextService = null;
+    this._timelineListenersBound = false;
+    this._audioListenersBound = false;
   }
 
   getTemplateUrl() {
@@ -89,6 +98,37 @@ export default class CalibrationControl extends BaseComponent {
     // - this: component acts as the delegate for callbacks
     // - optional audioContext can be passed to setDetector() if needed
     this.calibration = new CalibrationDetector(StorageManager, this);
+
+    this.consumeContext(TimelineServiceContext, (timelineService) => {
+      this._timelineService = timelineService;
+      if (timelineService && !this._timelineListenersBound) {
+        this._timelineListenersBound = true;
+        this.listen(timelineService, "changed", (event) => {
+          const { field, value } = /** @type {CustomEvent} */ (event).detail;
+          if (field === "tempo") {
+            this.calibration?.setBeatDuration(60.0 / /** @type {number} */ (value));
+          }
+          if (field === "beatsPerMeasure") {
+            this.calibration?.setBeatsPerMeasure(/** @type {number} */ (value));
+          }
+        });
+      }
+      this._syncTimelineCalibrationSettings();
+    });
+
+    this.consumeContext(AudioContextServiceContext, (audioService) => {
+      this._audioContextService = audioService;
+      if (audioService && !this._audioListenersBound) {
+        this._audioListenersBound = true;
+        this.listen(audioService, "ready", () =>
+          this._syncCalibrationAudioContext(),
+        );
+        this.listen(audioService, "changed", () =>
+          this._syncCalibrationAudioContext(),
+        );
+      }
+      this._syncCalibrationAudioContext();
+    });
 
     // Hydrate UI from persisted calibration state
     this.onOffsetChanged(this.calibration.getOffsetMs());
@@ -151,6 +191,21 @@ export default class CalibrationControl extends BaseComponent {
       this.calibration.stop("Component unmounted");
       this.calibration = null;
     }
+    this._timelineListenersBound = false;
+    this._audioListenersBound = false;
+  }
+
+  /** @private */
+  _syncTimelineCalibrationSettings() {
+    if (!this.calibration || !this._timelineService) return;
+    this.calibration.setBeatDuration(this._timelineService.beatDuration);
+    this.calibration.setBeatsPerMeasure(this._timelineService.beatsPerMeasure);
+  }
+
+  /** @private */
+  _syncCalibrationAudioContext() {
+    if (!this.calibration || !this._audioContextService) return;
+    this.calibration.audioContext = this._audioContextService.getContext();
   }
 
   /**

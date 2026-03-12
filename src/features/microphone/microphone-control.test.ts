@@ -72,7 +72,10 @@ class MockAudioService extends EventTarget {
     );
   }
 
-  setDevices(devices: Array<{ deviceId: string; label: string }>, selectedId = "") {
+  setDevices(
+    devices: Array<{ deviceId: string; label: string }>,
+    selectedId = "",
+  ) {
     this.state = {
       ...this.state,
       kind: "ready",
