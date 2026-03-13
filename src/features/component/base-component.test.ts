@@ -6,7 +6,7 @@ import { assertEquals } from "../base/assert.ts";
 // Minimal concrete component for testing
 // ---------------------------------------------------------------------------
 
-const { default: BaseComponent } = await import("../base/base-component.js");
+const { default: BaseComponent } = await import("./base-component.js");
 
 class TestComponent extends BaseComponent {
   override getTemplateUrl() {
