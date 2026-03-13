@@ -254,3 +254,63 @@ Deno.test(
     assertEquals(el._initAbortController instanceof AbortController, true);
   },
 );
+
+// ---------------------------------------------------------------------------
+// Reactive helpers
+// ---------------------------------------------------------------------------
+
+Deno.test("BaseComponent: createEffect runs immediately", async () => {
+  const el = await createComponent();
+  const [getCount, setCount] = el.createSignalState(0);
+  const seen: number[] = [];
+
+  const dispose = el.createEffect(() => {
+    seen.push(getCount());
+  });
+
+  setCount(1);
+
+  assertEquals(seen, [0, 1]);
+  dispose();
+});
+
+Deno.test(
+  "BaseComponent: createEffect is disposed automatically on unmount",
+  async () => {
+    const el = await createComponent();
+    const [getCount, setCount] = el.createSignalState(0);
+    const seen: number[] = [];
+
+    el.createEffect(() => {
+      seen.push(getCount());
+    });
+
+    // Unmount triggers _runCleanups(), which should dispose the effect.
+    document.body.removeChild(el);
+    setCount(1);
+
+    assertEquals(seen, [0]);
+  },
+);
+
+Deno.test(
+  "BaseComponent: createEffect cleanup callback runs on unmount",
+  async () => {
+    const el = await createComponent();
+    const [getCount, setCount] = el.createSignalState(0);
+    let cleanupCount = 0;
+
+    el.createEffect(() => {
+      getCount();
+      return () => {
+        cleanupCount += 1;
+      };
+    });
+
+    setCount(1);
+    document.body.removeChild(el);
+
+    // One cleanup for re-run, one cleanup for dispose on unmount.
+    assertEquals(cleanupCount, 2);
+  },
+);

@@ -14,6 +14,10 @@
  */
 
 import { ContextRequestEvent } from "./context.js";
+import {
+  createEffect as createReactiveEffect,
+  createSignal,
+} from "./signal.js";
 
 /**
  * @typedef {Object.<string, *>} ComponentState
@@ -227,6 +231,30 @@ export default class BaseComponent extends HTMLElement {
     const cleanup = () => target.removeEventListener(event, handler, options);
     this._cleanups.push(cleanup);
     return cleanup;
+  }
+
+  /**
+   * Create a reactive effect tied to component lifecycle.
+   * The returned disposer is also auto-invoked on unmount.
+   *
+   * @param {() => void|(() => void)} callback
+   * @returns {() => void}
+   */
+  createEffect(callback) {
+    const dispose = createReactiveEffect(callback);
+    this._cleanups.push(dispose);
+    return dispose;
+  }
+
+  /**
+   * Convenience wrapper around createSignal() for component-local state.
+   *
+   * @template T
+   * @param {T} initialValue
+   * @returns {[() => T, (nextValue: T) => T]}
+   */
+  createSignalState(initialValue) {
+    return createSignal(initialValue);
   }
 
   /**
