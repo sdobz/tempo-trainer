@@ -113,6 +113,26 @@ Update during pilot, not after:
   - repeated `setState(...)` calls for purely visual updates
   - duplicated branches for text/class/style sync
 
+Observed in the pilot implementation:
+
+- `src/features/microphone/microphone-control.js`: `261 -> 202` LOC
+- Realized pilot saving: `59` LOC
+
+### 4.4 Second-Pass Lessons (Design Principles)
+
+The second-pass simplification of `microphone-control` established these rules for future migrations:
+
+1. Prefer direct callback-to-setter binding in constructor.
+If service delegate methods only mutate local UI state, assign them directly (`this.onThresholdChanged = this._setSensitivity`) and remove wrapper methods.
+2. Keep one render source of truth.
+Do not mirror signal values into `this.state` for rendering.
+3. Separate mutation from rendering.
+Event/delegate callbacks set signals only; `createEffect(...)` blocks perform DOM writes.
+4. Delete legacy compatibility patterns aggressively.
+After migration, remove pass-through wrappers and state assertions that only exist for pre-signal patterns.
+5. Make tests signals-first.
+Assert rendered DOM and externally visible behavior rather than internal `state` fields.
+
 Completion gate:
 
 - Existing `microphone-control` tests pass

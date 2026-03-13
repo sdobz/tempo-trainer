@@ -127,7 +127,7 @@ Deno.test(
   "MicrophoneControl: should initialize with default state",
   async () => {
     const component = await createComponent();
-    assertEquals(component.state.isConfigured, false);
+    assertEquals(component.statusIndicator?.textContent, "⚠️ Not configured");
   },
 );
 
@@ -148,19 +148,6 @@ Deno.test(
   },
 );
 
-Deno.test("MicrophoneControl: should have state management", async () => {
-  const component = await createComponent();
-  let callCount = 0;
-  const original = component.onStateChange.bind(component);
-  component.onStateChange = function (o: any, n: any) {
-    callCount++;
-    original(o, n);
-  };
-  component.setState({ isConfigured: true });
-  assertEquals(callCount, 1);
-  assertEquals(component.state.isConfigured, true);
-});
-
 Deno.test("MicrophoneControl: should register as custom element", async () => {
   const component = await createComponent();
   assertEquals(component.constructor.name, "MicrophoneControl");
@@ -170,12 +157,10 @@ Deno.test("MicrophoneControl: updateStatus should update UI", async () => {
   const component = await createComponent();
 
   component.updateStatus(true);
-  assertEquals(component.state.isConfigured, true);
   assertEquals(component.statusIndicator?.textContent, "✓ Configured");
   assertEquals(component.statusIndicator?.classList.contains("complete"), true);
 
   component.updateStatus(false);
-  assertEquals(component.state.isConfigured, false);
   assertEquals(component.statusIndicator?.textContent, "⚠️ Not configured");
   assertEquals(
     component.statusIndicator?.classList.contains("complete"),

@@ -47,6 +47,42 @@ Components can be state machines if they follow the conventions of `state.md`
 
 - Prefer closure-based handlers and `listen(...)` cleanup over retaining extra mutable references.
 
+## Reactive Rendering (Signal-First)
+
+For new component DOM logic, use `BaseComponent` reactive helpers:
+
+- `createSignalState(initial)` for local reactive values.
+- `createEffect(fn)` for targeted DOM updates tied to component lifecycle cleanup.
+
+Pattern:
+
+1. Query element references in `onMount()`.
+2. Create effects once in `onMount()` that map signals to DOM writes.
+3. In callbacks/delegates, update signals only.
+4. Let effects perform DOM updates.
+
+This reduces repetitive state-to-DOM code and keeps rendering paths explicit.
+
+### Migration note
+
+- `onStateChange` is deprecated for new DOM manipulation.
+- Existing components may keep `onStateChange` until individually migrated.
+
+### Signals-First Design Principles (Learned)
+
+These were validated in the `microphone-control` pilot simplification pass.
+
+1. Bind pass-through callbacks directly in constructor.
+Example: map delegate/update hooks directly to signal setters (`this.onLevelChanged = this._setLevel`) instead of wrapper methods.
+2. Do not mirror signal values into `this.state` for rendering.
+Use signals as render source of truth; keep `this.state` only where legacy contracts require it.
+3. Keep callbacks mutation-only.
+Callbacks from services/events should set signals; effects should be the only place doing DOM writes.
+4. Prefer one effect per visual concern.
+Status text/class, level bar, peak marker, threshold label/line, and device list rendering should be separate effects.
+5. Test rendered behavior, not internal legacy state.
+Signals-first tests should assert DOM output and service interactions rather than `component.state` internals.
+
 ## DOM
 
 Components have a typed `dom` property which is initialized to `{}`. This is the ONLY way they can access elements.

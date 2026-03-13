@@ -66,7 +66,16 @@ No additional wiring layer is needed by default. Introduce a third layer only if
 1. Composition creates service instances.
 2. Orchestration wires cross-service subscriptions and command routing.
 3. Root context provides service instances.
-4. Components read state on mount, subscribe, and re-render on notifications.
+4. Components read state on mount, subscribe to service invalidation, and expose UI updates through lifecycle-bound signal effects.
+
+Component reactivity policy:
+
+- Signal-first for new UI logic (`createSignalState` + `createEffect` in `BaseComponent`).
+- `onStateChange` remains supported for legacy components during migration only.
+- Service contracts remain event/context based; signals are component-local rendering mechanics.
+- Prefer direct delegate/update callback to signal-setter binding in constructors when behavior is pass-through.
+- Avoid dual state sources in components (no signal-to-`state` mirroring for render paths).
+- Keep callback handlers mutation-only and effects render-only.
 
 ## Complexity Controls
 

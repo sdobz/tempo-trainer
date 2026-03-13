@@ -1,33 +1,27 @@
-/**
- * MicrophoneControl — Web component for microphone setup and level display.
- *
- * Acts as the UI delegate for DetectorManager. Renders signal level, peak hold,
- * sensitivity threshold line, hit feedback, and device selection.
- *
- * All visualization values received from DetectorManager are normalized to [0, 1].
- * The component multiplies by 100 for CSS percentage positioning.
- */
-
 import BaseComponent from "../component/base-component.js";
 import { DetectorManagerContext } from "./detector-manager.js";
 import { querySelector } from "../component/component-utils.js";
 import { AudioContextServiceContext } from "../audio/audio-context-manager.js";
 
-/**
- * @typedef {Object} MicrophoneControlState
- * @property {boolean} isConfigured - Whether sensitivity has been adjusted from default
- */
-
 export default class MicrophoneControl extends BaseComponent {
   constructor() {
     super();
-    /** @type {MicrophoneControlState} */
-    this.state = { isConfigured: false };
+    [this._getIsConfigured, this._setIsConfigured] =
+      this.createSignalState(false);
+    [this._getLevel, this._setLevel] = this.createSignalState(0);
+    [this._getPeak, this._setPeak] = this.createSignalState(0);
+    [this._getSensitivity, this._setSensitivity] = this.createSignalState(0.46);
+    [this._getDevices, this._setDevices] = this.createSignalState([]);
+    [this._getSelectedDeviceId, this._setSelectedDeviceId] =
+      this.createSignalState("");
 
-    /** @type {number[]} — setTimeout IDs for hit dot removal */
-    this._hitTimers = [];
+    // Delegate contract from DetectorManager maps directly to signal setters.
+    this.onLevelChanged = this._setLevel;
+    this.onPeakChanged = this._setPeak;
+    this.onThresholdChanged = this._setSensitivity;
+    this.updateStatus = this._setIsConfigured;
+    this.onHit = () => {};
 
-    // Element references (set in onMount)
     this.statusIndicator = null;
     this.select = null;
     this.level = null;
@@ -37,11 +31,8 @@ export default class MicrophoneControl extends BaseComponent {
     this.sensitivityLabel = null;
 
     this._isAdjustingSensitivity = false;
-    /** @type {import('./detector-manager.js').default|null} */
     this._detectorManager = null;
-    /** @type {import('../audio/audio-context-manager.js').default|null} */
     this._audioService = null;
-    /** @type {(() => void)|null} */
     this._audioChangedCleanup = null;
   }
 
@@ -71,7 +62,38 @@ export default class MicrophoneControl extends BaseComponent {
       "[data-microphone-threshold-label]",
     );
 
-    // Register as the UI delegate — DetectorManager pushes initial state immediately
+    this.createEffect(() => {
+      this.levelBar.style.width = `${Math.round(this._getLevel() * 1000) / 10}%`;
+    });
+
+    this.createEffect(() => {
+      this.peakHold.style.left = `${Math.round(this._getPeak() * 1000) / 10}%`;
+    });
+
+    this.createEffect(() => {
+      const pos = this._getSensitivity();
+      this.sensitivityLine.style.left = `${Math.round((1 - pos) * 1000) / 10}%`;
+      this.sensitivityLabel.textContent = `Sensitivity: ${Math.round(pos * 100)}%`;
+    });
+
+    this.createEffect(() => {
+      const isConfigured = this._getIsConfigured();
+      if (isConfigured) {
+        this.statusIndicator.textContent = "✓ Configured";
+        this.statusIndicator.classList.add("complete");
+      } else {
+        this.statusIndicator.textContent = "⚠️ Not configured";
+        this.statusIndicator.classList.remove("complete");
+      }
+    });
+
+    this.createEffect(() => {
+      this._renderDeviceOptions(
+        this._getDevices(),
+        this._getSelectedDeviceId(),
+      );
+    });
+
     this.consumeContext(DetectorManagerContext, (dm) => {
       this._detectorManager = dm;
       dm.setDelegate(this);
@@ -86,7 +108,8 @@ export default class MicrophoneControl extends BaseComponent {
 
       this._audioService = audioService;
       if (!audioService) {
-        this._renderDeviceOptions([], "");
+        this._setDevices([]);
+        this._setSelectedDeviceId("");
         return;
       }
 
@@ -103,7 +126,6 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   onUnmount() {
-    // Remove self as delegate to stop receiving callbacks after unmount
     if (this._detectorManager) {
       this._detectorManager.setDelegate(null);
     }
@@ -111,77 +133,9 @@ export default class MicrophoneControl extends BaseComponent {
       this._audioChangedCleanup();
       this._audioChangedCleanup = null;
     }
-    // Cancel any pending hit-dot removal timers
-    this._hitTimers.forEach((id) => clearTimeout(id));
-    this._hitTimers = [];
   }
 
-  // ---------------------------------------------------------------------------
-  // Delegate callbacks — all values are 0–1
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Current signal level (bar width).
-   * @param {number} level 0–1
-   */
-  onLevelChanged(level) {
-    this.levelBar.style.width = `${Math.round(level * 1000) / 10}%`;
-  }
-
-  /**
-   * Peak-hold indicator position.
-   * @param {number} peak 0–1
-   */
-  onPeakChanged(peak) {
-    this.peakHold.style.left = `${Math.round(peak * 1000) / 10}%`;
-  }
-
-  /**
-   * Sensitivity / threshold line position.
-   * Emitted by both detectors as fixed sensitivity position (0–1).
-   * @param {number} pos 0–1
-   */
-  onThresholdChanged(pos) {
-    if (!this.sensitivityLine || !this.sensitivityLabel) return;
-    const visualPos = 1 - pos;
-    // Round to 1 decimal place to avoid floating-point noise in CSS values
-    const pct = Math.round(visualPos * 1000) / 10;
-    this.sensitivityLine.style.left = `${pct}%`;
-    this.sensitivityLabel.textContent = `Sensitivity: ${Math.round(pos * 100)}%`;
-  }
-
-  /**
-   * Hit detected.
-   */
-  onHit() {
-    // Hit visualization now lives in timeline components via shared hit events.
-  }
-
-  // ---------------------------------------------------------------------------
-  // Status
-  // ---------------------------------------------------------------------------
-
-  /**
-   * @param {boolean} isConfigured
-   */
-  updateStatus(isConfigured) {
-    this.setState({ isConfigured });
-    if (isConfigured) {
-      this.statusIndicator.textContent = "✓ Configured";
-      this.statusIndicator.classList.add("complete");
-    } else {
-      this.statusIndicator.textContent = "⚠️ Not configured";
-      this.statusIndicator.classList.remove("complete");
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Private
-  // ---------------------------------------------------------------------------
-
-  /** @private */
   _setupUIEventListeners(detectorManager) {
-    // Sensitivity adjustment via pointer drag on the level bar
     this.listen(this.level, "pointerdown", (e) =>
       this._onSensitivityPointerDown(e, detectorManager),
     );
@@ -196,15 +150,11 @@ export default class MicrophoneControl extends BaseComponent {
     );
   }
 
-  /** @private */
   _renderHardwareState(state) {
-    this._renderDeviceOptions(
-      state.availableDevices ?? [],
-      state.selectedDeviceId ?? "",
-    );
+    this._setDevices(state.availableDevices ?? []);
+    this._setSelectedDeviceId(state.selectedDeviceId ?? "");
   }
 
-  /** @private */
   _renderDeviceOptions(devices, selectedDeviceId) {
     this.select.innerHTML = "";
     if (devices.length === 0) {
@@ -225,7 +175,6 @@ export default class MicrophoneControl extends BaseComponent {
     this.select.value = selectedDeviceId || devices[0]?.deviceId || "";
   }
 
-  /** @private */
   _onDeviceSelected(_detectorManager) {
     const deviceId = this.select.value;
     if (deviceId) {
@@ -233,29 +182,24 @@ export default class MicrophoneControl extends BaseComponent {
     }
   }
 
-  /** @private */
   _onSensitivityPointerDown(event, detectorManager) {
     this._isAdjustingSensitivity = true;
     this._setSensitivityFromPointer(event.clientX, detectorManager);
     this.level.setPointerCapture?.(event.pointerId);
   }
 
-  /** @private */
   _onSensitivityPointerMove(event, detectorManager) {
     if (!this._isAdjustingSensitivity) return;
     this._setSensitivityFromPointer(event.clientX, detectorManager);
   }
 
-  /** @private */
   _setSensitivityFromPointer(clientX, detectorManager) {
     const rect = this.level.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const sensitivity = 1 - ratio;
-    detectorManager.setSensitivity(sensitivity);
+    detectorManager.setSensitivity(1 - ratio);
   }
 }
 
-// Register custom element
 if (!customElements.get("microphone-control")) {
   customElements.define("microphone-control", MicrophoneControl);
 }
