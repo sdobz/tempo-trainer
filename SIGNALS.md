@@ -199,7 +199,24 @@ Projected additional cleanup savings:
 - Immediate: `399` LOC from duplicate base-component removal
 - Later: `40 to 90` LOC from legacy compatibility path removal in main BaseComponent (only after full migration)
 
-## 6. Net LOC Outcome
+## 6. Phase 4: Pattern Extraction and Overlay Revisit
+
+The `audio-context-overlay` conversion removed the old render helper, but it did not yet achieve the desired LOC reduction. That component should be revisited after a few more signal-first conversions make the common patterns clearer.
+
+Goals for this follow-up phase:
+
+1. Extract any repeated signal-first component patterns discovered during later migrations.
+2. Revisit `src/features/audio/audio-context-overlay.js` once we better understand the smallest stable pattern for:
+    - context-delivered service snapshots
+    - async command error display
+    - event subscription cleanup without extra ceremony
+3. Shrink overlay code by replacing bespoke view-model plumbing with a proven shared pattern, if one emerges.
+
+Note:
+
+- `audio-context-overlay` is architecturally cleaner now, but it remains a known follow-up target rather than the ideal template for future conversions.
+
+## 7. Net LOC Outcome
 
 Estimated net after full rollout:
 
@@ -214,7 +231,7 @@ Estimated net project delta:
 
 This makes the signals effort a code reduction initiative, not just an architectural swap.
 
-## 7. Guardrails
+## 8. Guardrails
 
 - Do not change service event contracts while migrating UI state handling.
 - Keep `.html` templates and CSS structure stable unless a specific bug requires changes.

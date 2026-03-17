@@ -1,9 +1,3 @@
-/**
- * PlanPlayPane - Web component for training session playback
- * Manages session controls, beat display, timeline visualization, and scoring
- * @module plan-play-pane
- */
-
 import BaseComponent from "../component/base-component.js";
 import { dispatchEvent, querySelector } from "../component/component-utils.js";
 import { PlaybackState, PlaybackContext } from "./playback-state.js";
@@ -12,60 +6,36 @@ import "../visualizers/timeline-visualization.js";
 import "../visualizers/plan-visualizer.js";
 import "../base/app-notification.js";
 
-/**
- * @typedef {Object} PlanPlayState
- * @property {boolean} isPlaying - Whether session is currently running
- * @property {number} currentMeasure - Current measure index
- * @property {number} overallScore - Overall score percentage
- */
-
-/**
- * PlanPlayPane component - manages training session playback
- *
- * Events emitted:
- * - 'session-start': When start button is clicked
- * - 'session-stop': When stop button is clicked
- * - 'navigate': When user wants to navigate (data: { pane: string })
- *
- * @extends BaseComponent
- */
 export default class PlanPlayPane extends BaseComponent {
   constructor() {
     super();
 
-    /** @type {PlanPlayState} */
-    this.state = {
-      isPlaying: false,
-      currentMeasure: 0,
-      overallScore: 0,
-    };
+    [this._getBpm, this._setBpm] = this.createSignalState(120);
+    [this._getTimeSignature, this._setTimeSignature] =
+      this.createSignalState("4/4");
+    [this._getBeat, this._setBeat] = this.createSignalState(null);
+    [this._getStatus, this._setStatus] = this.createSignalState("Ready.");
+    [this._getOverallScore, this._setOverallScore] = this.createSignalState(0);
+    [this._getIsPlaying, this._setIsPlaying] = this.createSignalState(false);
 
-    /** @type {Array<() => void>} */
     this._subscriptionCleanups = [];
-
-    // Subscribable playback state — provided to descendant visualizers via PlaybackContext
     this._playbackState = new PlaybackState();
-
-    /** @type {import('../music/timeline-service.js').default|null} */
     this._timelineService = null;
 
-    // Direct timeline ref for imperative playback operations (centerAt, addDetection, etc.)
-    /** @type {any} */
     this.timelineViz = null;
-
-    // DOM element references (set in onMount)
     this.bpmInput = null;
     this.timeSignatureSelect = null;
     this.beatIndicator = null;
     this.statusDiv = null;
     this.startBtn = null;
     this.stopBtn = null;
-    this.timelineViewport = null;
-    this.timelineTrack = null;
-    this.timelineNowLine = null;
     this.overallScoreDisplay = null;
     this.viewResultsBtn = null;
     this.calibrationWarning = null;
+
+    this.setBPM = this._setBpm;
+    this.setTimeSignature = this._setTimeSignature;
+    this.setPlaying = this._setIsPlaying;
   }
 
   getTemplateUrl() {
@@ -77,7 +47,7 @@ export default class PlanPlayPane extends BaseComponent {
   }
 
   onMount() {
-    // Query all DOM elements
+    // TODO:
     this.bpmInput = querySelector(this, "[data-bpm-input]");
     this.timeSignatureSelect = querySelector(
       this,
@@ -90,59 +60,74 @@ export default class PlanPlayPane extends BaseComponent {
     this.overallScoreDisplay = querySelector(this, "[data-overall-score]");
     this.viewResultsBtn = querySelector(this, "[data-view-results-btn]");
     this.calibrationWarning = querySelector(this, "[data-calibration-warning]");
-
-    // Obtain direct ref to timeline for imperative playback operations
     this.timelineViz = this.querySelector("timeline-visualization");
 
-    // Provide PlaybackContext so descendant visualizers can subscribe to playback state
     this.provideContext(PlaybackContext, () => this._playbackState);
 
-    // Subscribe to playbackState for own DOM rendering
+    this.createEffect(() => {
+      this.bpmInput.value = String(this._getBpm());
+    });
+
+    this.createEffect(() => {
+      this.timeSignatureSelect.value = this._getTimeSignature();
+    });
+
+    this.createEffect(() => {
+      const beat = this._getBeat();
+      this.beatIndicator.className = "beat-indicator";
+      if (!beat) {
+        this.beatIndicator.textContent = "";
+        return;
+      }
+
+      this.beatIndicator.textContent = String(beat.beatNum);
+      if (beat.shouldShow) {
+        this.beatIndicator.classList.add(
+          beat.isDownbeat ? "downbeat" : "active",
+        );
+      }
+    });
+
+    this.createEffect(() => {
+      this.statusDiv.textContent = this._getStatus();
+    });
+
+    this.createEffect(() => {
+      const formattedScore = String(
+        Math.round(this._getOverallScore()),
+      ).padStart(2, "00");
+      this.overallScoreDisplay.textContent = `Overall Score: ${formattedScore}`;
+    });
+
+    this.createEffect(() => {
+      const isPlaying = this._getIsPlaying();
+      this.startBtn.disabled = isPlaying;
+      this.stopBtn.disabled = !isPlaying;
+    });
+
     this._subscriptionCleanups.push(
       this._playbackState.subscribe((state) => {
-        // Beat indicator
-        if (state.beat) {
-          this.beatIndicator.textContent = String(state.beat.beatNum);
-          this.beatIndicator.className = "beat-indicator";
-          if (state.beat.shouldShow) {
-            this.beatIndicator.classList.add(
-              state.beat.isDownbeat ? "downbeat" : "active",
-            );
-          }
-        } else {
-          this.beatIndicator.textContent = "";
-          this.beatIndicator.className = "beat-indicator";
-        }
-        // Status
-        this.statusDiv.textContent = state.status;
-        // Score
-        const formattedScore = String(Math.round(state.overallScore)).padStart(
-          2,
-          "00",
-        );
-        this.overallScoreDisplay.textContent =
-          "Overall Score: " + formattedScore;
-        this.setState({ overallScore: state.overallScore });
-        // Playing state
-        this.setPlaying(state.isPlaying);
+        this._setBeat(state.beat);
+        this._setStatus(state.status);
+        this._setOverallScore(state.overallScore);
+        this._setIsPlaying(state.isPlaying);
       }),
     );
 
-    // [Phase 2] Canonical timing source is TimelineService.
     this.consumeContext(TimelineServiceContext, (timelineService) => {
       this._timelineService = timelineService;
       const snapshot = timelineService.getSnapshot();
-      this.setBPM(snapshot.tempo);
-      this.setTimeSignature(`${snapshot.beatsPerMeasure}/4`);
+      this._setBpm(snapshot.tempo);
+      this._setTimeSignature(`${snapshot.beatsPerMeasure}/4`);
 
       const onTimelineChanged = (
         /** @type {CustomEvent<{field: string, value: unknown}>} */ event,
       ) => {
         if (event.detail.field === "tempo") {
-          this.setBPM(/** @type {number} */ (event.detail.value));
+          this._setBpm(/** @type {number} */ (event.detail.value));
         }
         if (event.detail.field === "beatsPerMeasure") {
-          this.setTimeSignature(
+          this._setTimeSignature(
             `${/** @type {number} */ (event.detail.value)}/4`,
           );
         }
@@ -154,7 +139,6 @@ export default class PlanPlayPane extends BaseComponent {
       });
     });
 
-    // BPM / time-signature input listeners — update TimelineService as canonical owner.
     this.listen(this.bpmInput, "input", () => {
       const bpm = parseInt(this.bpmInput.value, 10);
       if (!isNaN(bpm) && this._timelineService) {
@@ -171,7 +155,6 @@ export default class PlanPlayPane extends BaseComponent {
       }
     });
 
-    // Bind event listeners
     this.listen(this.startBtn, "click", () => this._onStart());
     this.listen(this.stopBtn, "click", () => this._onStop());
     this.listen(this.viewResultsBtn, "click", () => this._onViewResults());
@@ -180,82 +163,33 @@ export default class PlanPlayPane extends BaseComponent {
     );
   }
 
+  // todo: subscription cleanup boilerplate, eliminate through base class or context
   onUnmount() {
     this._subscriptionCleanups.forEach((cleanup) => cleanup());
     this._subscriptionCleanups = [];
   }
 
-  // --- Public Methods ---
-
-  /**
-   * Get BPM value
-   * @returns {number}
-   */
   getBPM() {
     return parseInt(this.bpmInput.value, 10);
   }
 
-  /**
-   * Set BPM value
-   * @param {number} bpm
-   */
-  setBPM(bpm) {
-    this.bpmInput.value = String(bpm);
-  }
-
-  /**
-   * Get beats per measure from time signature
-   * @returns {number}
-   */
   getBeatsPerMeasure() {
     return parseInt(this.timeSignatureSelect.value.split("/")[0], 10);
   }
 
-  /**
-   * Set time signature
-   * @param {string} timeSignature - e.g. "4/4"
-   */
-  setTimeSignature(timeSignature) {
-    this.timeSignatureSelect.value = timeSignature;
-  }
-
-  /**
-   * Get the PlaybackState instance (used by SessionManager).
-   * @returns {PlaybackState}
-   */
   get playbackState() {
     return this._playbackState;
   }
 
-  /**
-   * Enable/disable start button
-   * @param {boolean} disabled
-   */
+  // TODO: never called?
   setStartDisabled(disabled) {
     this.startBtn.disabled = disabled;
   }
 
-  /**
-   * Enable/disable stop button
-   * @param {boolean} disabled
-   */
   setStopDisabled(disabled) {
     this.stopBtn.disabled = disabled;
   }
 
-  /**
-   * Set playing state and update UI accordingly
-   * @param {boolean} isPlaying
-   */
-  setPlaying(isPlaying) {
-    this.setState({ isPlaying });
-    this.setStartDisabled(isPlaying);
-    this.setStopDisabled(!isPlaying);
-  }
-
-  /**
-   * Reset to initial state
-   */
   reset() {
     this._playbackState.update({
       beat: null,
@@ -265,8 +199,8 @@ export default class PlanPlayPane extends BaseComponent {
       highlight: -1,
       isPlaying: false,
     });
-    this.setState({ currentMeasure: 0 });
 
+    // TODO: Eliminate guards if type system can guarantee timelineViz is always present when this is called
     if (this.timelineViz) {
       if (typeof this.timelineViz.clearDetections === "function") {
         this.timelineViz.clearDetections();
@@ -277,10 +211,6 @@ export default class PlanPlayPane extends BaseComponent {
     }
   }
 
-  /**
-   * Show/hide warning when calibration data is missing.
-   * @param {boolean} shouldShow
-   */
   setCalibrationWarningVisible(shouldShow) {
     if (!this.calibrationWarning) return;
 
@@ -298,35 +228,21 @@ export default class PlanPlayPane extends BaseComponent {
     this.calibrationWarning.hide();
   }
 
-  // --- Private Methods ---
-
-  /**
-   * Handle start button click
-   */
   _onStart() {
-    const bpm = this.getBPM();
-    const beatsPerMeasure = this.getBeatsPerMeasure();
-
-    dispatchEvent(this, "session-start", { bpm, beatsPerMeasure });
+    dispatchEvent(this, "session-start", {
+      bpm: this.getBPM(),
+      beatsPerMeasure: this.getBeatsPerMeasure(),
+    });
   }
 
-  /**
-   * Handle stop button click
-   */
   _onStop() {
     dispatchEvent(this, "session-stop", {});
   }
 
-  /**
-   * Handle view results button click
-   */
   _onViewResults() {
     dispatchEvent(this, "navigate", { pane: "plan-history" });
   }
 
-  /**
-   * Handle calibration warning CTA action.
-   */
   _onCalibrationWarningAction() {
     dispatchEvent(this, "navigate", {
       pane: "onboarding",
@@ -335,5 +251,4 @@ export default class PlanPlayPane extends BaseComponent {
   }
 }
 
-// Register the component
 customElements.define("plan-play-pane", PlanPlayPane);

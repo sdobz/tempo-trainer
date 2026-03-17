@@ -78,8 +78,11 @@ async function createComponent() {
 
 Deno.test("OnboardingPane: should initialize with default state", async () => {
   const component = await createComponent();
-  assertEquals(component.state.micConfigured, false);
-  assertEquals(component.state.calibrated, false);
+  assertEquals(component.setupStatus?.textContent, "⚠️ Setup incomplete");
+  assertEquals(
+    (component.completeBtn as HTMLButtonElement | null)?.disabled,
+    true,
+  );
 });
 
 Deno.test(
@@ -93,73 +96,25 @@ Deno.test(
   },
 );
 
-Deno.test("OnboardingPane: should update state via setState()", async () => {
-  const component = await createComponent();
-  component.setState({ micConfigured: true, calibrated: false });
-  assertEquals(component.state.micConfigured, true);
-  assertEquals(component.state.calibrated, false);
-});
-
-Deno.test(
-  "OnboardingPane: should merge state updates, not replace",
-  async () => {
-    const component = await createComponent();
-    component.setState({ micConfigured: true });
-    assertEquals(component.state.micConfigured, true);
-    assertEquals(component.state.calibrated, false);
-    component.setState({ calibrated: true });
-    assertEquals(component.state.micConfigured, true);
-    assertEquals(component.state.calibrated, true);
-  },
-);
-
-Deno.test(
-  "OnboardingPane: should call onStateChange hook when state updates",
-  async () => {
-    const component = await createComponent();
-    let hookCalled = false;
-    let oldState: any = null;
-    let newState: any = null;
-
-    component.onStateChange = (oldS, newS) => {
-      hookCalled = true;
-      oldState = oldS;
-      newState = newS;
-    };
-
-    component.setState({ micConfigured: true });
-    assertEquals(hookCalled, true);
-    assertEquals(oldState?.micConfigured, false);
-    assertEquals(newState?.micConfigured, true);
-  },
-);
-
 Deno.test("OnboardingPane: should register as custom element", () => {
   const customElement = customElements.get("onboarding-pane");
   assertEquals(customElement !== undefined, true);
 });
 
 Deno.test(
-  "OnboardingPane: setState should throw on invalid argument",
+  "OnboardingPane: refreshSetupStatus should update setup UI",
   async () => {
     const component = await createComponent();
-    try {
-      component.setState(null as any);
-      assertEquals(true, false); // Should not reach here
-    } catch (e) {
-      assertEquals((e as Error).message, "setState requires an object");
-    }
-  },
-);
+    mockDetectorManager.sensitivity = 0.8;
+    component.hasCalibrationData = () => true;
 
-Deno.test(
-  "OnboardingPane: setState should accept valid state objects",
-  async () => {
-    const component = await createComponent();
-    component.setState({});
-    assertEquals(component.state.micConfigured, false);
-    component.setState({ micConfigured: true, calibrated: true });
-    assertEquals(component.state.micConfigured, true);
-    assertEquals(component.state.calibrated, true);
+    component.refreshSetupStatus();
+
+    assertEquals(component.setupStatus?.textContent, "✓ Setup ready");
+    assertEquals(component.setupStatus?.classList.contains("complete"), true);
+    assertEquals(
+      (component.completeBtn as HTMLButtonElement | null)?.disabled,
+      false,
+    );
   },
 );

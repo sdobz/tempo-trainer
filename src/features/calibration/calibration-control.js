@@ -31,15 +31,19 @@ export default class CalibrationControl extends BaseComponent {
   constructor() {
     super();
 
-    /** @type {Object} */
-    this.state = {
-      isCalibrated: false,
-    };
+    [this._getIsCalibrated, this._setIsCalibrated] =
+      this.createSignalState(false);
+    [this._getOffsetMs, this._setOffsetMs] = this.createSignalState(0);
+    [this._getIsStarted, this._setIsStarted] = this.createSignalState(false);
+    [this._getProgress, this._setProgress] = this.createSignalState({
+      hits: 0,
+      minHits: 10,
+      confidence: 0,
+      progressPercent: 0,
+    });
 
-    /** @type {CalibrationDetector|null} */
     this.calibration = null;
 
-    // UI element references
     this.statusIndicator = null;
     this.button = null;
     this.timelineEl = null;
@@ -51,12 +55,14 @@ export default class CalibrationControl extends BaseComponent {
     this.offsetDecBtn = null;
     this.offsetIncBtn = null;
 
-    /** @type {import('../music/timeline-service.js').default|null} */
     this._timelineService = null;
-    /** @type {import('../audio/audio-context-manager.js').default|null} */
     this._audioContextService = null;
     this._timelineListenersBound = false;
     this._audioListenersBound = false;
+
+    this.updateStatus = this._setIsCalibrated;
+    this.onStatusChanged = (_message) => {};
+    this.onOffsetChanged = this._setOffsetMs;
   }
 
   getTemplateUrl() {
@@ -68,7 +74,6 @@ export default class CalibrationControl extends BaseComponent {
   }
 
   async onMount() {
-    // Query element references
     this.button = querySelector(this, "[data-calibration-btn]");
     this.timelineEl = querySelector(this, "[data-calibration-timeline]");
     this.progressContainer = querySelector(this, "[data-calibration-progress]");
@@ -85,7 +90,6 @@ export default class CalibrationControl extends BaseComponent {
     this.offsetDecBtn = querySelector(this, "[data-offset-dec]");
     this.offsetIncBtn = querySelector(this, "[data-offset-inc]");
 
-    // Setup button click handler
     this.listen(this.button, "click", (event) =>
       this._onCalibrationButtonClick(event),
     );
@@ -93,11 +97,42 @@ export default class CalibrationControl extends BaseComponent {
     this.listen(this.offsetIncBtn, "click", () => this._nudgeOffset(1));
     this.listen(this.offsetDecBtn, "click", () => this._nudgeOffset(-1));
 
-    // Create domain instance with injected dependencies
-    // - StorageManager: stateless utility, safe to reference directly
-    // - this: component acts as the delegate for callbacks
-    // - optional audioContext can be passed to setDetector() if needed
     this.calibration = new CalibrationDetector(StorageManager, this);
+
+    this.createEffect(() => {
+      this.offsetInput.value = String(Math.round(this._getOffsetMs()));
+    });
+
+    this.createEffect(() => {
+      const isStarted = this._getIsStarted();
+      this.button.textContent = isStarted
+        ? "Cancel Calibration"
+        : "Auto Calibrate";
+      this.progressContainer.hidden = !isStarted;
+    });
+
+    this.createEffect(() => {
+      const progress = this._getProgress();
+      const clamped = Math.max(0, Math.min(100, progress.progressPercent));
+      this.progressFill.style.width = `${clamped}%`;
+      this.progressTrack.setAttribute(
+        "aria-valuenow",
+        String(Math.round(clamped)),
+      );
+
+      const hits = Number.isFinite(progress.hits) ? progress.hits : 0;
+      const minHits = Number.isFinite(progress.minHits)
+        ? Math.max(1, progress.minHits)
+        : 10;
+      const confidence = Number.isFinite(progress.confidence)
+        ? Math.max(0, Math.min(100, progress.confidence))
+        : 0;
+
+      this.progressStatus.textContent =
+        hits < minHits
+          ? `Hits ${hits}/${minHits}`
+          : `Confidence ${Math.round(confidence)}%`;
+    });
 
     this.consumeContext(TimelineServiceContext, (timelineService) => {
       this._timelineService = timelineService;
@@ -132,8 +167,7 @@ export default class CalibrationControl extends BaseComponent {
       this._syncCalibrationAudioContext();
     });
 
-    // Hydrate UI from persisted calibration state
-    this.onOffsetChanged(this.calibration.getOffsetMs());
+    this._setOffsetMs(this.calibration.getOffsetMs());
     this.onProgressChanged({
       hits: 0,
       minHits: this.calibration.minHits,
@@ -143,7 +177,6 @@ export default class CalibrationControl extends BaseComponent {
     this.onCalibrationStateChanged(false);
     const hasCalibrationData = this._hasCalibrationData(this.calibration);
     this.updateStatus(hasCalibrationData);
-    // Listen for calibration completion
     this.calibration.onStop(() => {
       dispatchEvent(this, "calibration-complete", {});
     });
@@ -156,8 +189,8 @@ export default class CalibrationControl extends BaseComponent {
   setDetector(detector) {
     this.calibration = detector;
     if (this.calibration) {
-      this.onOffsetChanged(this.calibration.getOffsetMs());
-      this.updateStatus(this._hasCalibrationData(this.calibration));
+      this._setOffsetMs(this.calibration.getOffsetMs());
+      this._setIsCalibrated(this._hasCalibrationData(this.calibration));
       this.onProgressChanged({
         hits: 0,
         minHits: this.calibration.minHits ?? 10,
@@ -211,37 +244,11 @@ export default class CalibrationControl extends BaseComponent {
   }
 
   /**
-   * Delegate method: Handle status message changes from detector
-   * @param {string} message - Status message to display
-   */
-  onStatusChanged(message) {
-    // Text status intentionally suppressed in compact onboarding calibration UI.
-  }
-
-  /**
-   * Delegate method: Handle offset value changes from detector
-   * @param {number} offsetMs - Offset value in milliseconds
-   */
-  onOffsetChanged(offsetMs) {
-    if (this.offsetInput) {
-      this.offsetInput.value = String(Math.round(offsetMs));
-    }
-  }
-
-  /**
    * Delegate method: Handle calibration state changes from detector
    * @param {boolean} isStarted - Whether calibration is running
    */
   onCalibrationStateChanged(isStarted) {
-    if (this.button) {
-      this.button.textContent = isStarted
-        ? "Cancel Calibration"
-        : "Auto Calibrate";
-    }
-    if (this.progressContainer) {
-      this.progressContainer.hidden = !isStarted;
-    }
-
+    this._setIsStarted(isStarted);
     dispatchEvent(this, "calibration-state-changed", { isStarted });
   }
 
@@ -250,40 +257,8 @@ export default class CalibrationControl extends BaseComponent {
    * @param {{ hits: number, minHits: number, confidence: number, progressPercent: number }} progress
    */
   onProgressChanged(progress) {
-    const clamped = Math.max(0, Math.min(100, progress.progressPercent));
-    if (this.progressFill) {
-      this.progressFill.style.width = `${clamped}%`;
-    }
-    if (this.progressTrack) {
-      this.progressTrack.setAttribute(
-        "aria-valuenow",
-        String(Math.round(clamped)),
-      );
-    }
-    if (this.progressStatus) {
-      const hits = Number.isFinite(progress.hits) ? progress.hits : 0;
-      const minHits = Number.isFinite(progress.minHits)
-        ? Math.max(1, progress.minHits)
-        : 10;
-      const confidence = Number.isFinite(progress.confidence)
-        ? Math.max(0, Math.min(100, progress.confidence))
-        : 0;
-
-      this.progressStatus.textContent =
-        hits < minHits
-          ? `Hits ${hits}/${minHits}`
-          : `Confidence ${Math.round(confidence)}%`;
-    }
-
+    this._setProgress(progress);
     dispatchEvent(this, "calibration-progress", progress);
-  }
-
-  /**
-   * Update calibration status indicator
-   * @param {boolean} isCalibrated - Whether calibration is complete
-   */
-  updateStatus(isCalibrated) {
-    this.setState({ isCalibrated });
   }
 
   /**
@@ -321,8 +296,8 @@ export default class CalibrationControl extends BaseComponent {
     if (Number.isNaN(parsed)) return;
     const nextOffset = Math.max(-300, Math.min(300, parsed));
     this.calibration.setOffsetMs(nextOffset);
-    this.onOffsetChanged(nextOffset);
-    this.updateStatus(true);
+    this._setOffsetMs(nextOffset);
+    this._setIsCalibrated(true);
   }
 
   /**

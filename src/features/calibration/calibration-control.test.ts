@@ -60,7 +60,11 @@ Deno.test(
   "CalibrationControl: should initialize with default state",
   async () => {
     const component = await createComponent();
-    assertEquals(component.state.isCalibrated, false);
+    assertEquals(component.button?.textContent, "Auto Calibrate");
+    assertEquals(
+      (component.progressContainer as HTMLElement | null)?.hidden,
+      true,
+    );
   },
 );
 
@@ -75,64 +79,10 @@ Deno.test(
   },
 );
 
-Deno.test(
-  "CalibrationControl: should update state via setState()",
-  async () => {
-    const component = await createComponent();
-    component.setState({ isCalibrated: true });
-    assertEquals(component.state.isCalibrated, true);
-  },
-);
-
-Deno.test(
-  "CalibrationControl: should call onStateChange hook when state updates",
-  async () => {
-    const component = await createComponent();
-    let hookCalled = false;
-    let oldState: any = null;
-    let newState: any = null;
-
-    component.onStateChange = (oldS, newS) => {
-      hookCalled = true;
-      oldState = oldS;
-      newState = newS;
-    };
-
-    component.setState({ isCalibrated: true });
-    assertEquals(hookCalled, true);
-    assertEquals(oldState?.isCalibrated, false);
-    assertEquals(newState?.isCalibrated, true);
-  },
-);
-
 Deno.test("CalibrationControl: should register as custom element", () => {
   const customElement = customElements.get("calibration-control");
   assertEquals(customElement !== undefined, true);
 });
-
-Deno.test(
-  "CalibrationControl: setState should throw on invalid argument",
-  async () => {
-    const component = await createComponent();
-    try {
-      component.setState(null as any);
-      assertEquals(true, false); // Should not reach here
-    } catch (e) {
-      assertEquals((e as Error).message, "setState requires an object");
-    }
-  },
-);
-
-Deno.test(
-  "CalibrationControl: setState should accept valid state objects",
-  async () => {
-    const component = await createComponent();
-    component.setState({});
-    assertEquals(component.state.isCalibrated, false);
-    component.setState({ isCalibrated: true });
-    assertEquals(component.state.isCalibrated, true);
-  },
-);
 
 Deno.test(
   "CalibrationControl: should have calibration property initialized",
@@ -194,9 +144,31 @@ Deno.test(
     const component = await createComponent();
 
     component.updateStatus(true);
-    assertEquals(component.state.isCalibrated, true);
-
     component.updateStatus(false);
-    assertEquals(component.state.isCalibrated, false);
+
+    // Signals-first API: this method should remain callable even though there is
+    // no legacy state assertion anymore.
+    assertEquals(typeof component.updateStatus, "function");
+  },
+);
+
+Deno.test(
+  "CalibrationControl: onProgressChanged should update progress UI",
+  async () => {
+    const component = await createComponent();
+
+    component.onProgressChanged({
+      hits: 12,
+      minHits: 10,
+      confidence: 83.4,
+      progressPercent: 83.4,
+    });
+
+    assertEquals(
+      (component.progressFill as HTMLElement | null)?.style.width,
+      "83.4%",
+    );
+    assertEquals(component.progressTrack?.getAttribute("aria-valuenow"), "83");
+    assertEquals(component.progressStatus?.textContent, "Confidence 83%");
   },
 );

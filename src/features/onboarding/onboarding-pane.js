@@ -16,13 +16,6 @@ import "../calibration/calibration-control.js";
 import "../visualizers/timeline-visualization.js";
 
 /**
- * @typedef {Object} OnboardingState
- * @property {boolean} isReady - Whether setup is complete
- * @property {boolean} micConfigured - Whether microphone sensitivity has been adjusted
- * @property {boolean} calibrated    - Whether system has been calibrated
- */
-
-/**
  * OnboardingPane component — guides users through setup.
  *
  * Events emitted:
@@ -33,18 +26,17 @@ import "../visualizers/timeline-visualization.js";
 export default class OnboardingPane extends BaseComponent {
   constructor() {
     super();
-    /** @type {OnboardingState} */
-    this.state = { isReady: false, micConfigured: false, calibrated: false };
+    [this._getIsReady, this._setIsReady] = this.createSignalState(false);
+    [this._getMicConfigured, this._setMicConfigured] =
+      this.createSignalState(false);
+    [this._getCalibrated, this._setCalibrated] = this.createSignalState(false);
 
-    // Element references (set in onMount)
     this.completeBtn = null;
     this.setupStatus = null;
     this.detectorSelect = null;
 
-    // Sub-component references
     this.microphoneControl = null;
     this.calibrationControl = null;
-    /** @type {import('../microphone/detector-manager.js').default|null} */
     this._detectorManager = null;
   }
 
@@ -72,6 +64,15 @@ export default class OnboardingPane extends BaseComponent {
 
     this.microphoneControl = querySelector(this, "microphone-control");
     this.calibrationControl = querySelector(this, "calibration-control");
+
+    this.createEffect(() => {
+      const isReady = this._getIsReady();
+      this.completeBtn.disabled = !isReady;
+      this.setupStatus.textContent = isReady
+        ? "✓ Setup ready"
+        : "⚠️ Setup incomplete";
+      this.setupStatus.classList.toggle("complete", isReady);
+    });
 
     if (this.microphoneControl) await this.microphoneControl.componentReady;
     if (this.calibrationControl) await this.calibrationControl.componentReady;
@@ -135,7 +136,9 @@ export default class OnboardingPane extends BaseComponent {
     const calibrated = this.hasCalibrationData();
     const isReady = micConfigured && calibrated;
 
-    this.setState({ isReady, micConfigured, calibrated });
+    this._setMicConfigured(micConfigured);
+    this._setCalibrated(calibrated);
+    this._setIsReady(isReady);
 
     if (typeof this.microphoneControl?.updateStatus === "function") {
       this.microphoneControl.updateStatus(micConfigured);
@@ -143,7 +146,6 @@ export default class OnboardingPane extends BaseComponent {
     if (typeof this.calibrationControl?.updateStatus === "function") {
       this.calibrationControl.updateStatus(calibrated);
     }
-    this._renderSetupStatus(isReady);
 
     dispatchEvent(this, "setup-status-changed", {
       isReady,
@@ -172,25 +174,8 @@ export default class OnboardingPane extends BaseComponent {
 
   /** @private */
   _onComplete() {
-    if (!this.state.isReady) return;
+    if (!this._getIsReady()) return;
     dispatchEvent(this, "complete", {});
-  }
-
-  /**
-   * @param {boolean} isReady
-   * @private
-   */
-  _renderSetupStatus(isReady) {
-    if (this.completeBtn) {
-      this.completeBtn.disabled = !isReady;
-    }
-
-    if (!this.setupStatus) return;
-
-    this.setupStatus.textContent = isReady
-      ? "✓ Setup ready"
-      : "⚠️ Setup incomplete";
-    this.setupStatus.classList.toggle("complete", isReady);
   }
 }
 

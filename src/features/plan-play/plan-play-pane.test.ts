@@ -1,13 +1,9 @@
 /// <reference lib="dom" />
-import "../component/setup-dom.ts"; // Setup DOM environment first
+import "../component/setup-dom.ts";
 import { assertEquals } from "../base/assert.ts";
 
-// Dynamic import after mocks are set up
 const { default: PlanPlayPane } = await import("./plan-play-pane.js");
 
-/**
- * Helper to create a fresh component instance and wait for it to be ready
- */
 async function createComponent() {
   const element = document.createElement("plan-play-pane") as InstanceType<
     typeof PlanPlayPane
@@ -16,24 +12,19 @@ async function createComponent() {
   return element;
 }
 
-/**
- * Mock Timeline class
- */
-class MockTimeline {
-  attachToDOM(_viewport: HTMLElement, _track: HTMLElement) {}
-  setBeatsPerMeasure(_beats: number) {}
-  centerAt(_position: number) {}
-  addDetection(_position: number) {}
-  setDrillPlan(_plan: any[]) {}
-  clearDetections() {}
-}
-
-Deno.test("PlanPlayPane: should initialize with default state", async () => {
-  const component = await createComponent();
-  assertEquals(component.state.isPlaying, false);
-  assertEquals(component.state.currentMeasure, 0);
-  assertEquals(component.state.overallScore, 0);
-});
+Deno.test(
+  "PlanPlayPane: should initialize with default DOM state",
+  async () => {
+    const component = await createComponent();
+    assertEquals((component.statusDiv as HTMLElement).textContent, "");
+    assertEquals(
+      (component.overallScoreDisplay as HTMLElement).textContent,
+      "Overall Score: 00",
+    );
+    assertEquals((component.startBtn as HTMLButtonElement).disabled, false);
+    assertEquals((component.stopBtn as HTMLButtonElement).disabled, true);
+  },
+);
 
 Deno.test(
   "PlanPlayPane: should have required template and style URLs",
@@ -46,68 +37,17 @@ Deno.test(
   },
 );
 
-Deno.test("PlanPlayPane: should update state via setState()", async () => {
-  const component = await createComponent();
-  component.setState({ isPlaying: true, currentMeasure: 5 });
-  assertEquals(component.state.isPlaying, true);
-  assertEquals(component.state.currentMeasure, 5);
-});
-
-Deno.test("PlanPlayPane: should merge state updates, not replace", async () => {
-  const component = await createComponent();
-  component.setState({ isPlaying: true });
-  assertEquals(component.state.isPlaying, true);
-  assertEquals(component.state.currentMeasure, 0);
-  component.setState({ currentMeasure: 3 });
-  assertEquals(component.state.isPlaying, true);
-  assertEquals(component.state.currentMeasure, 3);
-});
-
-Deno.test(
-  "PlanPlayPane: should call onStateChange hook when state updates",
-  async () => {
-    const component = await createComponent();
-    let hookCalled = false;
-    let oldState: any = null;
-    let newState: any = null;
-
-    component.onStateChange = (oldS, newS) => {
-      hookCalled = true;
-      oldState = oldS;
-      newState = newS;
-    };
-
-    component.setState({ isPlaying: true });
-    assertEquals(hookCalled, true);
-    assertEquals(oldState?.isPlaying, false);
-    assertEquals(newState?.isPlaying, true);
-  },
-);
-
 Deno.test("PlanPlayPane: should register as custom element", () => {
   const customElement = customElements.get("plan-play-pane");
   assertEquals(customElement !== undefined, true);
 });
 
-Deno.test(
-  "PlanPlayPane: setState should throw on invalid argument",
-  async () => {
-    const component = await createComponent();
-    try {
-      component.setState(null as any);
-      assertEquals(true, false); // Should not reach here
-    } catch (e) {
-      assertEquals((e as Error).message, "setState requires an object");
-    }
-  },
-);
-
 Deno.test("PlanPlayPane: should expose playbackState getter", async () => {
   const component = await createComponent();
-  const ps = component.playbackState;
-  assertEquals(typeof ps.subscribe, "function");
-  assertEquals(typeof ps.update, "function");
-  assertEquals(ps.state.isPlaying, false);
+  const playbackState = component.playbackState;
+  assertEquals(typeof playbackState.subscribe, "function");
+  assertEquals(typeof playbackState.update, "function");
+  assertEquals(playbackState.state.isPlaying, false);
 });
 
 Deno.test(
@@ -140,7 +80,6 @@ Deno.test(
   async () => {
     const component = await createComponent();
     component.playbackState.update({ overallScore: 75 });
-    assertEquals(component.state.overallScore, 75);
     assertEquals(
       (component.overallScoreDisplay as HTMLElement).textContent,
       "Overall Score: 75",
@@ -148,121 +87,87 @@ Deno.test(
   },
 );
 
-Deno.test(
-  "PlanPlayPane: getBPM should return BPM value as number",
-  async () => {
-    const component = await createComponent();
-    (component.bpmInput as HTMLInputElement).value = "120";
-    assertEquals(component.getBPM(), 120);
-  },
-);
-
-Deno.test("PlanPlayPane: setBPM should set BPM value", async () => {
+Deno.test("PlanPlayPane: setBPM should update the BPM input", async () => {
   const component = await createComponent();
   component.setBPM(140);
   assertEquals((component.bpmInput as HTMLInputElement).value, "140");
+  assertEquals(component.getBPM(), 140);
 });
 
 Deno.test(
-  "PlanPlayPane: getBeatsPerMeasure should parse time signature",
+  "PlanPlayPane: setTimeSignature should update the time signature input",
   async () => {
     const component = await createComponent();
-    (component.timeSignatureSelect as HTMLSelectElement).value = "4/4";
-    assertEquals(component.getBeatsPerMeasure(), 4);
-    (component.timeSignatureSelect as HTMLSelectElement).value = "3/4";
+    component.setTimeSignature("3/4");
+    assertEquals(
+      (component.timeSignatureSelect as HTMLSelectElement).value,
+      "3/4",
+    );
     assertEquals(component.getBeatsPerMeasure(), 3);
   },
 );
 
 Deno.test(
-  "PlanPlayPane: setTimeSignature should set time signature value",
+  "PlanPlayPane: setStartDisabled should enable and disable the start button",
   async () => {
     const component = await createComponent();
-    component.setTimeSignature("6/8");
-    assertEquals(
-      (component.timeSignatureSelect as HTMLSelectElement).value,
-      "6/8",
-    );
-  },
-);
-
-Deno.test(
-  "PlanPlayPane: setStartDisabled should enable/disable start button",
-  async () => {
-    const component = await createComponent();
-    const startBtn = component.startBtn as HTMLButtonElement;
-
+    const startButton = component.startBtn as HTMLButtonElement;
     component.setStartDisabled(true);
-    assertEquals(startBtn.disabled, true);
-
+    assertEquals(startButton.disabled, true);
     component.setStartDisabled(false);
-    assertEquals(startBtn.disabled, false);
+    assertEquals(startButton.disabled, false);
   },
 );
 
 Deno.test(
-  "PlanPlayPane: setStopDisabled should enable/disable stop button",
+  "PlanPlayPane: setStopDisabled should enable and disable the stop button",
   async () => {
     const component = await createComponent();
-    const stopBtn = component.stopBtn as HTMLButtonElement;
-
+    const stopButton = component.stopBtn as HTMLButtonElement;
     component.setStopDisabled(true);
-    assertEquals(stopBtn.disabled, true);
-
+    assertEquals(stopButton.disabled, true);
     component.setStopDisabled(false);
-    assertEquals(stopBtn.disabled, false);
+    assertEquals(stopButton.disabled, false);
   },
 );
+
+Deno.test("PlanPlayPane: setPlaying should update button states", async () => {
+  const component = await createComponent();
+  const startButton = component.startBtn as HTMLButtonElement;
+  const stopButton = component.stopBtn as HTMLButtonElement;
+
+  component.setPlaying(true);
+  assertEquals(startButton.disabled, true);
+  assertEquals(stopButton.disabled, false);
+
+  component.setPlaying(false);
+  assertEquals(startButton.disabled, false);
+  assertEquals(stopButton.disabled, true);
+});
 
 Deno.test(
-  "PlanPlayPane: setPlaying should update state and button states",
+  "PlanPlayPane: reset should reset rendered playback state",
   async () => {
     const component = await createComponent();
-    const startBtn = component.startBtn as HTMLButtonElement;
-    const stopBtn = component.stopBtn as HTMLButtonElement;
+    component.playbackState.update({
+      beat: { beatNum: 3, isDownbeat: false, shouldShow: true },
+      status: "Running...",
+      overallScore: 75,
+      isPlaying: true,
+    });
 
-    component.setPlaying(true);
-    assertEquals(component.state.isPlaying, true);
-    assertEquals(startBtn.disabled, true);
-    assertEquals(stopBtn.disabled, false);
+    component.reset();
 
-    component.setPlaying(false);
-    assertEquals(component.state.isPlaying, false);
-    assertEquals(startBtn.disabled, false);
-    assertEquals(stopBtn.disabled, true);
+    assertEquals((component.beatIndicator as HTMLElement).textContent, "");
+    assertEquals((component.statusDiv as HTMLElement).textContent, "Ready.");
+    assertEquals(
+      (component.overallScoreDisplay as HTMLElement).textContent,
+      "Overall Score: 00",
+    );
+    assertEquals((component.startBtn as HTMLButtonElement).disabled, false);
+    assertEquals((component.stopBtn as HTMLButtonElement).disabled, true);
   },
 );
-
-Deno.test("PlanPlayPane: reset should reset to initial state", async () => {
-  const component = await createComponent();
-
-  // Set some state via playbackState
-  component.playbackState.update({
-    beat: { beatNum: 3, isDownbeat: false, shouldShow: true },
-    status: "Running...",
-    overallScore: 75,
-    isPlaying: true,
-  });
-  component.setState({ currentMeasure: 5 });
-
-  // Reset
-  component.reset();
-
-  const beatIndicator = component.beatIndicator as HTMLElement;
-  const statusDiv = component.statusDiv as HTMLElement;
-  const startBtn = component.startBtn as HTMLButtonElement;
-  const stopBtn = component.stopBtn as HTMLButtonElement;
-
-  assertEquals(beatIndicator.textContent, "");
-  assertEquals(statusDiv.textContent, "Ready.");
-  assertEquals(component.state.overallScore, 0);
-  assertEquals(component.state.isPlaying, false);
-  assertEquals(startBtn.disabled, false);
-  assertEquals(stopBtn.disabled, true);
-  assertEquals(component.state.currentMeasure, 0);
-
-  component.remove();
-});
 
 Deno.test(
   "PlanPlayPane: start button should emit session-start event",
@@ -271,13 +176,13 @@ Deno.test(
     let eventFired = false;
     let eventData: any = null;
 
-    component.addEventListener("session-start", ((e: CustomEvent) => {
+    component.addEventListener("session-start", ((event: CustomEvent) => {
       eventFired = true;
-      eventData = e.detail;
+      eventData = event.detail;
     }) as EventListener);
 
-    (component.bpmInput as HTMLInputElement).value = "120";
-    (component.timeSignatureSelect as HTMLSelectElement).value = "4/4";
+    component.setBPM(120);
+    component.setTimeSignature("4/4");
     (component.startBtn as HTMLButtonElement).click();
 
     assertEquals(eventFired, true);
@@ -296,7 +201,6 @@ Deno.test(
       eventFired = true;
     });
 
-    // Enable stop button (normally disabled when not playing)
     component.setStopDisabled(false);
     (component.stopBtn as HTMLButtonElement).click();
     assertEquals(eventFired, true);
@@ -310,9 +214,9 @@ Deno.test(
     let eventFired = false;
     let eventData: any = null;
 
-    component.addEventListener("navigate", ((e: CustomEvent) => {
+    component.addEventListener("navigate", ((event: CustomEvent) => {
       eventFired = true;
-      eventData = e.detail;
+      eventData = event.detail;
     }) as EventListener);
 
     (component.viewResultsBtn as HTMLButtonElement).click();

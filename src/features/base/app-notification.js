@@ -5,18 +5,25 @@ export default class AppNotification extends BaseComponent {
   constructor() {
     super();
 
-    this._actionDetail = null;
-    this._isVisible = false;
-    this._pendingConfig = {
+    [this._getConfig, this._setConfig] = this.createSignalState({
+      visible: false,
       type: "info",
       message: "",
       actionLabel: "",
       actionDetail: null,
-    };
+    });
 
     this.root = null;
     this.messageEl = null;
     this.actionBtn = null;
+
+    this._onAction = () => {
+      dispatchEvent(
+        this,
+        "notification-action",
+        this._getConfig().actionDetail,
+      );
+    };
   }
 
   getTemplateUrl() {
@@ -34,11 +41,24 @@ export default class AppNotification extends BaseComponent {
 
     this.listen(this.actionBtn, "click", () => this._onAction());
 
-    if (this._isVisible) {
-      this._applyShow(this._pendingConfig);
-    } else {
-      this._applyHide();
-    }
+    this.createEffect(() => {
+      const { visible, type, message, actionLabel } = this._getConfig();
+
+      this.root.classList.remove("info", "warning", "success");
+      this.root.hidden = !visible;
+
+      if (!visible) {
+        this.messageEl.textContent = "";
+        this.actionBtn.hidden = true;
+        this.actionBtn.textContent = "";
+        return;
+      }
+
+      this.root.classList.add(type);
+      this.messageEl.textContent = message;
+      this.actionBtn.hidden = !actionLabel;
+      this.actionBtn.textContent = actionLabel || "";
+    });
   }
 
   show({
@@ -47,51 +67,23 @@ export default class AppNotification extends BaseComponent {
     actionLabel = "",
     actionDetail = null,
   } = {}) {
-    this._isVisible = true;
-    this._pendingConfig = { type, message, actionLabel, actionDetail };
-    if (!this.root) return;
-    this._applyShow(this._pendingConfig);
+    this._setConfig({
+      visible: true,
+      type,
+      message,
+      actionLabel,
+      actionDetail,
+    });
   }
 
   hide() {
-    this._isVisible = false;
-    this._pendingConfig = {
+    this._setConfig({
+      visible: false,
       type: "info",
       message: "",
       actionLabel: "",
       actionDetail: null,
-    };
-    if (!this.root) return;
-    this._applyHide();
-  }
-
-  _applyShow({ type, message, actionLabel, actionDetail }) {
-    this.root.classList.remove("info", "warning", "success");
-    this.root.classList.add(type);
-    this.root.hidden = false;
-
-    this.messageEl.textContent = message;
-    this._actionDetail = actionDetail;
-
-    if (actionLabel) {
-      this.actionBtn.hidden = false;
-      this.actionBtn.textContent = actionLabel;
-    } else {
-      this.actionBtn.hidden = true;
-      this.actionBtn.textContent = "";
-    }
-  }
-
-  _applyHide() {
-    this.root.hidden = true;
-    this.messageEl.textContent = "";
-    this.actionBtn.hidden = true;
-    this.actionBtn.textContent = "";
-    this._actionDetail = null;
-  }
-
-  _onAction() {
-    dispatchEvent(this, "notification-action", this._actionDetail);
+    });
   }
 }
 

@@ -3,6 +3,17 @@ import { querySelector } from "../component/component-utils.js";
 import { AudioContextServiceContext } from "./audio-context-manager.js";
 
 export default class AudioContextOverlay extends BaseComponent {
+  constructor() {
+    super();
+    [this._getView, this._setView] = this.createSignalState({
+      state: null,
+      error: "",
+    });
+
+    this._audioService = null;
+    this._audioChangedCleanup = null;
+  }
+
   getTemplateUrl() {
     return new URL("./audio-context-overlay.html", import.meta.url).href;
   }
@@ -15,13 +26,16 @@ export default class AudioContextOverlay extends BaseComponent {
     const activateButton = querySelector(this, "[data-audio-overlay-activate]");
     const errorEl = querySelector(this, "[data-audio-overlay-error]");
 
-    /** @type {import("./audio-context-manager.js").default|null} */
-    let audioService = null;
-
-    const render = () => {
-      const state = audioService?.getSnapshot?.();
+    this.createEffect(() => {
+      const { state, error } = this._getView();
       const isReady = state?.kind === "ready" || state?.kind === "input-ready";
       this.dataset.ready = isReady ? "true" : "false";
+
+      if (error) {
+        errorEl.textContent = error;
+        return;
+      }
+
       if (state?.kind === "fault") {
         errorEl.textContent = "Microphone access is required to continue.";
         return;
@@ -30,39 +44,48 @@ export default class AudioContextOverlay extends BaseComponent {
         errorEl.textContent = state.message;
         return;
       }
-      if (isReady) {
-        errorEl.textContent = "";
-      }
-    };
-
-    const ensureAudioContext = async () => {
-      if (!audioService) {
-        this.dataset.ready = "false";
-        errorEl.textContent = "Audio service is not ready yet.";
-        return;
-      }
-
       errorEl.textContent = "";
-      try {
-        await audioService.ensureContext();
-        render();
-      } catch {
-        this.dataset.ready = "false";
-        errorEl.textContent = "Microphone access is required to continue.";
-      }
-    };
+    });
 
     this.listen(activateButton, "click", () => {
-      void ensureAudioContext();
+      void this._ensureAudioContext();
     });
 
     this.consumeContext(AudioContextServiceContext, (service) => {
-      audioService = service;
-      audioService?.addEventListener?.("changed", render);
-      render();
-    });
+      if (this._audioChangedCleanup) {
+        this._audioChangedCleanup();
+        this._audioChangedCleanup = null;
+      }
 
-    render();
+      this._audioService = service;
+      this._setView({ state: service?.getSnapshot?.() ?? null, error: "" });
+
+      if (!service) {
+        return;
+      }
+
+      this._audioChangedCleanup = this.listen(service, "changed", () => {
+        this._setView({ state: service.getSnapshot(), error: "" });
+      });
+    });
+  }
+
+  async _ensureAudioContext() {
+    if (!this._audioService) {
+      this._setView({ state: null, error: "Audio service is not ready yet." });
+      return;
+    }
+
+    this._setView({ state: this._audioService.getSnapshot(), error: "" });
+    try {
+      await this._audioService.ensureContext();
+      this._setView({ state: this._audioService.getSnapshot(), error: "" });
+    } catch {
+      this._setView({
+        state: this._audioService.getSnapshot(),
+        error: "Microphone access is required to continue.",
+      });
+    }
   }
 }
 
