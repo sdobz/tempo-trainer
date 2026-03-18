@@ -1,7 +1,7 @@
 <template>
   <div class="calibration-control">
     <timeline-visualization
-      data-calibration-timeline
+      data-ref="timelineEl"
       data-local-plan-only
     ></timeline-visualization>
 
@@ -10,21 +10,22 @@
         <div class="calibration-offset-controls">
           <label for="calibration-offset-input">Offset (ms)</label>
           <div class="calibration-offset-row">
-            <button type="button" class="offset-btn" data-offset-dec>-</button>
+            <button type="button" class="offset-btn" data-ref="offsetDecBtn" data-on-click="handleNudgeOffsetDown">-</button>
             <input
               id="calibration-offset-input"
-              data-calibration-offset-input
+              data-ref="offsetInput"
+              data-on-change="handleOffsetInputChanged"
               type="number"
               step="1"
               min="-300"
               max="300"
               value="0"
             />
-            <button type="button" class="offset-btn" data-offset-inc>+</button>
+            <button type="button" class="offset-btn" data-ref="offsetIncBtn" data-on-click="handleNudgeOffsetUp">+</button>
           </div>
         </div>
 
-        <button data-calibration-btn type="button" class="calibration-btn">
+        <button data-ref="button" data-on-click="handleCalibrationButtonClick" type="button" class="calibration-btn">
           Auto Calibrate
         </button>
       </div>
@@ -32,11 +33,11 @@
       <div
         class="calibration-progress"
         aria-live="polite"
-        data-calibration-progress
+        data-ref="progressContainer"
       >
         <div
           class="calibration-progress-track"
-          data-calibration-progress-track
+          data-ref="progressTrack"
           role="progressbar"
           aria-label="Calibration completeness"
           aria-valuemin="0"
@@ -44,11 +45,11 @@
           aria-valuenow="0"
         >
           <div
-            data-calibration-progress-fill
+            data-ref="progressFill"
             class="calibration-progress-fill"
           ></div>
           <span
-            data-calibration-progress-status
+            data-ref="progressStatus"
             class="calibration-progress-status"
             >Hits 0/10</span
           >

@@ -2,22 +2,22 @@
   <div class="microphone-control">
     <h3>
       <span class="microphone-title">Select Microphone</span>
-      <span class="microphone-status-indicator" data-microphone-status-indicator
+      <span class="microphone-status-indicator" data-ref="statusIndicator"
         >⚠️ Not configured</span
       >
     </h3>
     <div class="microphone-selector-row">
       <label for="microphone-select">Microphone:</label>
-      <select data-microphone-select class="microphone-select"></select>
+      <select data-ref="select" data-on-change="handleDeviceSelected" class="microphone-select"></select>
     </div>
-    <div data-microphone-level class="microphone-level">
-      <div data-microphone-level-bar class="microphone-level-bar"></div>
-      <div data-microphone-peak-hold class="microphone-peak-hold"></div>
+    <div data-ref="level" data-on-pointerdown="handleSensitivityPointerDown" data-on-pointermove="handleSensitivityPointerMove" class="microphone-level">
+      <div data-ref="levelBar" class="microphone-level-bar"></div>
+      <div data-ref="peakHold" class="microphone-peak-hold"></div>
       <div
-        data-microphone-threshold-line
+        data-ref="sensitivityLine"
         class="microphone-threshold-line"
       ></div>
-      <div data-microphone-threshold-label class="microphone-threshold-label">
+      <div data-ref="sensitivityLabel" class="microphone-threshold-label">
         Sensitivity: 46%
       </div>
     </div>

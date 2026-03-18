@@ -127,7 +127,7 @@ Deno.test(
   "MicrophoneControl: should initialize with default state",
   async () => {
     const component = await createComponent();
-    assertEquals(component.statusIndicator?.textContent, "⚠️ Not configured");
+    assertEquals(component.refs.statusIndicator?.textContent, "⚠️ Not configured");
   },
 );
 
@@ -157,13 +157,13 @@ Deno.test("MicrophoneControl: updateStatus should update UI", async () => {
   const component = await createComponent();
 
   component.updateStatus(true);
-  assertEquals(component.statusIndicator?.textContent, "✓ Configured");
-  assertEquals(component.statusIndicator?.classList.contains("complete"), true);
+  assertEquals(component.refs.statusIndicator?.textContent, "✓ Configured");
+  assertEquals(component.refs.statusIndicator?.classList.contains("complete"), true);
 
   component.updateStatus(false);
-  assertEquals(component.statusIndicator?.textContent, "⚠️ Not configured");
+  assertEquals(component.refs.statusIndicator?.textContent, "⚠️ Not configured");
   assertEquals(
-    component.statusIndicator?.classList.contains("complete"),
+    component.refs.statusIndicator?.classList.contains("complete"),
     false,
   );
 });
@@ -172,10 +172,10 @@ Deno.test(
   "MicrophoneControl: delegate should handle level updates (0–1 → 0–100%)",
   async () => {
     const component = await createComponent();
-    if (!component.levelBar) return;
+    if (!component.refs.levelBar) return;
 
     mockManager.delegate.onLevelChanged(0.5);
-    assertEquals((component.levelBar as HTMLElement).style.width, "50%");
+    assertEquals((component.refs.levelBar as HTMLElement).style.width, "50%");
   },
 );
 
@@ -183,10 +183,10 @@ Deno.test(
   "MicrophoneControl: delegate should handle peak updates (0–1 → 0–100%)",
   async () => {
     const component = await createComponent();
-    if (!component.peakHold) return;
+    if (!component.refs.peakHold) return;
 
     mockManager.delegate.onPeakChanged(0.75);
-    assertEquals((component.peakHold as HTMLElement).style.left, "75%");
+    assertEquals((component.refs.peakHold as HTMLElement).style.left, "75%");
   },
 );
 
@@ -194,12 +194,12 @@ Deno.test(
   "MicrophoneControl: delegate should handle threshold/sensitivity updates",
   async () => {
     const component = await createComponent();
-    if (!component.sensitivityLine || !component.sensitivityLabel) return;
+    if (!component.refs.sensitivityLine || !component.refs.sensitivityLabel) return;
 
     mockManager.delegate.onThresholdChanged(0.64);
-    assertEquals((component.sensitivityLine as HTMLElement).style.left, "36%");
+    assertEquals((component.refs.sensitivityLine as HTMLElement).style.left, "36%");
     assertEquals(
-      (component.sensitivityLabel as HTMLElement).textContent,
+      (component.refs.sensitivityLabel as HTMLElement).textContent,
       "Sensitivity: 64%",
     );
   },
@@ -209,10 +209,10 @@ Deno.test(
   "MicrophoneControl: initial sensitivity pushed by setDelegate",
   async () => {
     const component = await createComponent();
-    if (!component.sensitivityLine) return;
+    if (!component.refs.sensitivityLine) return;
     // MockDetectorManager pushes 0.594 on setDelegate → 40.6% position (left=more sensitive)
     assertEquals(
-      (component.sensitivityLine as HTMLElement).style.left,
+      (component.refs.sensitivityLine as HTMLElement).style.left,
       "40.6%",
     );
   },
@@ -230,7 +230,7 @@ Deno.test(
   "MicrophoneControl: audio service changed event should render options",
   async () => {
     const component = await createComponent();
-    if (!component.select) return;
+    if (!component.refs.select) return;
 
     mockAudioService.setDevices(
       [
@@ -240,7 +240,7 @@ Deno.test(
       "dev1",
     );
 
-    const select = component.select as HTMLSelectElement;
+    const select = component.refs.select as HTMLSelectElement;
     assertEquals(select.options.length, 2);
     assertEquals(select.value, "dev1");
   },
@@ -250,8 +250,8 @@ Deno.test(
   "MicrophoneControl: selecting a device should call audio service",
   async () => {
     const component = await createComponent();
-    if (!component.select) return;
-    const select = component.select as HTMLSelectElement;
+    if (!component.refs.select) return;
+    const select = component.refs.select as HTMLSelectElement;
 
     mockAudioService.setDevices(
       [
@@ -272,13 +272,13 @@ Deno.test(
   "MicrophoneControl: should have element references after mount",
   async () => {
     const component = await createComponent();
-    assertEquals(component.statusIndicator !== null, true);
-    assertEquals(component.select !== null, true);
-    assertEquals(component.level !== null, true);
-    assertEquals(component.levelBar !== null, true);
-    assertEquals(component.peakHold !== null, true);
-    assertEquals(component.sensitivityLine !== null, true);
-    assertEquals(component.sensitivityLabel !== null, true);
+    assertEquals(component.refs.statusIndicator !== null, true);
+    assertEquals(component.refs.select !== null, true);
+    assertEquals(component.refs.level !== null, true);
+    assertEquals(component.refs.levelBar !== null, true);
+    assertEquals(component.refs.peakHold !== null, true);
+    assertEquals(component.refs.sensitivityLine !== null, true);
+    assertEquals(component.refs.sensitivityLabel !== null, true);
   },
 );
 

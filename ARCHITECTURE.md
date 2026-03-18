@@ -77,6 +77,42 @@ Component reactivity policy:
 - Avoid dual state sources in components (no signal-to-`state` mirroring for render paths).
 - Keep callback handlers mutation-only and effects render-only.
 
+### Template Reference and Event Binding (data-ref / data-on-*)
+
+DOM element references and event handlers are declared in templates using `data-ref` and `data-on-*` attributes:
+
+**Template:**
+```html
+<button data-ref="submitBtn" data-on-click="handleSubmitClick">Submit</button>
+<input data-ref="nameInput" data-on-change="handleNameChanged" />
+```
+
+**Component:**
+```javascript
+onMount() {
+  this.createEffect(() => {
+    this.refs.submitBtn.disabled = !this._getIsReady();
+  });
+}
+
+handleSubmitClick(event, element) {
+  this._submit();
+}
+
+handleNameChanged(event, element) {
+  const name = this.refs.nameInput.value;
+  this._setName(name);
+}
+```
+
+**Benefits:**
+- Eliminates repeated querySelector calls and field assignments.
+- Automatic event listener cleanup via component lifecycle.
+- Validates refs and handlers at init time (fail-fast).
+- Checker (tools/check-refs) validates ref uniqueness and handler existence across templates.
+
+References are auto-populated into `this.refs` during `_initialize()` after template attachment. Event handlers are automatically bound and cleaned up via the existing `listen()` method infrastructure.
+
 ## Complexity Controls
 
 - Keep service APIs small and intention-oriented.

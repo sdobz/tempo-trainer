@@ -1,5 +1,5 @@
 #!/bin/bash
-# Type check with Deno
+# Type check with Deno + template ref validation
 set -e
 
 # Re-enter via nix develop if not already in a nix shell
@@ -25,3 +25,8 @@ else
 fi
 
 echo "✅ Type check passed"
+
+echo "🔍 Checking template refs..."
+./tools/check-refs --compact
+
+echo "✅ All checks passed"

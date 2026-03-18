@@ -1,6 +1,5 @@
 import BaseComponent from "../component/base-component.js";
 import { DetectorManagerContext } from "./detector-manager.js";
-import { querySelector } from "../component/component-utils.js";
 import { AudioContextServiceContext } from "../audio/audio-context-manager.js";
 
 export default class MicrophoneControl extends BaseComponent {
@@ -22,14 +21,6 @@ export default class MicrophoneControl extends BaseComponent {
     this.updateStatus = this._setIsConfigured;
     this.onHit = () => {};
 
-    this.statusIndicator = null;
-    this.select = null;
-    this.level = null;
-    this.levelBar = null;
-    this.peakHold = null;
-    this.sensitivityLine = null;
-    this.sensitivityLabel = null;
-
     this._isAdjustingSensitivity = false;
     this._detectorManager = null;
     this._audioService = null;
@@ -45,45 +36,28 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   async onMount() {
-    this.statusIndicator = querySelector(
-      this,
-      "[data-microphone-status-indicator]",
-    );
-    this.select = querySelector(this, "[data-microphone-select]");
-    this.level = querySelector(this, "[data-microphone-level]");
-    this.levelBar = querySelector(this, "[data-microphone-level-bar]");
-    this.peakHold = querySelector(this, "[data-microphone-peak-hold]");
-    this.sensitivityLine = querySelector(
-      this,
-      "[data-microphone-threshold-line]",
-    );
-    this.sensitivityLabel = querySelector(
-      this,
-      "[data-microphone-threshold-label]",
-    );
-
     this.createEffect(() => {
-      this.levelBar.style.width = `${Math.round(this._getLevel() * 1000) / 10}%`;
+      this.refs.levelBar.style.width = `${Math.round(this._getLevel() * 1000) / 10}%`;
     });
 
     this.createEffect(() => {
-      this.peakHold.style.left = `${Math.round(this._getPeak() * 1000) / 10}%`;
+      this.refs.peakHold.style.left = `${Math.round(this._getPeak() * 1000) / 10}%`;
     });
 
     this.createEffect(() => {
       const pos = this._getSensitivity();
-      this.sensitivityLine.style.left = `${Math.round((1 - pos) * 1000) / 10}%`;
-      this.sensitivityLabel.textContent = `Sensitivity: ${Math.round(pos * 100)}%`;
+      this.refs.sensitivityLine.style.left = `${Math.round((1 - pos) * 1000) / 10}%`;
+      this.refs.sensitivityLabel.textContent = `Sensitivity: ${Math.round(pos * 100)}%`;
     });
 
     this.createEffect(() => {
       const isConfigured = this._getIsConfigured();
       if (isConfigured) {
-        this.statusIndicator.textContent = "✓ Configured";
-        this.statusIndicator.classList.add("complete");
+        this.refs.statusIndicator.textContent = "✓ Configured";
+        this.refs.statusIndicator.classList.add("complete");
       } else {
-        this.statusIndicator.textContent = "⚠️ Not configured";
-        this.statusIndicator.classList.remove("complete");
+        this.refs.statusIndicator.textContent = "⚠️ Not configured";
+        this.refs.statusIndicator.classList.remove("complete");
       }
     });
 
@@ -97,7 +71,10 @@ export default class MicrophoneControl extends BaseComponent {
     this.consumeContext(DetectorManagerContext, (dm) => {
       this._detectorManager = dm;
       dm.setDelegate(this);
-      this._setupUIEventListeners(dm);
+      // Window-level pointerup cleanup handled via this.listen()
+      this.listen(window, "pointerup", () => {
+        this._isAdjustingSensitivity = false;
+      });
     });
 
     this.consumeContext(AudioContextServiceContext, (audioService) => {
@@ -135,20 +112,7 @@ export default class MicrophoneControl extends BaseComponent {
     }
   }
 
-  _setupUIEventListeners(detectorManager) {
-    this.listen(this.level, "pointerdown", (e) =>
-      this._onSensitivityPointerDown(e, detectorManager),
-    );
-    this.listen(this.level, "pointermove", (e) =>
-      this._onSensitivityPointerMove(e, detectorManager),
-    );
-    this.listen(window, "pointerup", () => {
-      this._isAdjustingSensitivity = false;
-    });
-    this.listen(this.select, "change", () =>
-      this._onDeviceSelected(detectorManager),
-    );
-  }
+
 
   _renderHardwareState(state) {
     this._setDevices(state.availableDevices ?? []);
@@ -156,47 +120,48 @@ export default class MicrophoneControl extends BaseComponent {
   }
 
   _renderDeviceOptions(devices, selectedDeviceId) {
-    this.select.innerHTML = "";
+    this.refs.select.innerHTML = "";
     if (devices.length === 0) {
       const option = document.createElement("option");
       option.value = "";
       option.textContent = "No microphone found";
-      this.select.appendChild(option);
-      this.select.disabled = true;
+      this.refs.select.appendChild(option);
+      this.refs.select.disabled = true;
       return;
     }
-    this.select.disabled = false;
+    this.refs.select.disabled = false;
     devices.forEach((device) => {
       const option = document.createElement("option");
       option.value = device.deviceId;
       option.textContent = device.label;
-      this.select.appendChild(option);
+      this.refs.select.appendChild(option);
     });
-    this.select.value = selectedDeviceId || devices[0]?.deviceId || "";
+    this.refs.select.value = selectedDeviceId || devices[0]?.deviceId || "";
   }
 
-  _onDeviceSelected(_detectorManager) {
-    const deviceId = this.select.value;
+  handleDeviceSelected(event, element) {
+    const deviceId = this.refs.select.value;
     if (deviceId) {
       void this._audioService?.selectDevice(deviceId);
     }
   }
 
-  _onSensitivityPointerDown(event, detectorManager) {
+  handleSensitivityPointerDown(event, element) {
     this._isAdjustingSensitivity = true;
-    this._setSensitivityFromPointer(event.clientX, detectorManager);
-    this.level.setPointerCapture?.(event.pointerId);
+    this._setSensitivityFromPointer(event.clientX);
+    this.refs.level.setPointerCapture?.(event.pointerId);
   }
 
-  _onSensitivityPointerMove(event, detectorManager) {
+  handleSensitivityPointerMove(event, element) {
     if (!this._isAdjustingSensitivity) return;
-    this._setSensitivityFromPointer(event.clientX, detectorManager);
+    this._setSensitivityFromPointer(event.clientX);
   }
 
-  _setSensitivityFromPointer(clientX, detectorManager) {
-    const rect = this.level.getBoundingClientRect();
+  _setSensitivityFromPointer(clientX) {
+    if (!this._detectorManager) return;
+    const rect = this.refs.level.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    detectorManager.setSensitivity(1 - ratio);
+    this._detectorManager.setSensitivity(1 - ratio);
   }
 }
 

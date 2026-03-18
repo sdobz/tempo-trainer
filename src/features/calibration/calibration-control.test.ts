@@ -60,9 +60,9 @@ Deno.test(
   "CalibrationControl: should initialize with default state",
   async () => {
     const component = await createComponent();
-    assertEquals(component.button?.textContent, "Auto Calibrate");
+    assertEquals(component.refs.button?.textContent, "Auto Calibrate");
     assertEquals(
-      (component.progressContainer as HTMLElement | null)?.hidden,
+      (component.refs.progressContainer as HTMLElement | null)?.hidden,
       true,
     );
   },
@@ -115,11 +115,11 @@ Deno.test(
   "CalibrationControl: onOffsetChanged should update offset input",
   async () => {
     const component = await createComponent();
-    if (!component.offsetInput) return;
+    if (!component.refs.offsetInput) return;
 
     component.onOffsetChanged(42);
 
-    const offsetInput = component.offsetInput as HTMLInputElement;
+    const offsetInput = component.refs.offsetInput as HTMLInputElement;
     assertEquals(offsetInput.value, "42");
   },
 );
@@ -128,13 +128,13 @@ Deno.test(
   "CalibrationControl: onCalibrationStateChanged should update button text",
   async () => {
     const component = await createComponent();
-    if (!component.button) return;
+    if (!component.refs.button) return;
 
     component.onCalibrationStateChanged(true);
-    assertEquals(component.button.textContent, "Cancel Calibration");
+    assertEquals(component.refs.button.textContent, "Cancel Calibration");
 
     component.onCalibrationStateChanged(false);
-    assertEquals(component.button.textContent, "Auto Calibrate");
+    assertEquals(component.refs.button.textContent, "Auto Calibrate");
   },
 );
 
@@ -165,10 +165,10 @@ Deno.test(
     });
 
     assertEquals(
-      (component.progressFill as HTMLElement | null)?.style.width,
+      (component.refs.progressFill as HTMLElement | null)?.style.width,
       "83.4%",
     );
-    assertEquals(component.progressTrack?.getAttribute("aria-valuenow"), "83");
-    assertEquals(component.progressStatus?.textContent, "Confidence 83%");
+    assertEquals(component.refs.progressTrack?.getAttribute("aria-valuenow"), "83");
+    assertEquals(component.refs.progressStatus?.textContent, "Confidence 83%");
   },
 );
