@@ -51,6 +51,18 @@ When guidance conflicts, use this precedence order:
 4. Update docs and code together when contracts change.
 5. Verify no new hidden coupling was introduced.
 
+## Signal-First Component Conventions
+
+- When a public API method is a transparent pass-through to a signal setter/getter, assign the signal function directly as an instance property in the constructor instead of writing a wrapper method:
+  ```js
+  // ✅ correct
+  this.setBeatsPerMeasure = this._setBeatsPerMeasure;
+
+  // ✗ boilerplate — delete on sight
+  setBeatsPerMeasure(v) { this._setBeatsPerMeasure(v); }
+  ```
+- Keep wrapper methods only when they contain logic (validation, transformation, side-effects, or multiple signal writes).
+
 ## When Unsure
 
 If a task is ambiguous, resolve these questions before broad edits:

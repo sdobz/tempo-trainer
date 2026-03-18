@@ -16,6 +16,9 @@ export default class PlanVisualizer extends BaseComponent {
     [this._getHighlight, this._setHighlight] = this.createSignalState(-1);
     [this._getDelegate, this._setDelegate] = this.createSignalState(null);
 
+    this.setDelegate = this._setDelegate;
+    this.setHighlight = this._setHighlight;
+
     this._cleanupPlayback = null;
     this._cleanupChart = null;
   }
@@ -90,10 +93,6 @@ export default class PlanVisualizer extends BaseComponent {
       this._cleanupChart();
       this._cleanupChart = null;
     }
-  }
-
-  setDelegate(delegate) {
-    this._setDelegate(delegate);
   }
 
   parse(planString) {
@@ -182,10 +181,6 @@ export default class PlanVisualizer extends BaseComponent {
 
   setScores(scores) {
     this._setScores([...scores]);
-  }
-
-  setHighlight(measureIndex) {
-    this._setHighlight(measureIndex);
   }
 
   getMeasureType(measureIndex) {
