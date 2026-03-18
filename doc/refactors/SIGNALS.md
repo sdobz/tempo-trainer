@@ -238,3 +238,51 @@ This makes the signals effort a code reduction initiative, not just an architect
 - Refactor one component per PR slice where possible.
 - Keep test updates minimal and behavior-focused.
 - Prefer deleting code over wrapping old code.
+
+## 9. Measured Outcome (`main...signals`)
+
+Actual non-test `*.js` LOC delta measured with:
+
+`git --no-pager diff --numstat main...signals -- '*.js'`
+
+Filtered to exclude test paths/files (`*.test.js`, `__tests__`, `tests`):
+
+- Added: `1603`
+- Deleted: `2586`
+- Net: `-983` LOC
+
+Largest reductions:
+
+- `src/features/plan-history/plan-history-pane.js`: `-729`
+- `src/features/base/base-component.js`: `-399` (duplicate legacy base removed)
+- `src/features/plan-play/timeline-visualization.js`: `-228`
+- `src/features/plan-edit/plan-edit-pane.js`: `-119`
+
+Largest additions:
+
+- `src/features/plan-history/history-session-item.js`: `+567`
+- `src/features/component/signal.js`: `+119`
+
+Result:
+
+- The effort exceeded the original conservative/aggressive estimate range (`-604` to `-867`) with a measured `-983` non-test JS LOC delta.
+
+## 10. Refactor Learnings
+
+1. LOC reduction is highest when signal migration is paired with structural deletion.
+Migrating to signals alone helps, but the biggest wins came from deleting duplicated/obsolete code and extracting bulky UI regions into focused components.
+
+2. “Set signals, let effects paint” scales better than imperative UI helpers.
+Handlers and delegates should set signal state only; DOM writes belong in a small number of effects. This consistently removed duplicated show/hide/text/class synchronization code.
+
+3. Public API compatibility points must be explicit during migration.
+Methods like `displaySessions(...)` and selection APIs should remain stable while internals move to signals, otherwise refactors become blocked by cross-component call sites.
+
+4. Event feedback loops become more visible in reactive systems and need guards.
+Selection flows around `chart-selected` required deduping to prevent re-entrant publish loops. Signals simplify UI updates, but event contracts still need idempotent boundaries.
+
+5. Data-shape contracts matter as much as rendering logic.
+A mismatch in projected chart shape (segment-level vs measure-level plan data) can cause pathological rendering and browser lockups; contract tests at service boundaries are essential.
+
+6. Tests should move from internal state assertions to behavior/regression checks.
+Signals-first components are better validated through observable DOM/event behavior and targeted regression tests (including re-entrant and large-input paths) than through legacy `state` internals.
