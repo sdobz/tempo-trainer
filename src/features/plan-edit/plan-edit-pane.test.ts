@@ -43,8 +43,8 @@ Deno.test(
   "PlanEditPane: should show plan info panel when plan is set",
   async () => {
     const component = await createComponent();
-    assertEquals(component.planInfoDisplay !== null, true);
-    const infoDisplay = component.planInfoDisplay as HTMLElement;
+    assertEquals(component.refs.planInfoDisplay !== null, true);
+    const infoDisplay = component.refs.planInfoDisplay as HTMLElement;
     assertEquals(infoDisplay.style.display, "none");
 
     component._setCurrentPlan({
@@ -63,7 +63,7 @@ Deno.test(
   "PlanEditPane: should show editor when _setIsEditing(true)",
   async () => {
     const component = await createComponent();
-    const editorSection = component.planEditorSection as HTMLElement;
+    const editorSection = component.refs.planEditorSection as HTMLElement;
     assertEquals(editorSection.style.display, "none");
     component._setIsEditing(true);
     assertEquals(editorSection.style.display, "block");
@@ -99,12 +99,12 @@ Deno.test(
   "PlanEditPane: should have element references after mount",
   async () => {
     const component = await createComponent();
-    assertEquals(component.planLibrarySelect !== null, true);
-    assertEquals(component.newPlanBtn !== null, true);
-    assertEquals(component.planInfoDisplay !== null, true);
-    assertEquals(component.planEditorSection !== null, true);
-    assertEquals(component.planNameInput !== null, true);
-    assertEquals(component.segmentsList !== null, true);
+    assertEquals(component.refs.planLibrarySelect !== null, true);
+    assertEquals(component.refs.newPlanBtn !== null, true);
+    assertEquals(component.refs.planInfoDisplay !== null, true);
+    assertEquals(component.refs.planEditorSection !== null, true);
+    assertEquals(component.refs.planNameInput !== null, true);
+    assertEquals(component.refs.segmentsList !== null, true);
   },
 );
 
@@ -184,13 +184,13 @@ Deno.test(
       segments: [{ on: 1, off: 1, reps: 1 }],
     });
 
-    assertEquals(component.editPlanBtn !== null, true);
-    assertEquals(component.clonePlanBtn !== null, true);
-    assertEquals(component.startPlanPlayBtn !== null, true);
+    assertEquals(component.refs.editPlanBtn !== null, true);
+    assertEquals(component.refs.clonePlanBtn !== null, true);
+    assertEquals(component.refs.startPlanPlayBtn !== null, true);
 
-    const editBtn = component.editPlanBtn as HTMLElement;
-    const cloneBtn = component.clonePlanBtn as HTMLElement;
-    const startBtn = component.startPlanPlayBtn as HTMLElement;
+    const editBtn = component.refs.editPlanBtn as HTMLElement;
+    const cloneBtn = component.refs.clonePlanBtn as HTMLElement;
+    const startBtn = component.refs.startPlanPlayBtn as HTMLElement;
 
     assertEquals(editBtn.style.display, "none");
     assertEquals(cloneBtn.style.display, "inline-block");
@@ -210,11 +210,11 @@ Deno.test(
       segments: [{ on: 1, off: 1, reps: 1 }],
     });
 
-    component._onEditPlan();
+    component.handleEditPlanClick();
 
     assertEquals(component._getIsEditing(), false);
-    assertEquals(component.planEditorSection !== null, true);
-    const editorSection = component.planEditorSection as HTMLElement;
+    assertEquals(component.refs.planEditorSection !== null, true);
+    const editorSection = component.refs.planEditorSection as HTMLElement;
     assertEquals(editorSection.style.display, "none");
   },
 );
@@ -237,7 +237,7 @@ Deno.test("PlanEditPane: should block delete for built-in plans", async () => {
     segments: [{ on: 1, off: 1, reps: 1 }],
   });
 
-  component._onDeletePlan();
+  component.handleDeletePlanClick();
 
   assertEquals(deleteCalled, false);
 });

@@ -5,10 +5,7 @@
  */
 
 import BaseComponent from "../component/base-component.js";
-import {
-  dispatchEvent,
-  querySelector,
-} from "../component/component-utils.js";
+import { dispatchEvent } from "../component/component-utils.js";
 import Scorer from "../plan-play/scorer.js";
 import "../visualizers/plan-visualizer.js";
 import "../visualizers/timeline-visualization.js";
@@ -36,8 +33,6 @@ export default class HistorySessionItem extends BaseComponent {
 
     /** @type {boolean} Guard — viz is populated at most once */
     this._vizPopulated = false;
-    /** @type {HTMLElement|null} Root container div from template */
-    this._innerDiv = null;
   }
 
   getTemplateUrl() {
@@ -49,18 +44,12 @@ export default class HistorySessionItem extends BaseComponent {
   }
 
   async onMount() {
-    this._innerDiv = querySelector(this, "[data-session-inner]");
-    const header = querySelector(this, "[data-header]");
-    const retryBtn = querySelector(this, "[data-retry]");
-    const selectPlanBtn = querySelector(this, "[data-select-plan]");
-    const deleteBtn = querySelector(this, "[data-delete]");
-
     // Effect 1: render header text + dynamic details content
     this.createEffect(() => {
       const session = this._getSession();
-      if (!session || !this._innerDiv) return;
+      if (!session) return;
 
-      this._innerDiv.dataset.sessionId = session.id;
+      this.refs.sessionInner.dataset.sessionId = session.id;
       this._renderHeader(session);
       this._renderDynamicContent(session);
     });
@@ -68,35 +57,39 @@ export default class HistorySessionItem extends BaseComponent {
     // Effect 2: toggle expanded class; lazy-init visualizer on first expand
     this.createEffect(() => {
       const expanded = this._getExpanded();
-      if (!this._innerDiv) return;
-      this._innerDiv.classList.toggle("expanded", expanded);
+      this.refs.sessionInner.classList.toggle("expanded", expanded);
       if (expanded && !this._vizPopulated) {
         this._populatePlanVisualizer();
       }
     });
+  }
 
-    // Header click emits item-toggle to let parent manage expansion signal
-    this.listen(header, "click", () => {
-      const session = this._getSession();
-      if (session) dispatchEvent(this, "item-toggle", { sessionId: session.id });
-    });
+  /** @param {Event} event */
+  handleHeaderClick(event) {
+    const session = this._getSession();
+    if (session) dispatchEvent(this, "item-toggle", { sessionId: session.id });
+  }
 
-    this.listen(retryBtn, "click", (e) => {
-      e.stopPropagation();
-      const session = this._getSession();
-      if (session?.plan) dispatchEvent(this, "retry-chart", { chart: session.plan });
-    });
+  /** @param {Event} event */
+  handleRetryClick(event) {
+    event.stopPropagation();
+    const session = this._getSession();
+    if (session?.plan)
+      dispatchEvent(this, "retry-chart", { chart: session.plan });
+  }
 
-    this.listen(selectPlanBtn, "click", (e) => {
-      e.stopPropagation();
-      dispatchEvent(this, "navigate", { pane: "plan-edit" });
-    });
+  /** @param {Event} event */
+  handleSelectPlanClick(event) {
+    event.stopPropagation();
+    dispatchEvent(this, "navigate", { pane: "plan-edit" });
+  }
 
-    this.listen(deleteBtn, "click", (e) => {
-      e.stopPropagation();
-      const session = this._getSession();
-      if (session?.id) dispatchEvent(this, "delete-session", { sessionId: session.id });
-    });
+  /** @param {Event} event */
+  handleDeleteClick(event) {
+    event.stopPropagation();
+    const session = this._getSession();
+    if (session?.id)
+      dispatchEvent(this, "delete-session", { sessionId: session.id });
   }
 
   // --- Private Render Helpers ---
@@ -117,19 +110,17 @@ export default class HistorySessionItem extends BaseComponent {
     const statusColor = completed ? "#4ade80" : "#f87171";
     const statusText = completed ? "✓ Completed" : "⊙ Stopped";
 
-    querySelector(this, "[data-score]").textContent =
-      String(overallScore).padStart(2, "0");
-    querySelector(this, "[data-plan-name]").textContent = plan.name;
-    const statusEl = querySelector(this, "[data-status]");
+    this.refs.scoreEl.textContent = String(overallScore).padStart(2, "0");
+    this.refs.planNameEl.textContent = plan.name;
+    const statusEl = this.refs.statusEl;
     statusEl.textContent = statusText;
     statusEl.style.color = statusColor;
-    querySelector(this, "[data-datetime]").textContent =
-      `${dateStr} ${timeStr}`;
+    this.refs.datetimeEl.textContent = `${dateStr} ${timeStr}`;
   }
 
   _renderDynamicContent(session) {
     const { plan, metrics, durationSeconds } = session;
-    const dynamicContent = querySelector(this, "[data-dynamic-content]");
+    const dynamicContent = this.refs.dynamicContent;
     const minutes = Math.floor(durationSeconds / 60);
     const seconds = durationSeconds % 60;
     const recommendations = this._generateRecommendations(session, metrics);
@@ -223,7 +214,7 @@ export default class HistorySessionItem extends BaseComponent {
     if (!session?.drillPlan) return;
 
     try {
-      const vizEl = querySelector(this, "[data-plan-viz]");
+      const vizEl = this.refs.planViz;
       if (!vizEl || !vizEl.setDrillPlan) return;
 
       if (vizEl.componentReady) await vizEl.componentReady;
@@ -253,8 +244,8 @@ export default class HistorySessionItem extends BaseComponent {
     const session = this._getSession();
     if (!session?.drillPlan) return;
 
-    const wrapper = querySelector(this, "[data-timeline-wrapper]");
-    const timelineComponent = querySelector(this, "[data-session-timeline]");
+    const wrapper = this.refs.timelineWrapper;
+    const timelineComponent = this.refs.sessionTimeline;
     if (!wrapper || !timelineComponent) return;
 
     wrapper.style.display = "block";
@@ -495,7 +486,8 @@ export default class HistorySessionItem extends BaseComponent {
     );
 
     if (driftAmount > 8) return "Accelerating improvement across the session.";
-    if (driftAmount < -8) return "Declining performance—focus on technique consistency.";
+    if (driftAmount < -8)
+      return "Declining performance—focus on technique consistency.";
 
     return null;
   }

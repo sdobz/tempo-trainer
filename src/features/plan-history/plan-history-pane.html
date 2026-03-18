@@ -1,6 +1,12 @@
 <div class="pane-content">
   <h2>Drill History</h2>
   <div class="drill-history">
-    <div data-history-list></div>
+    <div
+      data-ref="historyList"
+      data-on-item-toggle="handleItemToggle"
+      data-on-retry-chart="handleRetryChart"
+      data-on-navigate="handleNavigate"
+      data-on-delete-session="handleDeleteSession"
+    ></div>
   </div>
 </div>

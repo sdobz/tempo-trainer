@@ -6,10 +6,21 @@
     <div class="control-group">
       <label for="plan-library-select">Choose a Plan:</label>
       <div style="display: flex; gap: 0.5em">
-        <select id="plan-library-select" class="plan-library-select" data-plan-library-select>
+        <select
+          id="plan-library-select"
+          class="plan-library-select"
+          data-ref="planLibrarySelect"
+          data-on-change="handlePlanSelected"
+        >
           <option value="">Select a plan...</option>
         </select>
-        <button id="new-plan-btn" class="secondary-btn" data-new-plan-btn title="Create new plan">
+        <button
+          id="new-plan-btn"
+          class="secondary-btn"
+          data-ref="newPlanBtn"
+          data-on-click="handleNewPlanClick"
+          title="Create new plan"
+        >
           ➕ New Plan
         </button>
       </div>
@@ -19,28 +30,51 @@
     <div
       id="plan-info-display"
       class="plan-info-display"
-      data-plan-info-display
+      data-ref="planInfoDisplay"
       style="display: none"
     >
       <div class="plan-info-header">
         <div>
-          <h3 id="plan-info-name" data-plan-info-name></h3>
-          <p id="plan-info-description" class="plan-description" data-plan-info-description></p>
+          <h3 id="plan-info-name" data-ref="planInfoName"></h3>
+          <p
+            id="plan-info-description"
+            class="plan-description"
+            data-ref="planInfoDescription"
+          ></p>
         </div>
-        <span id="plan-info-difficulty" class="difficulty-badge" data-plan-info-difficulty></span>
+        <span
+          id="plan-info-difficulty"
+          class="difficulty-badge"
+          data-ref="planInfoDifficulty"
+        ></span>
       </div>
       <div class="plan-stats">
         <div class="stat">
           <span class="stat-label">Segments:</span>
-          <span id="plan-stat-segments" class="stat-value" data-plan-stat-segments>-</span>
+          <span
+            id="plan-stat-segments"
+            class="stat-value"
+            data-ref="planStatSegments"
+            >-</span
+          >
         </div>
         <div class="stat">
           <span class="stat-label">Total Measures:</span>
-          <span id="plan-stat-measures" class="stat-value" data-plan-stat-measures>-</span>
+          <span
+            id="plan-stat-measures"
+            class="stat-value"
+            data-ref="planStatMeasures"
+            >-</span
+          >
         </div>
         <div class="stat">
           <span class="stat-label">Duration:</span>
-          <span id="plan-stat-duration" class="stat-value" data-plan-stat-duration>-</span>
+          <span
+            id="plan-stat-duration"
+            class="stat-value"
+            data-ref="planStatDuration"
+            >-</span
+          >
         </div>
       </div>
     </div>
@@ -50,7 +84,7 @@
   <div
     id="plan-editor-section"
     class="plan-editor-section"
-    data-plan-editor-section
+    data-ref="planEditorSection"
     style="display: none"
   >
     <h3>Plan Editor</h3>
@@ -59,20 +93,25 @@
     <div class="plan-metadata-editor">
       <div class="control-group">
         <label for="plan-name-input">Plan Name:</label>
-        <input type="text" id="plan-name-input" data-plan-name-input placeholder="My Custom Plan" />
+        <input
+          type="text"
+          id="plan-name-input"
+          data-ref="planNameInput"
+          placeholder="My Custom Plan"
+        />
       </div>
       <div class="control-group">
         <label for="plan-description-input">Description (optional):</label>
         <textarea
           id="plan-description-input"
-          data-plan-description-input
+          data-ref="planDescriptionInput"
           rows="2"
           placeholder="Describe your plan..."
         ></textarea>
       </div>
       <div class="control-group">
         <label for="plan-difficulty-input">Difficulty:</label>
-        <select id="plan-difficulty-input" data-plan-difficulty-input>
+        <select id="plan-difficulty-input" data-ref="planDifficultyInput">
           <option value="">Not specified</option>
           <option value="Beginner">Beginner</option>
           <option value="Intermediate">Intermediate</option>
@@ -86,37 +125,81 @@
     <div class="segments-editor">
       <div class="segments-header">
         <h4>Segments</h4>
-        <button id="add-segment-btn" class="secondary-btn" data-add-segment-btn>
+        <button
+          id="add-segment-btn"
+          class="secondary-btn"
+          data-ref="addSegmentBtn"
+          data-on-click="handleAddSegmentClick"
+        >
           ➕ Add Segment
         </button>
       </div>
-      <div id="segments-list" class="segments-list" data-segments-list>
+      <div
+        id="segments-list"
+        class="segments-list"
+        data-ref="segmentsList"
+        data-on-change="handleSegmentsChange"
+        data-on-click="handleSegmentsClick"
+      >
         <!-- Segments will be added here dynamically -->
       </div>
     </div>
 
     <!-- Editor Actions -->
     <div class="plan-editor-actions">
-      <button id="save-plan-btn" class="primary-btn" data-save-plan-btn>💾 Save Plan</button>
-      <button id="cancel-edit-btn" class="secondary-btn" data-cancel-edit-btn>Cancel</button>
-      <button id="delete-plan-btn" class="danger-btn" data-delete-plan-btn style="display: none">
+      <button
+        id="save-plan-btn"
+        class="primary-btn"
+        data-ref="savePlanBtn"
+        data-on-click="handleSavePlanClick"
+      >
+        💾 Save Plan
+      </button>
+      <button
+        id="cancel-edit-btn"
+        class="secondary-btn"
+        data-ref="cancelEditBtn"
+        data-on-click="handleCancelEditClick"
+      >
+        Cancel
+      </button>
+      <button
+        id="delete-plan-btn"
+        class="danger-btn"
+        data-ref="deletePlanBtn"
+        data-on-click="handleDeletePlanClick"
+        style="display: none"
+      >
         🗑️ Delete Plan
       </button>
     </div>
   </div>
 
   <!-- Quick Action Buttons -->
-  <div class="pane-actions" data-plan-quick-actions>
-    <button id="clone-plan-btn" class="secondary-btn" data-clone-plan-btn style="display: none">
+  <div class="pane-actions" data-ref="planQuickActions">
+    <button
+      id="clone-plan-btn"
+      class="secondary-btn"
+      data-ref="clonePlanBtn"
+      data-on-click="handleClonePlanClick"
+      style="display: none"
+    >
       📋 Clone Plan
     </button>
-    <button id="edit-plan-btn" class="secondary-btn" data-edit-plan-btn style="display: none">
+    <button
+      id="edit-plan-btn"
+      class="secondary-btn"
+      data-ref="editPlanBtn"
+      data-on-click="handleEditPlanClick"
+      style="display: none"
+    >
       ✏️ Edit Plan
     </button>
     <button
       id="start-plan-play-btn"
       class="primary-btn"
-      data-start-plan-play-btn
+      data-ref="startPlanPlayBtn"
+      data-on-click="handleStartTrainingClick"
       style="display: none"
     >
       ▶️ Start Training
@@ -126,5 +209,8 @@
   <div class="plan-visualization-header">
     <h3>Plan Visualization</h3>
   </div>
-  <plan-visualizer id="plan-visualization-component"></plan-visualizer>
+  <plan-visualizer
+    id="plan-visualization-component"
+    data-ref="planVisualization"
+  ></plan-visualizer>
 </div>

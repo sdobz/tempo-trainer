@@ -10,10 +10,8 @@ async function createComponent() {
   const component = new TimelineVisualization();
   await component.componentReady;
 
-  const viewport = component.querySelector(
-    "[data-timeline-viewport]",
-  ) as HTMLElement;
-  const track = component.querySelector("[data-timeline-track]") as HTMLElement;
+  const viewport = component.refs.viewport as HTMLElement;
+  const track = component.refs.track as HTMLElement;
 
   Object.defineProperty(viewport, "clientWidth", {
     configurable: true,
@@ -81,9 +79,7 @@ Deno.test(
     component.setDrillPlan([{ type: "click" }, { type: "click" }]);
     component.centerAt(4);
 
-    const track = component.querySelector(
-      "[data-timeline-track]",
-    ) as HTMLElement;
+    const track = component.refs.track as HTMLElement;
     assertEquals(component.getLastBeatPosition(), 4);
     assertEquals(track.style.transform, "translateX(-222px)");
   },

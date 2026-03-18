@@ -5,7 +5,6 @@
  */
 
 import BaseComponent from "../component/base-component.js";
-import { querySelector } from "../component/component-utils.js";
 import { ChartServiceContext } from "../music/chart-service.js";
 import { TimelineServiceContext } from "../music/timeline-service.js";
 
@@ -17,10 +16,6 @@ import { TimelineServiceContext } from "../music/timeline-service.js";
 export default class TimelineVisualization extends BaseComponent {
   constructor() {
     super();
-
-    this.viewport = null;
-    this.track = null;
-    this.nowLine = null;
 
     this.pxPerBeat = 18;
     this.tailBeats = 1;
@@ -55,9 +50,9 @@ export default class TimelineVisualization extends BaseComponent {
   }
 
   onMount() {
-    this.viewport = querySelector(this, "[data-timeline-viewport]");
-    this.track = querySelector(this, "[data-timeline-track]");
-    this.nowLine = querySelector(this, "[data-timeline-now-line]");
+    this.viewport = this.refs.viewport;
+    this.track = this.refs.track;
+    this.nowLine = this.refs.nowLine;
 
     this.createEffect(() => {
       this._renderTimeline(

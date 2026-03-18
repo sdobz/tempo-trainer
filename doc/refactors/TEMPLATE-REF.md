@@ -325,26 +325,34 @@ This should be treated as a code reduction and maintenance-simplification initia
 
 ### 11.3 Phase 3 Implementation: Full Component Conversion
 
-**Components Converted:** 6 JavaScript components + templates/tests
+**Components Converted:** all remaining target components from `SIGNALS.md` + templates/tests
 
 Measured against the baseline LOC snapshot in `SIGNALS.md`:
 
 | Component | SIGNALS Baseline | Current LOC | Delta |
 |-----------|------------------|-------------|-------|
 | `audio-context-overlay.js` | 71 | 96 | +25 |
-| `app-notification.js` | 100 | 86 | -14 |
-| `onboarding-pane.js` | 197 | 186 | -11 |
-| `microphone-control.js` | 261 | 170 | -91 |
+| `app-notification.js` | 100 | 84 | -16 |
+| `onboarding-pane.js` | 197 | 165 | -32 |
+| `microphone-control.js` | 261 | 168 | -93 |
 | `calibration-control.js` | 344 | 291 | -53 |
-| `plan-play-pane.js` | 339 | 257 | -82 |
+| `plan-play-pane.js` | 339 | 230 | -109 |
+| `plan-visualizer.js` | 341 | 284 | -57 |
+| `timeline-visualization.js` | 342 | 315 | -27 |
+| `plan-edit-pane.js` | 682 | 490 | -192 |
+| `plan-history-pane.js` | 869 | 136 | -733 |
 
-**Net delta vs SIGNALS baseline:** `-226` LOC across converted components (`~17%` reduction).
+`history-session-item.js` was listed in `SIGNALS.md` with an approximate baseline (`270+`); current LOC is `559` after consolidation of history detail behavior.
+
+**Net delta vs exact SIGNALS baselines above:** `-1287` LOC (`3546 -> 2259`, ~`36%` reduction).
+
+**History subsystem note:** `plan-history-pane.js` + `history-session-item.js` currently totals `695` LOC.
 
 Implementation notes:
 
-1. Templates migrated to declarative wiring via `data-ref` and `data-on-*`.
+1. Templates migrated to declarative wiring via `data-ref` and `data-on-*` across visualizers, history, and editor panes.
 2. Manual selector fields and imperative event registration were removed from converted components.
-3. `plan-play-pane` now handles notification actions declaratively (`data-on-notification-action`).
+3. Delegated container events are now declarative where applicable (`item-toggle`, `retry-chart`, `navigate`, `delete-session`).
 4. Test suites were updated to assert through `component.refs.*` where components no longer expose direct element fields.
 
 ### 11.4 Test Coverage
@@ -355,6 +363,10 @@ Implementation notes:
   - `calibration-control.test.ts`: 4 assertions updated to use `refs`
   - `onboarding-pane.test.ts`: 3 assertions updated to use `refs`
   - `plan-play-pane.test.ts`: direct element assertions migrated to `refs`
+  - `timeline-visualization.test.ts`: migrated setup assertions to `refs.viewport` / `refs.track`
+  - `history-session-item.test.ts`: migrated header/action/detail assertions to `refs`
+  - `plan-edit-pane.test.ts`: migrated pane/editor assertions to `refs`
+  - `plan-history-pane.test.ts`: updated expansion-toggle test for deterministic handler coverage
   - `base-component.test.ts`: fixture component now implements required declarative handler for borrowed template
   - All test coverage maintained, 100% pass rate preserved
 
@@ -376,18 +388,12 @@ Implementation notes:
 
 ### 11.7 Remaining Work (Optional)
 
-High-impact components not yet converted (SIGNALS.md projections):
+No remaining component-local static DOM wiring targets are left in the set from `SIGNALS.md`.
 
-| Component | LOC | Est. Savings | Priority |
-|-----------|-----|--------------|----------|
-| timeline-visualization.js | 342 | 20-35 | Medium |
-| plan-visualizer.js | 341 | 20-35 | Medium |
-| src/features/plan-play/timeline-visualization.js | 228 | 15-30 | Medium |
-| plan-edit-pane.js | 682 | 70-120 | High |
-| plan-history-pane.js | 869 | 90-150 | High |
-| history-session-item.js | 270+ | 30-50 | Medium |
+Intentional non-migrated usages:
 
-**Projected additional savings:** 245-420 LOC (conservative-aggressive)
+1. Dynamic/internal `querySelector` calls for generated child layers (for example, timeline detections layer) where `data-ref` is not stable.
+2. Orchestration-level cross-component lookups in `calibration-orchestrator.js`, which are not component-local template wiring.
 
 ### 11.8 Architecture Documentation
 

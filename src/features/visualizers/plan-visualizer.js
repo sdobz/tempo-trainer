@@ -1,5 +1,4 @@
 import BaseComponent from "../component/base-component.js";
-import { querySelector } from "../component/component-utils.js";
 import { PlaybackContext } from "../plan-play/playback-state.js";
 import { ChartServiceContext } from "../music/chart-service.js";
 
@@ -7,7 +6,6 @@ export default class PlanVisualizer extends BaseComponent {
   constructor() {
     super();
 
-    this.container = null;
     this._viz = null;
 
     [this._getPlan, this._setPlan] = this.createSignalState([]);
@@ -32,14 +30,13 @@ export default class PlanVisualizer extends BaseComponent {
   }
 
   onMount() {
-    this.container = querySelector(this, "[data-plan-visualization-container]");
     this._viz = document.createElement("div");
     this._viz.id = "plan-visualization";
     this._viz.style.display = "flex";
     this._viz.style.flexDirection = "column";
     this._viz.style.gap = "0.8em";
     this._viz.style.borderRadius = "4px";
-    this.container.appendChild(this._viz);
+    this.refs.container.appendChild(this._viz);
 
     // TODO: boilerplate, eliminate
     this.createEffect(() => {

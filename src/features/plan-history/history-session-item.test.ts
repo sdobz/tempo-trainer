@@ -2,9 +2,8 @@
 import "../component/setup-dom.ts";
 import { assertEquals, assertTrue } from "../base/assert.ts";
 
-const { default: HistorySessionItem } = await import(
-  "./history-session-item.js"
-);
+const { default: HistorySessionItem } =
+  await import("./history-session-item.js");
 
 async function createItem(): Promise<any> {
   const element = document.createElement("history-session-item");
@@ -54,8 +53,8 @@ Deno.test(
     const item = await createItem();
     item._setSession(makeSession());
 
-    const score = item.querySelector("[data-score]");
-    const planName = item.querySelector("[data-plan-name]");
+    const score = item.refs.scoreEl;
+    const planName = item.refs.planNameEl;
     assertEquals(score.textContent, "85");
     assertEquals(planName.textContent, "Core Groove");
   },
@@ -64,31 +63,37 @@ Deno.test(
 Deno.test("HistorySessionItem: shows completed status", async () => {
   const item = await createItem();
   item._setSession(makeSession({ completed: true }));
-  const status = item.querySelector("[data-status]");
+  const status = item.refs.statusEl;
   assertTrue(status.textContent.includes("Completed"));
 });
 
-Deno.test("HistorySessionItem: shows stopped status for incomplete", async () => {
-  const item = await createItem();
-  item._setSession(makeSession({ completed: false }));
-  const status = item.querySelector("[data-status]");
-  assertTrue(status.textContent.includes("Stopped"));
-});
+Deno.test(
+  "HistorySessionItem: shows stopped status for incomplete",
+  async () => {
+    const item = await createItem();
+    item._setSession(makeSession({ completed: false }));
+    const status = item.refs.statusEl;
+    assertTrue(status.textContent.includes("Stopped"));
+  },
+);
 
 Deno.test("HistorySessionItem: not expanded by default", async () => {
   const item = await createItem();
   item._setSession(makeSession());
-  const inner = item.querySelector("[data-session-inner]");
+  const inner = item.refs.sessionInner;
   assertEquals(inner.classList.contains("expanded"), false);
 });
 
-Deno.test("HistorySessionItem: setExpanded(true) adds expanded class", async () => {
-  const item = await createItem();
-  item._setSession(makeSession());
-  item.setExpanded(true);
-  const inner = item.querySelector("[data-session-inner]");
-  assertEquals(inner.classList.contains("expanded"), true);
-});
+Deno.test(
+  "HistorySessionItem: setExpanded(true) adds expanded class",
+  async () => {
+    const item = await createItem();
+    item._setSession(makeSession());
+    item.setExpanded(true);
+    const inner = item.refs.sessionInner;
+    assertEquals(inner.classList.contains("expanded"), true);
+  },
+);
 
 Deno.test(
   "HistorySessionItem: setExpanded(false) removes expanded class",
@@ -97,7 +102,7 @@ Deno.test(
     item._setSession(makeSession());
     item.setExpanded(true);
     item.setExpanded(false);
-    const inner = item.querySelector("[data-session-inner]");
+    const inner = item.refs.sessionInner;
     assertEquals(inner.classList.contains("expanded"), false);
   },
 );
@@ -113,30 +118,33 @@ Deno.test("HistorySessionItem: emits item-toggle on header click", async () => {
     detail = e.detail;
   });
 
-  const header = item.querySelector("[data-header]") as HTMLElement;
+  const header = item.refs.header as HTMLElement;
   header.click();
 
   assertEquals(fired, true);
   assertEquals(detail.sessionId, "test-session");
 });
 
-Deno.test("HistorySessionItem: emits retry-chart on retry button click", async () => {
-  const item = await createItem();
-  item._setSession(makeSession());
+Deno.test(
+  "HistorySessionItem: emits retry-chart on retry button click",
+  async () => {
+    const item = await createItem();
+    item._setSession(makeSession());
 
-  let fired = false;
-  let detail: any = null;
-  item.addEventListener("retry-chart", (e: CustomEvent) => {
-    fired = true;
-    detail = e.detail;
-  });
+    let fired = false;
+    let detail: any = null;
+    item.addEventListener("retry-chart", (e: CustomEvent) => {
+      fired = true;
+      detail = e.detail;
+    });
 
-  const btn = item.querySelector("[data-retry]") as HTMLButtonElement;
-  btn.click();
+    const btn = item.refs.retryBtn as HTMLButtonElement;
+    btn.click();
 
-  assertEquals(fired, true);
-  assertEquals(detail.chart.name, "Core Groove");
-});
+    assertEquals(fired, true);
+    assertEquals(detail.chart.name, "Core Groove");
+  },
+);
 
 Deno.test(
   "HistorySessionItem: emits navigate on select-plan button click",
@@ -151,7 +159,7 @@ Deno.test(
       detail = e.detail;
     });
 
-    const btn = item.querySelector("[data-select-plan]") as HTMLButtonElement;
+    const btn = item.refs.selectPlanBtn as HTMLButtonElement;
     btn.click();
 
     assertEquals(fired, true);
@@ -172,7 +180,7 @@ Deno.test(
       detail = e.detail;
     });
 
-    const btn = item.querySelector("[data-delete]") as HTMLButtonElement;
+    const btn = item.refs.deleteBtn as HTMLButtonElement;
     btn.click();
 
     assertEquals(fired, true);
@@ -186,7 +194,7 @@ Deno.test(
     const item = await createItem();
     item._setSession(makeSession());
 
-    const content = item.querySelector("[data-dynamic-content]");
+    const content = item.refs.dynamicContent;
     assertTrue(content.textContent.includes("Metrics"));
     assertTrue(content.textContent.includes("Tempo Control"));
   },

@@ -4,10 +4,7 @@
  */
 
 import BaseComponent from "../component/base-component.js";
-import {
-  dispatchEvent,
-  querySelector,
-} from "../component/component-utils.js";
+import { dispatchEvent } from "../component/component-utils.js";
 import "./history-session-item.js";
 
 /**
@@ -31,9 +28,6 @@ export default class PlanHistoryPane extends BaseComponent {
     /** @type {Map<string, HTMLElement>} sessionId → history-session-item */
     this._sessionItems = new Map();
 
-    // DOM element references (set in onMount)
-    this.historyList = null;
-
     // Read-through accessor for external callers
     /** @type {any[]} */
     this.sessions = [];
@@ -48,15 +42,13 @@ export default class PlanHistoryPane extends BaseComponent {
   }
 
   onMount() {
-    this.historyList = querySelector(this, "[data-history-list]");
-
     // Effect 1: reconcile session item elements when session list changes
     this.createEffect(() => {
       const sessions = this._getSessions();
       this.sessions = sessions;
 
       if (sessions.length === 0) {
-        this.historyList.innerHTML = `
+        this.refs.historyList.innerHTML = `
           <div class="empty-history">
             <p>No practice sessions yet. Start a drill to see your progress!</p>
           </div>
@@ -75,25 +67,29 @@ export default class PlanHistoryPane extends BaseComponent {
         item.setExpanded(id === expandedId);
       });
     });
+  }
 
-    // item-toggle from any child item → toggle expand signal
-    this.listen(this.historyList, "item-toggle", (e) => {
-      const sessionId = e.detail?.sessionId;
-      if (!sessionId) return;
-      const current = this._getExpandedSessionId();
-      this._setExpandedSessionId(current === sessionId ? null : sessionId);
-    });
+  /** @param {CustomEvent<{sessionId: string}>} e */
+  handleItemToggle(e) {
+    const sessionId = e.detail?.sessionId;
+    if (!sessionId) return;
+    const current = this._getExpandedSessionId();
+    this._setExpandedSessionId(current === sessionId ? null : sessionId);
+  }
 
-    // Re-emit events from items to the pane level
-    this.listen(this.historyList, "retry-chart", (e) => {
-      dispatchEvent(this, "retry-chart", e.detail);
-    });
-    this.listen(this.historyList, "navigate", (e) => {
-      dispatchEvent(this, "navigate", e.detail);
-    });
-    this.listen(this.historyList, "delete-session", (e) => {
-      dispatchEvent(this, "delete-session", e.detail);
-    });
+  /** @param {CustomEvent} e */
+  handleRetryChart(e) {
+    dispatchEvent(this, "retry-chart", e.detail);
+  }
+
+  /** @param {CustomEvent} e */
+  handleNavigate(e) {
+    dispatchEvent(this, "navigate", e.detail);
+  }
+
+  /** @param {CustomEvent} e */
+  handleDeleteSession(e) {
+    dispatchEvent(this, "delete-session", e.detail);
   }
 
   // --- Public Methods ---
@@ -131,7 +127,7 @@ export default class PlanHistoryPane extends BaseComponent {
         this._sessionItems.set(session.id, item);
       }
       item._setSession(session);
-      this.historyList.appendChild(item);
+      this.refs.historyList.appendChild(item);
     }
   }
 }

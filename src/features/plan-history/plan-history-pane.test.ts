@@ -112,7 +112,7 @@ Deno.test("PlanHistoryPane: expands provided session id", async () => {
 });
 
 Deno.test(
-  "PlanHistoryPane: toggles expanded session on header click",
+  "PlanHistoryPane: toggles expanded session on item-toggle handler",
   async () => {
     const component = await createComponent();
     const sessions = [createSession()];
@@ -120,13 +120,18 @@ Deno.test(
     component.displaySessions(sessions as any);
     await waitAll(component);
 
-    const header = component.querySelector(
-      ".history-session-header",
-    ) as HTMLElement;
-    header.click();
+    component.handleItemToggle(
+      new CustomEvent("item-toggle", {
+        detail: { sessionId: "session-1" },
+      }) as CustomEvent<{ sessionId: string }>,
+    );
     assertEquals(component._getExpandedSessionId(), null);
 
-    header.click();
+    component.handleItemToggle(
+      new CustomEvent("item-toggle", {
+        detail: { sessionId: "session-1" },
+      }) as CustomEvent<{ sessionId: string }>,
+    );
     assertEquals(component._getExpandedSessionId(), "session-1");
   },
 );

@@ -31,8 +31,6 @@ export default class OnboardingPane extends BaseComponent {
       this.createSignalState(false);
     [this._getCalibrated, this._setCalibrated] = this.createSignalState(false);
 
-
-
     this.microphoneControl = null;
     this.calibrationControl = null;
     this._detectorManager = null;
@@ -55,27 +53,9 @@ export default class OnboardingPane extends BaseComponent {
     return new URL("./onboarding-pane.css", import.meta.url).href;
   }
 
-  /**
-   * Handle complete button click
-   * @param {Event} event
-   * @param {HTMLElement} element
-   */
-  handleCompleteClick(event, element) {
-    this._onComplete();
-  }
-
-  /**
-   * Handle detector selection change
-   * @param {Event} event
-   * @param {HTMLElement} element
-   */
-  handleDetectorChange(event, element) {
-    this._onDetectorChange(event);
-  }
-
   async onMount() {
-    this.microphoneControl = this.querySelector("microphone-control");
-    this.calibrationControl = this.querySelector("calibration-control");
+    this.microphoneControl = this.refs.microphoneControl;
+    this.calibrationControl = this.refs.calibrationControl;
 
     this.createEffect(() => {
       const isReady = this._getIsReady();
@@ -167,7 +147,7 @@ export default class OnboardingPane extends BaseComponent {
    * Delegates entirely to DetectorManager, which handles stop/create/rewire/start.
    * @private
    */
-  _onDetectorChange(event) {
+  handleDetectorChange(event) {
     if (!this._detectorManager) return;
     const nextType = event.target.value;
     this._detectorManager.setActiveDetector({
@@ -176,8 +156,7 @@ export default class OnboardingPane extends BaseComponent {
     this.refreshSetupStatus();
   }
 
-  /** @private */
-  _onComplete() {
+  handleCompleteClick() {
     if (!this._getIsReady()) return;
     dispatchEvent(this, "complete", {});
   }

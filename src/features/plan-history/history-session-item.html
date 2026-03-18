@@ -1,32 +1,60 @@
-<div class="history-session" data-session-inner>
-  <div class="history-session-header" data-header>
+<div class="history-session" data-ref="sessionInner">
+  <div
+    class="history-session-header"
+    data-ref="header"
+    data-on-click="handleHeaderClick"
+  >
     <div class="session-header-left">
       <div class="session-chevron">▼</div>
-      <div class="session-score" data-score></div>
-      <div class="session-plan" data-plan-name></div>
+      <div class="session-score" data-ref="scoreEl"></div>
+      <div class="session-plan" data-ref="planNameEl"></div>
     </div>
     <div class="session-header-right">
-      <div class="session-status" data-status></div>
-      <div class="session-datetime" data-datetime></div>
+      <div class="session-status" data-ref="statusEl"></div>
+      <div class="session-datetime" data-ref="datetimeEl"></div>
     </div>
   </div>
   <div class="session-details" data-details>
-    <div data-dynamic-content></div>
+    <div data-ref="dynamicContent"></div>
     <div class="details-row">
       <div class="detail-section">
         <div class="detail-title">Plan Structure</div>
         <div class="detail-content">
-          <div class="history-timeline-wrapper" data-timeline-wrapper style="display: none; margin-bottom: 1em;">
-            <timeline-visualization data-session-timeline></timeline-visualization>
+          <div
+            class="history-timeline-wrapper"
+            data-ref="timelineWrapper"
+            style="display: none; margin-bottom: 1em"
+          >
+            <timeline-visualization
+              data-ref="sessionTimeline"
+            ></timeline-visualization>
           </div>
-          <plan-visualizer data-plan-viz></plan-visualizer>
+          <plan-visualizer data-ref="planViz"></plan-visualizer>
         </div>
       </div>
     </div>
     <div class="session-actions">
-      <button class="retry-session-btn" data-retry>🔄 Retry This Plan</button>
-      <button class="select-plan-btn" data-select-plan>📋 Select Different Plan</button>
-      <button class="delete-session-btn" data-delete>🗑️ Delete Session</button>
+      <button
+        class="retry-session-btn"
+        data-ref="retryBtn"
+        data-on-click="handleRetryClick"
+      >
+        🔄 Retry This Plan
+      </button>
+      <button
+        class="select-plan-btn"
+        data-ref="selectPlanBtn"
+        data-on-click="handleSelectPlanClick"
+      >
+        📋 Select Different Plan
+      </button>
+      <button
+        class="delete-session-btn"
+        data-ref="deleteBtn"
+        data-on-click="handleDeleteClick"
+      >
+        🗑️ Delete Session
+      </button>
     </div>
   </div>
 </div>

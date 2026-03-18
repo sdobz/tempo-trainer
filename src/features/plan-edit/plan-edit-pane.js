@@ -5,7 +5,7 @@
  */
 
 import BaseComponent from "../component/base-component.js";
-import { dispatchEvent, querySelector } from "../component/component-utils.js";
+import { dispatchEvent } from "../component/component-utils.js";
 import { ChartServiceContext } from "../music/chart-service.js";
 import { TimelineServiceContext } from "../music/timeline-service.js";
 import "../visualizers/plan-visualizer.js";
@@ -34,26 +34,6 @@ export default class PlanEditPane extends BaseComponent {
     /** @type {import('../music/timeline-service.js').default|null} */
     this.timelineService = null;
 
-    // DOM element references (set in onMount; only those needed by effects kept as fields)
-    this.planLibrarySelect = null;
-    this.planInfoDisplay = null;
-    this.planInfoName = null;
-    this.planInfoDescription = null;
-    this.planInfoDifficulty = null;
-    this.planStatSegments = null;
-    this.planStatMeasures = null;
-    this.planStatDuration = null;
-    this.planEditorSection = null;
-    this.planNameInput = null;
-    this.planDescriptionInput = null;
-    this.planDifficultyInput = null;
-    this.segmentsList = null;
-    this.deletePlanBtn = null;
-    this.clonePlanBtn = null;
-    this.editPlanBtn = null;
-    this.startPlanPlayBtn = null;
-    this.planQuickActions = null;
-
     // Guards against feedback loops when chart-selected listeners re-apply the same plan.
     this._lastPublishedChartId = null;
   }
@@ -67,45 +47,6 @@ export default class PlanEditPane extends BaseComponent {
   }
 
   async onMount() {
-    // Query all DOM elements
-    this.planLibrarySelect = querySelector(this, "[data-plan-library-select]");
-    this.newPlanBtn = querySelector(this, "[data-new-plan-btn]");
-    this.planInfoDisplay = querySelector(this, "[data-plan-info-display]");
-    this.planInfoName = querySelector(this, "[data-plan-info-name]");
-    this.planInfoDescription = querySelector(
-      this,
-      "[data-plan-info-description]",
-    );
-    this.planInfoDifficulty = querySelector(
-      this,
-      "[data-plan-info-difficulty]",
-    );
-    this.planStatSegments = querySelector(this, "[data-plan-stat-segments]");
-    this.planStatMeasures = querySelector(this, "[data-plan-stat-measures]");
-    this.planStatDuration = querySelector(this, "[data-plan-stat-duration]");
-    this.planEditorSection = querySelector(this, "[data-plan-editor-section]");
-    this.planNameInput = querySelector(this, "[data-plan-name-input]");
-    this.planDescriptionInput = querySelector(
-      this,
-      "[data-plan-description-input]",
-    );
-    this.planDifficultyInput = querySelector(
-      this,
-      "[data-plan-difficulty-input]",
-    );
-    this.segmentsList = querySelector(this, "[data-segments-list]");
-    this.deletePlanBtn = querySelector(this, "[data-delete-plan-btn]");
-    this.clonePlanBtn = querySelector(this, "[data-clone-plan-btn]");
-    this.editPlanBtn = querySelector(this, "[data-edit-plan-btn]");
-    this.startPlanPlayBtn = querySelector(this, "[data-start-plan-play-btn]");
-    this.planQuickActions = querySelector(this, "[data-plan-quick-actions]");
-
-    // Local-only refs (not needed beyond onMount wire-up)
-    const newPlanBtn = querySelector(this, "[data-new-plan-btn]");
-    const savePlanBtn = querySelector(this, "[data-save-plan-btn]");
-    const cancelEditBtn = querySelector(this, "[data-cancel-edit-btn]");
-    const addSegmentBtn = querySelector(this, "[data-add-segment-btn]");
-
     // --- Effects ---
 
     // Effect 1: plan info panel
@@ -113,46 +54,48 @@ export default class PlanEditPane extends BaseComponent {
       const plan = this._getCurrentPlan();
       if (!plan) {
         this._lastPublishedChartId = null;
-        this.planInfoDisplay.style.display = "none";
-        this.clonePlanBtn.style.display = "none";
-        this.editPlanBtn.style.display = "none";
-        this.startPlanPlayBtn.style.display = "none";
+        this.refs.planInfoDisplay.style.display = "none";
+        this.refs.clonePlanBtn.style.display = "none";
+        this.refs.editPlanBtn.style.display = "none";
+        this.refs.startPlanPlayBtn.style.display = "none";
         return;
       }
 
-      this.planInfoName.textContent = plan.name;
-      this.planInfoDescription.textContent = plan.description || "";
+      this.refs.planInfoName.textContent = plan.name;
+      this.refs.planInfoDescription.textContent = plan.description || "";
 
       if (plan.difficulty) {
-        this.planInfoDifficulty.setAttribute(
+        this.refs.planInfoDifficulty.setAttribute(
           "data-difficulty",
           plan.difficulty,
         );
-        this.planInfoDifficulty.textContent = plan.difficulty;
+        this.refs.planInfoDifficulty.textContent = plan.difficulty;
       } else {
-        this.planInfoDifficulty.setAttribute("data-difficulty", "");
-        this.planInfoDifficulty.textContent = "Not specified";
+        this.refs.planInfoDifficulty.setAttribute("data-difficulty", "");
+        this.refs.planInfoDifficulty.textContent = "Not specified";
       }
 
       const { segments: planSegs } = this._segmentsToPlanData(
         plan.segments || [],
       );
       const userSegs = planSegs.filter((s) => !s.isClickIn);
-      this.planStatSegments.textContent = userSegs.length;
+      this.refs.planStatSegments.textContent = userSegs.length;
 
       const totalMeasures = userSegs.reduce(
         (sum, seg) => sum + (seg.on + seg.off) * seg.reps,
         0,
       );
-      this.planStatMeasures.textContent = totalMeasures;
+      this.refs.planStatMeasures.textContent = totalMeasures;
 
       const bpm = plan.bpm || 120;
-      this.planStatDuration.textContent = `${Math.round((totalMeasures * (60000 / bpm) * 4) / 1000)}s`;
+      this.refs.planStatDuration.textContent = `${Math.round((totalMeasures * (60000 / bpm) * 4) / 1000)}s`;
 
-      this.planInfoDisplay.style.display = "block";
-      this.clonePlanBtn.style.display = "inline-block";
-      this.editPlanBtn.style.display = plan.isBuiltIn ? "none" : "inline-block";
-      this.startPlanPlayBtn.style.display = "inline-block";
+      this.refs.planInfoDisplay.style.display = "block";
+      this.refs.clonePlanBtn.style.display = "inline-block";
+      this.refs.editPlanBtn.style.display = plan.isBuiltIn
+        ? "none"
+        : "inline-block";
+      this.refs.startPlanPlayBtn.style.display = "inline-block";
 
       const selectedId = plan.id || null;
       if (this.chartService && selectedId !== this._lastPublishedChartId) {
@@ -164,25 +107,25 @@ export default class PlanEditPane extends BaseComponent {
     // Effect 2: editor layout visibility
     this.createEffect(() => {
       const editing = this._getIsEditing();
-      this.planEditorSection.style.display = editing ? "block" : "none";
-      this.planQuickActions.style.display = editing ? "none" : "flex";
+      this.refs.planEditorSection.style.display = editing ? "block" : "none";
+      this.refs.planQuickActions.style.display = editing ? "none" : "flex";
     });
 
     // Effect 3: editor form fields
     this.createEffect(() => {
       const plan = this._getEditingPlan();
       if (!plan) return;
-      this.planNameInput.value = plan.name || "";
-      this.planDescriptionInput.value = plan.description || "";
-      this.planDifficultyInput.value = plan.difficulty || "";
-      this.deletePlanBtn.style.display =
+      this.refs.planNameInput.value = plan.name || "";
+      this.refs.planDescriptionInput.value = plan.description || "";
+      this.refs.planDifficultyInput.value = plan.difficulty || "";
+      this.refs.deletePlanBtn.style.display =
         plan.id && !plan.isBuiltIn ? "inline-block" : "none";
     });
 
     // Effect 4: segments editor list + live visualization
     this.createEffect(() => {
       const segments = this._getEditingSegments();
-      this.segmentsList.innerHTML = "";
+      this.refs.segmentsList.innerHTML = "";
       segments.forEach((segment, index) => {
         const el = document.createElement("div");
         el.className = "segment-item";
@@ -206,52 +149,14 @@ export default class PlanEditPane extends BaseComponent {
             <button class="delete-segment-btn" data-delete-segment>🗑️</button>
           </div>
         `;
-        this.segmentsList.appendChild(el);
+        this.refs.segmentsList.appendChild(el);
       });
 
       if (segments.length > 0) {
         const planData = this._segmentsToPlanData(segments);
-        const editorViz =
-          this.planEditorSection?.querySelector("plan-visualizer");
+        const editorViz = this.refs.planVisualization;
         if (editorViz?.setDrillPlan) editorViz.setDrillPlan(planData);
       }
-    });
-
-    // Event delegation on segments list (replaces per-row bindEvent calls)
-    this.listen(this.segmentsList, "change", (e) => {
-      const input = /** @type {HTMLInputElement} */ (e.target);
-      const row = input.closest("[data-segment-index]");
-      if (!row) return;
-      const index = parseInt(
-        /** @type {HTMLElement} */ (row).dataset.segmentIndex,
-      );
-      const segs = [...this._getEditingSegments()];
-      const field =
-        "on" in input.dataset ? "on" : "off" in input.dataset ? "off" : "reps";
-      segs[index] = {
-        ...segs[index],
-        [field]: parseInt(input.value) || (field === "reps" ? 1 : 0),
-      };
-      this._setEditingSegments(segs);
-    });
-
-    this.listen(this.segmentsList, "click", (e) => {
-      if (
-        !(
-          /** @type {HTMLElement} */ (e.target).matches("[data-delete-segment]")
-        )
-      )
-        return;
-      const row = /** @type {HTMLElement} */ (e.target).closest(
-        "[data-segment-index]",
-      );
-      if (!row) return;
-      const index = parseInt(
-        /** @type {HTMLElement} */ (row).dataset.segmentIndex,
-      );
-      const segs = [...this._getEditingSegments()];
-      segs.splice(index, 1);
-      this._setEditingSegments(segs);
     });
 
     // --- Context consumers ---
@@ -263,18 +168,38 @@ export default class PlanEditPane extends BaseComponent {
     this.consumeContext(TimelineServiceContext, (ts) => {
       this.timelineService = ts;
     });
+  }
 
-    // --- Button listeners ---
+  /** @param {Event} event */
+  handleSegmentsChange(event) {
+    const input = /** @type {HTMLInputElement} */ (event.target);
+    const row = input.closest("[data-segment-index]");
+    if (!row) return;
+    const index = parseInt(
+      /** @type {HTMLElement} */ (row).dataset.segmentIndex,
+    );
+    const segs = [...this._getEditingSegments()];
+    const field =
+      "on" in input.dataset ? "on" : "off" in input.dataset ? "off" : "reps";
+    segs[index] = {
+      ...segs[index],
+      [field]: parseInt(input.value) || (field === "reps" ? 1 : 0),
+    };
+    this._setEditingSegments(segs);
+  }
 
-    this.listen(this.planLibrarySelect, "change", () => this._onPlanSelected());
-    this.listen(newPlanBtn, "click", () => this._onNewPlan());
-    this.listen(this.editPlanBtn, "click", () => this._onEditPlan());
-    this.listen(this.clonePlanBtn, "click", () => this._onClonePlan());
-    this.listen(savePlanBtn, "click", () => this._onSavePlan());
-    this.listen(cancelEditBtn, "click", () => this._onCancelEdit());
-    this.listen(this.deletePlanBtn, "click", () => this._onDeletePlan());
-    this.listen(addSegmentBtn, "click", () => this._onAddSegment());
-    this.listen(this.startPlanPlayBtn, "click", () => this._onStartTraining());
+  /** @param {Event} event */
+  handleSegmentsClick(event) {
+    const target = /** @type {HTMLElement} */ (event.target);
+    if (!target.matches("[data-delete-segment]")) return;
+    const row = target.closest("[data-segment-index]");
+    if (!row) return;
+    const index = parseInt(
+      /** @type {HTMLElement} */ (row).dataset.segmentIndex,
+    );
+    const segs = [...this._getEditingSegments()];
+    segs.splice(index, 1);
+    this._setEditingSegments(segs);
   }
 
   // --- Public Methods ---
@@ -305,7 +230,7 @@ export default class PlanEditPane extends BaseComponent {
     const plan = this.chartService.getChartById(chart.id);
 
     if (plan) {
-      this.planLibrarySelect.value = plan.id || "";
+      this.refs.planLibrarySelect.value = plan.id || "";
       this._setCurrentPlan(plan);
       this.updateUrlWithPlan(plan.id || null);
     }
@@ -335,45 +260,47 @@ export default class PlanEditPane extends BaseComponent {
    */
   _populatePlanLibrary() {
     const plans = this.chartService ? this.chartService.getAllCharts() : [];
-    this.planLibrarySelect.innerHTML =
+    this.refs.planLibrarySelect.innerHTML =
       '<option value="">Select a plan...</option>';
     plans.forEach((plan) => {
       const option = document.createElement("option");
       option.value = plan.id || "";
       option.textContent = plan.name;
-      this.planLibrarySelect.appendChild(option);
+      this.refs.planLibrarySelect.appendChild(option);
     });
 
     const params = new URLSearchParams(window.location.search);
     const planId = params.get("plan");
     if (planId) {
-      this.planLibrarySelect.value = planId;
+      this.refs.planLibrarySelect.value = planId;
       const plan = this.chartService?.getChartById(planId);
       if (plan) this._setCurrentPlan(plan);
     }
   }
 
-  _onPlanSelected() {
-    if (!this.planLibrarySelect.value) {
+  handlePlanSelected() {
+    if (!this.refs.planLibrarySelect.value) {
       this._setCurrentPlan(null);
       this.updateUrlWithPlan(null);
       return;
     }
-    const plan = this.chartService?.getChartById(this.planLibrarySelect.value);
+    const plan = this.chartService?.getChartById(
+      this.refs.planLibrarySelect.value,
+    );
     if (plan) {
       this._setCurrentPlan(plan);
       this.updateUrlWithPlan(plan.id || null);
     }
   }
 
-  _onNewPlan() {
-    this.planLibrarySelect.value = "";
+  handleNewPlanClick() {
+    this.refs.planLibrarySelect.value = "";
     this._setEditingPlan({ segments: [] });
     this._setEditingSegments([]);
     this._setIsEditing(true);
   }
 
-  _onEditPlan() {
+  handleEditPlanClick() {
     const plan = this._getCurrentPlan();
     if (!plan || plan.isBuiltIn) return;
     this._setEditingPlan({ ...plan });
@@ -381,7 +308,7 @@ export default class PlanEditPane extends BaseComponent {
     this._setIsEditing(true);
   }
 
-  _onClonePlan() {
+  handleClonePlanClick() {
     const plan = this._getCurrentPlan();
     if (!plan) return;
     const cloned = { ...plan, id: undefined, name: `${plan.name} (Copy)` };
@@ -390,16 +317,16 @@ export default class PlanEditPane extends BaseComponent {
     this._setIsEditing(true);
   }
 
-  _onSavePlan() {
+  handleSavePlanClick() {
     if (!this.chartService) return;
 
     const editingPlan = this._getEditingPlan();
     const editingBuiltIn = Boolean(editingPlan?.isBuiltIn);
     const planData = {
       id: editingBuiltIn ? undefined : editingPlan.id,
-      name: this.planNameInput.value || "Untitled",
-      description: this.planDescriptionInput.value,
-      difficulty: this.planDifficultyInput.value || undefined,
+      name: this.refs.planNameInput.value || "Untitled",
+      description: this.refs.planDescriptionInput.value,
+      difficulty: this.refs.planDifficultyInput.value || undefined,
       segments: this._getEditingSegments(),
       bpm: this.timelineService?.tempo ?? 120,
     };
@@ -417,7 +344,7 @@ export default class PlanEditPane extends BaseComponent {
       const savedPlan = this.chartService.saveChart(planData);
       this._setIsEditing(false);
       this._populatePlanLibrary();
-      this.planLibrarySelect.value = savedPlan.id || "";
+      this.refs.planLibrarySelect.value = savedPlan.id || "";
       this._setCurrentPlan(savedPlan);
       dispatchEvent(this, "chart-saved", { chart: savedPlan });
     } catch (e) {
@@ -426,18 +353,18 @@ export default class PlanEditPane extends BaseComponent {
     }
   }
 
-  _onCancelEdit() {
+  handleCancelEditClick() {
     this._setIsEditing(false);
     const current = this._getCurrentPlan();
     if (current) {
-      this.planLibrarySelect.value = current.id || "";
+      this.refs.planLibrarySelect.value = current.id || "";
     } else {
-      this.planLibrarySelect.value = "";
+      this.refs.planLibrarySelect.value = "";
       this._setCurrentPlan(null);
     }
   }
 
-  _onDeletePlan() {
+  handleDeletePlanClick() {
     const editingPlan = this._getEditingPlan();
     if (!editingPlan?.id || editingPlan.isBuiltIn) return;
     if (!this.chartService) return;
@@ -448,7 +375,7 @@ export default class PlanEditPane extends BaseComponent {
       this.chartService.deleteChart(editingPlan.id);
       this._setIsEditing(false);
       this._populatePlanLibrary();
-      this.planLibrarySelect.value = "";
+      this.refs.planLibrarySelect.value = "";
       this._setCurrentPlan(null);
     } catch (e) {
       console.error("Failed to delete plan:", e);
@@ -456,14 +383,14 @@ export default class PlanEditPane extends BaseComponent {
     }
   }
 
-  _onAddSegment() {
+  handleAddSegmentClick() {
     this._setEditingSegments([
       ...this._getEditingSegments(),
       { on: 1, off: 1, reps: 1 },
     ]);
   }
 
-  _onStartTraining() {
+  handleStartTrainingClick() {
     if (this._getCurrentPlan()) {
       dispatchEvent(this, "navigate", { pane: "plan-play" });
     }

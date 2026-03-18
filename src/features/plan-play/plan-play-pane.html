@@ -16,7 +16,11 @@
       </div>
       <div class="control-group-inline">
         <label for="play-time-signature">Time Signature:</label>
-        <select id="play-time-signature" data-ref="timeSignatureSelect" data-on-change="handleTimeSignatureChange">
+        <select
+          id="play-time-signature"
+          data-ref="timeSignatureSelect"
+          data-on-change="handleTimeSignatureChange"
+        >
           <option value="4/4" selected>4/4</option>
           <option value="3/4">3/4</option>
           <option value="2/4">2/4</option>
@@ -42,6 +46,7 @@
   </div>
 
   <timeline-visualization
+    data-ref="timelineViz"
     id="timeline-visualization-component"
   ></timeline-visualization>
 

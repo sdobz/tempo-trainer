@@ -36,7 +36,7 @@ export default class PlanPlayPane extends BaseComponent {
   }
 
   onMount() {
-    this.timelineViz = this.querySelector("timeline-visualization");
+    this.timelineViz = this.refs.timelineViz;
     this.provideContext(PlaybackContext, () => this._playbackState);
 
     this.createEffect(() => {
@@ -142,33 +142,6 @@ export default class PlanPlayPane extends BaseComponent {
     }
   }
 
-  /**
-   * Handle start button click
-   * @param {Event} event
-   * @param {HTMLElement} element
-   */
-  handleStartClick(event, element) {
-    this._onStart();
-  }
-
-  /**
-   * Handle stop button click
-   * @param {Event} event
-   * @param {HTMLElement} element
-   */
-  handleStopClick(event, element) {
-    this._onStop();
-  }
-
-  /**
-   * Handle view results button click
-   * @param {Event} event
-   * @param {HTMLElement} element
-   */
-  handleViewResultsClick(event, element) {
-    this._onViewResults();
-  }
-
   // todo: subscription cleanup boilerplate, eliminate through base class or context
   onUnmount() {
     this._subscriptionCleanups.forEach((cleanup) => cleanup());
@@ -231,22 +204,22 @@ export default class PlanPlayPane extends BaseComponent {
     this.refs.calibrationWarning.hide();
   }
 
-  _onStart() {
+  handleStartClick() {
     dispatchEvent(this, "session-start", {
       bpm: this.getBPM(),
       beatsPerMeasure: this.getBeatsPerMeasure(),
     });
   }
 
-  _onStop() {
+  handleStopClick() {
     dispatchEvent(this, "session-stop", {});
   }
 
-  _onViewResults() {
+  handleViewResultsClick() {
     dispatchEvent(this, "navigate", { pane: "plan-history" });
   }
 
-  handleCalibrationWarningAction(event, element) {
+  handleCalibrationWarningAction() {
     dispatchEvent(this, "navigate", {
       pane: "onboarding",
       params: { target: "calibration" },
