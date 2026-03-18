@@ -366,8 +366,8 @@ class ChartService extends EventTarget {
    * Get chart with full projection: plan array (measures) and catalog segments.
    * @param {Chart|null|undefined} chart
    * @returns {{
-   *   plan: Array<{on: number, off: number, reps: number}>,
-   *   segments: Segment[]
+    *   plan: Array<{type: string}>,
+    *   segments: Array<{isClickIn?: boolean, on: number, off: number, reps: number, startIndex: number}>
    * }}
    */
   projectChart(chart) {
@@ -375,12 +375,32 @@ class ChartService extends EventTarget {
       return { plan: [], segments: [] };
     }
 
-    return {
-      plan: chart.segments
-        ? this.stringToSegments(this.segmentsToString(chart.segments))
-        : [],
-      segments: chart.segments || [],
-    };
+    const rawSegments = Array.isArray(chart.segments) ? chart.segments : [];
+    const normalized = rawSegments
+      .map((segment) => ({
+        on: Math.max(0, Number(segment?.on) || 0),
+        off: Math.max(0, Number(segment?.off) || 0),
+        reps: Math.max(1, Number(segment?.reps) || 1),
+      }))
+      .filter((segment) => segment.on > 0 || segment.off > 0);
+
+    /** @type {Array<{type: string}>} */
+    const plan = [{ type: "click-in" }];
+
+    /** @type {Array<{isClickIn?: boolean, on: number, off: number, reps: number, startIndex: number}>} */
+    const segments = [{ isClickIn: true, on: 1, off: 0, reps: 1, startIndex: 0 }];
+
+    let startIndex = 1;
+    for (const segment of normalized) {
+      segments.push({ ...segment, startIndex });
+      for (let repetition = 0; repetition < segment.reps; repetition++) {
+        for (let i = 0; i < segment.on; i++) plan.push({ type: "click" });
+        for (let i = 0; i < segment.off; i++) plan.push({ type: "silent" });
+      }
+      startIndex = plan.length;
+    }
+
+    return { plan, segments };
   }
 }
 

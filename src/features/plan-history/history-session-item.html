@@ -1,0 +1,32 @@
+<div class="history-session" data-session-inner>
+  <div class="history-session-header" data-header>
+    <div class="session-header-left">
+      <div class="session-chevron">▼</div>
+      <div class="session-score" data-score></div>
+      <div class="session-plan" data-plan-name></div>
+    </div>
+    <div class="session-header-right">
+      <div class="session-status" data-status></div>
+      <div class="session-datetime" data-datetime></div>
+    </div>
+  </div>
+  <div class="session-details" data-details>
+    <div data-dynamic-content></div>
+    <div class="details-row">
+      <div class="detail-section">
+        <div class="detail-title">Plan Structure</div>
+        <div class="detail-content">
+          <div class="history-timeline-wrapper" data-timeline-wrapper style="display: none; margin-bottom: 1em;">
+            <timeline-visualization data-session-timeline></timeline-visualization>
+          </div>
+          <plan-visualizer data-plan-viz></plan-visualizer>
+        </div>
+      </div>
+    </div>
+    <div class="session-actions">
+      <button class="retry-session-btn" data-retry>🔄 Retry This Plan</button>
+      <button class="select-plan-btn" data-select-plan>📋 Select Different Plan</button>
+      <button class="delete-session-btn" data-delete>🗑️ Delete Session</button>
+    </div>
+  </div>
+</div>

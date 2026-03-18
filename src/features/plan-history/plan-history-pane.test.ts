@@ -4,15 +4,15 @@ import { assertEquals, assertTrue } from "../base/assert.ts";
 
 const { default: PlanHistoryPane } = await import("./plan-history-pane.js");
 
-async function createComponent() {
-  const element = document.createElement("plan-history-pane") as InstanceType<
-    typeof PlanHistoryPane
-  >;
-  await element.componentReady;
+async function createComponent(): Promise<any> {
+  const element = document.createElement("plan-history-pane");
+  await (element as any).componentReady;
   return element;
 }
 
-async function waitVisualizers(component: HTMLElement) {
+async function waitAll(component: HTMLElement) {
+  const items = Array.from(component.querySelectorAll("history-session-item"));
+  await Promise.all(items.map((v: any) => v.componentReady));
   const vizs = Array.from(component.querySelectorAll("plan-visualizer"));
   await Promise.all(vizs.map((v: any) => v.componentReady));
 }
@@ -64,7 +64,7 @@ function createSession(overrides: Record<string, unknown> = {}) {
 
 Deno.test("PlanHistoryPane: initializes default state", async () => {
   const component = await createComponent();
-  assertEquals(component.state.expandedSessionId, null);
+  assertEquals(component._getExpandedSessionId(), null);
   assertEquals(Array.isArray(component.sessions), true);
   assertEquals(component.sessions.length, 0);
 });
@@ -87,7 +87,7 @@ Deno.test(
     const sessions = [createSession(), createSession({ id: "session-2" })];
 
     component.displaySessions(sessions as any);
-    await waitVisualizers(component);
+    await waitAll(component);
 
     const items = component.querySelectorAll(".history-session");
     assertEquals(items.length, 2);
@@ -101,14 +101,14 @@ Deno.test("PlanHistoryPane: expands provided session id", async () => {
   const sessions = [createSession(), createSession({ id: "session-2" })];
 
   component.displaySessions(sessions as any, "session-2");
-  await waitVisualizers(component);
+  await waitAll(component);
 
   const second = component.querySelector(
     '.history-session[data-session-id="session-2"]',
   );
   assertTrue(Boolean(second));
   assertEquals((second as HTMLElement).classList.contains("expanded"), true);
-  assertEquals(component.state.expandedSessionId, "session-2");
+  assertEquals(component._getExpandedSessionId(), "session-2");
 });
 
 Deno.test(
@@ -118,16 +118,16 @@ Deno.test(
     const sessions = [createSession()];
 
     component.displaySessions(sessions as any);
-    await waitVisualizers(component);
+    await waitAll(component);
 
     const header = component.querySelector(
       ".history-session-header",
     ) as HTMLElement;
     header.click();
-    assertEquals(component.state.expandedSessionId, null);
+    assertEquals(component._getExpandedSessionId(), null);
 
     header.click();
-    assertEquals(component.state.expandedSessionId, "session-1");
+    assertEquals(component._getExpandedSessionId(), "session-1");
   },
 );
 
@@ -137,7 +137,7 @@ Deno.test(
     const component = await createComponent();
     const sessions = [createSession()];
     component.displaySessions(sessions as any);
-    await waitVisualizers(component);
+    await waitAll(component);
 
     let fired = false;
     let detail: any = null;
@@ -162,7 +162,7 @@ Deno.test(
     const component = await createComponent();
     const sessions = [createSession()];
     component.displaySessions(sessions as any);
-    await waitVisualizers(component);
+    await waitAll(component);
 
     let fired = false;
     let detail: any = null;
@@ -187,7 +187,7 @@ Deno.test(
     const component = await createComponent();
     const sessions = [createSession()];
     component.displaySessions(sessions as any);
-    await waitVisualizers(component);
+    await waitAll(component);
 
     let fired = false;
     let detail: any = null;
@@ -241,7 +241,7 @@ Deno.test(
     ];
 
     component.displaySessions(sessions as any);
-    await waitVisualizers(component);
+    await waitAll(component);
 
     const detailsText =
       (component.querySelector(".session-details") as HTMLElement)

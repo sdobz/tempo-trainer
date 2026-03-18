@@ -30,8 +30,7 @@ export default class TimelineVisualization extends BaseComponent {
       this.createSignalState(4);
     [this._getDisplayStartBeat, this._setDisplayStartBeat] =
       this.createSignalState(0);
-    [this._getBuildVersion, this._setBuildVersion] =
-      this.createSignalState(0);
+    [this._getBuildVersion, this._setBuildVersion] = this.createSignalState(0);
     [this._getLastBeatPosition, this._setLastBeatPosition] =
       this.createSignalState(0);
 
@@ -176,8 +175,7 @@ export default class TimelineVisualization extends BaseComponent {
     }
     this._deferBuildCount = 0;
 
-    const totalBeats =
-      plan.length * beatsPerMeasure + this.tailBeats;
+    const totalBeats = plan.length * beatsPerMeasure + this.tailBeats;
     const contentWidth = totalBeats * this.pxPerBeat;
     const paddingWidth = viewportWidth;
     const totalWidth = paddingWidth + contentWidth + paddingWidth;
@@ -314,7 +312,6 @@ export default class TimelineVisualization extends BaseComponent {
     const localBeat = beatPosition - this._getDisplayStartBeat();
     return offsetX + localBeat * this.pxPerBeat;
   }
-
 }
 
 // Register custom element
