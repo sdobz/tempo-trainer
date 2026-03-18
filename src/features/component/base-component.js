@@ -1,12 +1,11 @@
 /**
- * BaseComponent - Abstract Web Component with lifecycle hooks and state management
+ * BaseComponent - Abstract Web Component with lifecycle hooks
  * @module base-component
  *
  * All UI components should extend this class. It provides:
  * - Template loading from separate .html files
  * - Style loading from separate .css files
- * - Lifecycle hooks (onMount, onUnmount, onStateChange, onShow, onHide)
- * - State management with mount guard and re-entrance protection
+ * - Lifecycle hooks (onMount, onUnmount, onShow, onHide)
  * - Automatic event listener cleanup via this.listen()
  * - Custom event emission via this.emit()
  * - AbortController for fetch cancellation on disconnect
@@ -20,32 +19,22 @@ import {
 } from "./signal.js";
 
 /**
- * @typedef {Object.<string, *>} ComponentState
- */
-
-/**
  * Abstract base class for Web Components.
- * Handles template + style loading, state management, and lifecycle.
+ * Handles template + style loading and lifecycle.
  * @abstract
  * @extends HTMLElement
  */
 export default class BaseComponent extends HTMLElement {
   /**
    * Creates a new BaseComponent instance.
-   * Initializes state and sets up lifecycle tracking.
+   * Sets up lifecycle tracking and signal disposal.
    */
   constructor() {
     super();
-    /** @type {ComponentState} */
-    this.state = {};
     /** @type {boolean} */
     this._mounted = false;
     /** @type {boolean} Whether the component's pane is currently visible */
     this._visible = false;
-    /** @type {boolean} Re-entrance guard for setState */
-    this._isUpdating = false;
-    /** @type {Partial<ComponentState>|null} Queued setState updates during onStateChange */
-    this._pendingUpdates = null;
     /** @type {Array<() => void>} Cleanup functions registered via this.listen() */
     this._cleanups = [];
     /** @type {AbortController} Used to cancel in-flight fetch calls on disconnect */
@@ -129,7 +118,7 @@ export default class BaseComponent extends HTMLElement {
 
   /**
    * Lifecycle hook: called when component is removed from DOM.
-   * this.listen() cleanups run automatically before this hook.
+   * Cleanup functions registered via this.listen() and this.createEffect() run automatically before this hook.
    * Override for additional cleanup (e.g., stopping domain modules).
    * @virtual
    * @returns {void}
@@ -156,64 +145,6 @@ export default class BaseComponent extends HTMLElement {
    */
   onHide() {
     // Override in subclasses
-  }
-
-  /**
-   * Lifecycle hook: called when state changes.
-   * This is the ONLY place DOM updates should happen — never update the DOM
-   * directly in event handlers or delegate callbacks; call setState() instead.
-   * @virtual
-   * @param {ComponentState} oldState Previous state
-   * @param {ComponentState} newState New state
-   * @returns {void}
-   */
-  onStateChange(_oldState, _newState) {
-    // Override in subclasses
-  }
-
-  /**
-   * Update component state and trigger onStateChange hook.
-   *
-   * Guards:
-   * - No-op if component is not mounted (prevents stale async callbacks).
-   * - Re-entrance safe: calls during onStateChange are queued and flushed after.
-   *
-   * @param {Partial<ComponentState>} updates Object with state changes to merge
-   * @returns {void}
-   */
-  setState(updates) {
-    if (!updates || typeof updates !== "object") {
-      throw new Error("setState requires an object");
-    }
-
-    // Mount guard: ignore updates after unmount
-    if (!this._mounted) {
-      return;
-    }
-
-    // Re-entrance guard: queue updates triggered during onStateChange
-    if (this._isUpdating) {
-      this._pendingUpdates = this._pendingUpdates
-        ? { ...this._pendingUpdates, ...updates }
-        : { ...updates };
-      return;
-    }
-
-    this._isUpdating = true;
-    const oldState = { ...this.state };
-    this.state = { ...this.state, ...updates };
-    try {
-      this.onStateChange(oldState, this.state);
-    } finally {
-      this._isUpdating = false;
-    }
-
-    // Flush any updates that were queued during onStateChange
-    if (this._pendingUpdates) {
-      const pending = this._pendingUpdates;
-      this._pendingUpdates = null;
-      this.setState(pending);
-    }
   }
 
   /**
