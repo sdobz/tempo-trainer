@@ -7,7 +7,9 @@
       <section class="step" id="step-setup" data-step-setup>
         <h3>
           <span class="step-title">Tune Hit Detection</span>
-          <span class="step-status" data-setup-status>⚠️ Setup incomplete</span>
+          <span class="step-status" data-ref="setupStatus"
+            >⚠️ Setup incomplete</span
+          >
         </h3>
         <p class="step-description">
           Select your microphone and hit detection method, then calibrate
@@ -15,7 +17,11 @@
         </p>
         <div class="detector-selector-row">
           <label for="detector-select">Detector:</label>
-          <select id="detector-select" data-detector-select>
+          <select
+            id="detector-select"
+            data-ref="detectorSelect"
+            data-on-change="handleDetectorChange"
+          >
             <option value="threshold">Threshold</option>
             <option value="adaptive">Adaptive / Spectral Flux</option>
           </select>
@@ -35,7 +41,12 @@
         <p class="step-description">
           When setup is ready, continue to plan creation.
         </p>
-        <button data-complete-btn class="primary-btn" disabled>
+        <button
+          data-ref="completeBtn"
+          data-on-click="handleCompleteClick"
+          class="primary-btn"
+          disabled
+        >
           Go to Plan Editor
         </button>
       </section>

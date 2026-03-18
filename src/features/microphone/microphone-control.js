@@ -112,8 +112,6 @@ export default class MicrophoneControl extends BaseComponent {
     }
   }
 
-
-
   _renderHardwareState(state) {
     this._setDevices(state.availableDevices ?? []);
     this._setSelectedDeviceId(state.selectedDeviceId ?? "");

@@ -78,9 +78,9 @@ async function createComponent() {
 
 Deno.test("OnboardingPane: should initialize with default state", async () => {
   const component = await createComponent();
-  assertEquals(component.setupStatus?.textContent, "⚠️ Setup incomplete");
+  assertEquals(component.refs.setupStatus?.textContent, "⚠️ Setup incomplete");
   assertEquals(
-    (component.completeBtn as HTMLButtonElement | null)?.disabled,
+    (component.refs.completeBtn as HTMLButtonElement | null)?.disabled,
     true,
   );
 });
@@ -110,10 +110,13 @@ Deno.test(
 
     component.refreshSetupStatus();
 
-    assertEquals(component.setupStatus?.textContent, "✓ Setup ready");
-    assertEquals(component.setupStatus?.classList.contains("complete"), true);
+    assertEquals(component.refs.setupStatus?.textContent, "✓ Setup ready");
     assertEquals(
-      (component.completeBtn as HTMLButtonElement | null)?.disabled,
+      component.refs.setupStatus?.classList.contains("complete"),
+      true,
+    );
+    assertEquals(
+      (component.refs.completeBtn as HTMLButtonElement | null)?.disabled,
       false,
     );
   },

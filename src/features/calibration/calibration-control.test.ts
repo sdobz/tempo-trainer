@@ -168,7 +168,10 @@ Deno.test(
       (component.refs.progressFill as HTMLElement | null)?.style.width,
       "83.4%",
     );
-    assertEquals(component.refs.progressTrack?.getAttribute("aria-valuenow"), "83");
+    assertEquals(
+      component.refs.progressTrack?.getAttribute("aria-valuenow"),
+      "83",
+    );
     assertEquals(component.refs.progressStatus?.textContent, "Confidence 83%");
   },
 );

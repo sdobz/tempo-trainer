@@ -1,5 +1,5 @@
 import BaseComponent from "../component/base-component.js";
-import { dispatchEvent, querySelector } from "../component/component-utils.js";
+import { dispatchEvent } from "../component/component-utils.js";
 import { PlaybackState, PlaybackContext } from "./playback-state.js";
 import { TimelineServiceContext } from "../music/timeline-service.js";
 import "../visualizers/timeline-visualization.js";
@@ -22,17 +22,6 @@ export default class PlanPlayPane extends BaseComponent {
     this._playbackState = new PlaybackState();
     this._timelineService = null;
 
-    this.timelineViz = null;
-    this.bpmInput = null;
-    this.timeSignatureSelect = null;
-    this.beatIndicator = null;
-    this.statusDiv = null;
-    this.startBtn = null;
-    this.stopBtn = null;
-    this.overallScoreDisplay = null;
-    this.viewResultsBtn = null;
-    this.calibrationWarning = null;
-
     this.setBPM = this._setBpm;
     this.setTimeSignature = this._setTimeSignature;
     this.setPlaying = this._setIsPlaying;
@@ -47,62 +36,48 @@ export default class PlanPlayPane extends BaseComponent {
   }
 
   onMount() {
-    // TODO:
-    this.bpmInput = querySelector(this, "[data-bpm-input]");
-    this.timeSignatureSelect = querySelector(
-      this,
-      "[data-time-signature-select]",
-    );
-    this.beatIndicator = querySelector(this, "[data-beat-indicator]");
-    this.statusDiv = querySelector(this, "[data-status]");
-    this.startBtn = querySelector(this, "[data-start-btn]");
-    this.stopBtn = querySelector(this, "[data-stop-btn]");
-    this.overallScoreDisplay = querySelector(this, "[data-overall-score]");
-    this.viewResultsBtn = querySelector(this, "[data-view-results-btn]");
-    this.calibrationWarning = querySelector(this, "[data-calibration-warning]");
     this.timelineViz = this.querySelector("timeline-visualization");
-
     this.provideContext(PlaybackContext, () => this._playbackState);
 
     this.createEffect(() => {
-      this.bpmInput.value = String(this._getBpm());
+      this.refs.bpmInput.value = String(this._getBpm());
     });
 
     this.createEffect(() => {
-      this.timeSignatureSelect.value = this._getTimeSignature();
+      this.refs.timeSignatureSelect.value = this._getTimeSignature();
     });
 
     this.createEffect(() => {
       const beat = this._getBeat();
-      this.beatIndicator.className = "beat-indicator";
+      this.refs.beatIndicator.className = "beat-indicator";
       if (!beat) {
-        this.beatIndicator.textContent = "";
+        this.refs.beatIndicator.textContent = "";
         return;
       }
 
-      this.beatIndicator.textContent = String(beat.beatNum);
+      this.refs.beatIndicator.textContent = String(beat.beatNum);
       if (beat.shouldShow) {
-        this.beatIndicator.classList.add(
+        this.refs.beatIndicator.classList.add(
           beat.isDownbeat ? "downbeat" : "active",
         );
       }
     });
 
     this.createEffect(() => {
-      this.statusDiv.textContent = this._getStatus();
+      this.refs.statusDiv.textContent = this._getStatus();
     });
 
     this.createEffect(() => {
       const formattedScore = String(
         Math.round(this._getOverallScore()),
       ).padStart(2, "00");
-      this.overallScoreDisplay.textContent = `Overall Score: ${formattedScore}`;
+      this.refs.overallScoreDisplay.textContent = `Overall Score: ${formattedScore}`;
     });
 
     this.createEffect(() => {
       const isPlaying = this._getIsPlaying();
-      this.startBtn.disabled = isPlaying;
-      this.stopBtn.disabled = !isPlaying;
+      this.refs.startBtn.disabled = isPlaying;
+      this.refs.stopBtn.disabled = !isPlaying;
     });
 
     this._subscriptionCleanups.push(
@@ -138,29 +113,60 @@ export default class PlanPlayPane extends BaseComponent {
         timelineService.removeEventListener("changed", onTimelineChanged);
       });
     });
+  }
 
-    this.listen(this.bpmInput, "input", () => {
-      const bpm = parseInt(this.bpmInput.value, 10);
-      if (!isNaN(bpm) && this._timelineService) {
-        this._timelineService.setTempo(bpm);
-      }
-    });
-    this.listen(this.timeSignatureSelect, "change", () => {
-      const beatsPerMeasure = parseInt(
-        this.timeSignatureSelect.value.split("/")[0],
-        10,
-      );
-      if (!isNaN(beatsPerMeasure) && this._timelineService) {
-        this._timelineService.setBeatsPerMeasure(beatsPerMeasure);
-      }
-    });
+  /**
+   * Handle BPM input change
+   * @param {Event} event
+   * @param {HTMLElement} element
+   */
+  handleBpmInput(event, element) {
+    const bpm = parseInt(this.refs.bpmInput.value, 10);
+    if (!isNaN(bpm) && this._timelineService) {
+      this._timelineService.setTempo(bpm);
+    }
+  }
 
-    this.listen(this.startBtn, "click", () => this._onStart());
-    this.listen(this.stopBtn, "click", () => this._onStop());
-    this.listen(this.viewResultsBtn, "click", () => this._onViewResults());
-    this.listen(this.calibrationWarning, "notification-action", () =>
-      this._onCalibrationWarningAction(),
+  /**
+   * Handle time signature selection change
+   * @param {Event} event
+   * @param {HTMLElement} element
+   */
+  handleTimeSignatureChange(event, element) {
+    const beatsPerMeasure = parseInt(
+      this.refs.timeSignatureSelect.value.split("/")[0],
+      10,
     );
+    if (!isNaN(beatsPerMeasure) && this._timelineService) {
+      this._timelineService.setBeatsPerMeasure(beatsPerMeasure);
+    }
+  }
+
+  /**
+   * Handle start button click
+   * @param {Event} event
+   * @param {HTMLElement} element
+   */
+  handleStartClick(event, element) {
+    this._onStart();
+  }
+
+  /**
+   * Handle stop button click
+   * @param {Event} event
+   * @param {HTMLElement} element
+   */
+  handleStopClick(event, element) {
+    this._onStop();
+  }
+
+  /**
+   * Handle view results button click
+   * @param {Event} event
+   * @param {HTMLElement} element
+   */
+  handleViewResultsClick(event, element) {
+    this._onViewResults();
   }
 
   // todo: subscription cleanup boilerplate, eliminate through base class or context
@@ -170,11 +176,11 @@ export default class PlanPlayPane extends BaseComponent {
   }
 
   getBPM() {
-    return parseInt(this.bpmInput.value, 10);
+    return parseInt(this.refs.bpmInput.value, 10);
   }
 
   getBeatsPerMeasure() {
-    return parseInt(this.timeSignatureSelect.value.split("/")[0], 10);
+    return parseInt(this.refs.timeSignatureSelect.value.split("/")[0], 10);
   }
 
   get playbackState() {
@@ -183,11 +189,11 @@ export default class PlanPlayPane extends BaseComponent {
 
   // TODO: never called?
   setStartDisabled(disabled) {
-    this.startBtn.disabled = disabled;
+    this.refs.startBtn.disabled = disabled;
   }
 
   setStopDisabled(disabled) {
-    this.stopBtn.disabled = disabled;
+    this.refs.stopBtn.disabled = disabled;
   }
 
   reset() {
@@ -205,17 +211,14 @@ export default class PlanPlayPane extends BaseComponent {
       if (typeof this.timelineViz.clearDetections === "function") {
         this.timelineViz.clearDetections();
       }
-      if (typeof this.timelineViz.centerAt === "function") {
-        this.timelineViz.centerAt(0);
-      }
     }
   }
 
   setCalibrationWarningVisible(shouldShow) {
-    if (!this.calibrationWarning) return;
+    if (!this.refs.calibrationWarning) return;
 
     if (shouldShow) {
-      this.calibrationWarning.show({
+      this.refs.calibrationWarning.show({
         type: "warning",
         message:
           "Microphone offset is not calibrated. Timing feedback may be inaccurate.",
@@ -225,7 +228,7 @@ export default class PlanPlayPane extends BaseComponent {
       return;
     }
 
-    this.calibrationWarning.hide();
+    this.refs.calibrationWarning.hide();
   }
 
   _onStart() {
@@ -243,7 +246,7 @@ export default class PlanPlayPane extends BaseComponent {
     dispatchEvent(this, "navigate", { pane: "plan-history" });
   }
 
-  _onCalibrationWarningAction() {
+  handleCalibrationWarningAction(event, element) {
     dispatchEvent(this, "navigate", {
       pane: "onboarding",
       params: { target: "calibration" },

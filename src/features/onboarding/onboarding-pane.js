@@ -10,7 +10,7 @@ import {
   DEFAULT_THRESHOLD_PARAMS,
   DETECTOR_TYPES,
 } from "../microphone/detector-params.js";
-import { dispatchEvent, querySelector } from "../component/component-utils.js";
+import { dispatchEvent } from "../component/component-utils.js";
 import "../microphone/microphone-control.js";
 import "../calibration/calibration-control.js";
 import "../visualizers/timeline-visualization.js";
@@ -31,9 +31,7 @@ export default class OnboardingPane extends BaseComponent {
       this.createSignalState(false);
     [this._getCalibrated, this._setCalibrated] = this.createSignalState(false);
 
-    this.completeBtn = null;
-    this.setupStatus = null;
-    this.detectorSelect = null;
+
 
     this.microphoneControl = null;
     this.calibrationControl = null;
@@ -57,21 +55,35 @@ export default class OnboardingPane extends BaseComponent {
     return new URL("./onboarding-pane.css", import.meta.url).href;
   }
 
-  async onMount() {
-    this.completeBtn = querySelector(this, "[data-complete-btn]");
-    this.setupStatus = querySelector(this, "[data-setup-status]");
-    this.detectorSelect = querySelector(this, "[data-detector-select]");
+  /**
+   * Handle complete button click
+   * @param {Event} event
+   * @param {HTMLElement} element
+   */
+  handleCompleteClick(event, element) {
+    this._onComplete();
+  }
 
-    this.microphoneControl = querySelector(this, "microphone-control");
-    this.calibrationControl = querySelector(this, "calibration-control");
+  /**
+   * Handle detector selection change
+   * @param {Event} event
+   * @param {HTMLElement} element
+   */
+  handleDetectorChange(event, element) {
+    this._onDetectorChange(event);
+  }
+
+  async onMount() {
+    this.microphoneControl = this.querySelector("microphone-control");
+    this.calibrationControl = this.querySelector("calibration-control");
 
     this.createEffect(() => {
       const isReady = this._getIsReady();
-      this.completeBtn.disabled = !isReady;
-      this.setupStatus.textContent = isReady
+      this.refs.completeBtn.disabled = !isReady;
+      this.refs.setupStatus.textContent = isReady
         ? "✓ Setup ready"
         : "⚠️ Setup incomplete";
-      this.setupStatus.classList.toggle("complete", isReady);
+      this.refs.setupStatus.classList.toggle("complete", isReady);
     });
 
     if (this.microphoneControl) await this.microphoneControl.componentReady;
@@ -81,21 +93,15 @@ export default class OnboardingPane extends BaseComponent {
     this.consumeContext(DetectorManagerContext, (dm) => {
       this._detectorManager = dm;
       const currentType = dm.getParams().type;
-      if (this.detectorSelect) {
-        this.detectorSelect.value = currentType;
+      if (this.refs.detectorSelect) {
+        this.refs.detectorSelect.value = currentType;
       }
       this.refreshSetupStatus();
     });
 
-    // Bind detector selection change
-    if (this.detectorSelect) {
-      this.listen(this.detectorSelect, "change", (e) =>
-        this._onDetectorChange(e),
-      );
-    }
-
-    if (this.microphoneControl?.level) {
-      this.listen(this.microphoneControl.level, "pointerup", () => {
+    const microphoneLevel = this.microphoneControl?.refs?.level;
+    if (microphoneLevel) {
+      this.listen(microphoneLevel, "pointerup", () => {
         this.refreshSetupStatus();
       });
     }
@@ -104,8 +110,6 @@ export default class OnboardingPane extends BaseComponent {
     this.listen(this, "calibration-start-request", () =>
       this.refreshSetupStatus(),
     );
-
-    this.listen(this.completeBtn, "click", () => this._onComplete());
 
     this.refreshSetupStatus();
   }

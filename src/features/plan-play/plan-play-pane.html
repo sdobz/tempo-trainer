@@ -7,7 +7,8 @@
         <input
           type="number"
           id="play-bpm"
-          data-bpm-input
+          data-ref="bpmInput"
+          data-on-input="handleBpmInput"
           value="120"
           min="40"
           max="300"
@@ -15,7 +16,7 @@
       </div>
       <div class="control-group-inline">
         <label for="play-time-signature">Time Signature:</label>
-        <select id="play-time-signature" data-time-signature-select>
+        <select id="play-time-signature" data-ref="timeSignatureSelect" data-on-change="handleTimeSignatureChange">
           <option value="4/4" selected>4/4</option>
           <option value="3/4">3/4</option>
           <option value="2/4">2/4</option>
@@ -25,16 +26,19 @@
     </div>
   </div>
 
-  <app-notification data-calibration-warning></app-notification>
+  <app-notification
+    data-ref="calibrationWarning"
+    data-on-notification-action="handleCalibrationWarningAction"
+  ></app-notification>
 
   <div class="beat-display">
-    <div class="beat-indicator" data-beat-indicator></div>
-    <div class="status" data-status>Ready.</div>
+    <div class="beat-indicator" data-ref="beatIndicator"></div>
+    <div class="status" data-ref="statusDiv">Ready.</div>
   </div>
 
   <div class="play-controls">
-    <button class="primary-btn" data-start-btn>Start</button>
-    <button class="secondary-btn" data-stop-btn disabled>Stop</button>
+    <button class="primary-btn" data-ref="startBtn" data-on-click="handleStartClick">Start</button>
+    <button class="secondary-btn" data-ref="stopBtn" data-on-click="handleStopClick" disabled>Stop</button>
   </div>
 
   <timeline-visualization
@@ -43,9 +47,9 @@
 
   <plan-visualizer id="plan-visualizer-play-component"></plan-visualizer>
 
-  <div class="overall-score" data-overall-score>Overall Score: 00</div>
+  <div class="overall-score" data-ref="overallScoreDisplay">Overall Score: 00</div>
 
   <div class="pane-actions">
-    <button class="secondary-btn" data-view-results-btn>View Results</button>
+    <button class="secondary-btn" data-ref="viewResultsBtn" data-on-click="handleViewResultsClick">View Results</button>
   </div>
 </div>

@@ -16,13 +16,13 @@ Deno.test(
   "PlanPlayPane: should initialize with default DOM state",
   async () => {
     const component = await createComponent();
-    assertEquals((component.statusDiv as HTMLElement).textContent, "");
+    assertEquals((component.refs.statusDiv as HTMLElement).textContent, "");
     assertEquals(
-      (component.overallScoreDisplay as HTMLElement).textContent,
+      (component.refs.overallScoreDisplay as HTMLElement).textContent,
       "Overall Score: 00",
     );
-    assertEquals((component.startBtn as HTMLButtonElement).disabled, false);
-    assertEquals((component.stopBtn as HTMLButtonElement).disabled, true);
+    assertEquals((component.refs.startBtn as HTMLButtonElement).disabled, false);
+    assertEquals((component.refs.stopBtn as HTMLButtonElement).disabled, true);
   },
 );
 
@@ -56,7 +56,7 @@ Deno.test(
     const component = await createComponent();
     component.playbackState.update({ status: "Running..." });
     assertEquals(
-      (component.statusDiv as HTMLElement).textContent,
+      (component.refs.statusDiv as HTMLElement).textContent,
       "Running...",
     );
   },
@@ -69,7 +69,7 @@ Deno.test(
     component.playbackState.update({
       beat: { beatNum: 2, isDownbeat: false, shouldShow: true },
     });
-    const indicator = component.beatIndicator as HTMLElement;
+    const indicator = component.refs.beatIndicator as HTMLElement;
     assertEquals(indicator.textContent, "2");
     assertEquals(indicator.classList.contains("active"), true);
   },
@@ -81,7 +81,7 @@ Deno.test(
     const component = await createComponent();
     component.playbackState.update({ overallScore: 75 });
     assertEquals(
-      (component.overallScoreDisplay as HTMLElement).textContent,
+      (component.refs.overallScoreDisplay as HTMLElement).textContent,
       "Overall Score: 75",
     );
   },
@@ -90,7 +90,7 @@ Deno.test(
 Deno.test("PlanPlayPane: setBPM should update the BPM input", async () => {
   const component = await createComponent();
   component.setBPM(140);
-  assertEquals((component.bpmInput as HTMLInputElement).value, "140");
+  assertEquals((component.refs.bpmInput as HTMLInputElement).value, "140");
   assertEquals(component.getBPM(), 140);
 });
 
@@ -100,7 +100,7 @@ Deno.test(
     const component = await createComponent();
     component.setTimeSignature("3/4");
     assertEquals(
-      (component.timeSignatureSelect as HTMLSelectElement).value,
+      (component.refs.timeSignatureSelect as HTMLSelectElement).value,
       "3/4",
     );
     assertEquals(component.getBeatsPerMeasure(), 3);
@@ -111,7 +111,7 @@ Deno.test(
   "PlanPlayPane: setStartDisabled should enable and disable the start button",
   async () => {
     const component = await createComponent();
-    const startButton = component.startBtn as HTMLButtonElement;
+    const startButton = component.refs.startBtn as HTMLButtonElement;
     component.setStartDisabled(true);
     assertEquals(startButton.disabled, true);
     component.setStartDisabled(false);
@@ -123,7 +123,7 @@ Deno.test(
   "PlanPlayPane: setStopDisabled should enable and disable the stop button",
   async () => {
     const component = await createComponent();
-    const stopButton = component.stopBtn as HTMLButtonElement;
+    const stopButton = component.refs.stopBtn as HTMLButtonElement;
     component.setStopDisabled(true);
     assertEquals(stopButton.disabled, true);
     component.setStopDisabled(false);
@@ -133,8 +133,8 @@ Deno.test(
 
 Deno.test("PlanPlayPane: setPlaying should update button states", async () => {
   const component = await createComponent();
-  const startButton = component.startBtn as HTMLButtonElement;
-  const stopButton = component.stopBtn as HTMLButtonElement;
+  const startButton = component.refs.startBtn as HTMLButtonElement;
+  const stopButton = component.refs.stopBtn as HTMLButtonElement;
 
   component.setPlaying(true);
   assertEquals(startButton.disabled, true);
@@ -158,14 +158,14 @@ Deno.test(
 
     component.reset();
 
-    assertEquals((component.beatIndicator as HTMLElement).textContent, "");
-    assertEquals((component.statusDiv as HTMLElement).textContent, "Ready.");
+    assertEquals((component.refs.beatIndicator as HTMLElement).textContent, "");
+    assertEquals((component.refs.statusDiv as HTMLElement).textContent, "Ready.");
     assertEquals(
-      (component.overallScoreDisplay as HTMLElement).textContent,
+      (component.refs.overallScoreDisplay as HTMLElement).textContent,
       "Overall Score: 00",
     );
-    assertEquals((component.startBtn as HTMLButtonElement).disabled, false);
-    assertEquals((component.stopBtn as HTMLButtonElement).disabled, true);
+    assertEquals((component.refs.startBtn as HTMLButtonElement).disabled, false);
+    assertEquals((component.refs.stopBtn as HTMLButtonElement).disabled, true);
   },
 );
 
@@ -183,7 +183,7 @@ Deno.test(
 
     component.setBPM(120);
     component.setTimeSignature("4/4");
-    (component.startBtn as HTMLButtonElement).click();
+    (component.refs.startBtn as HTMLButtonElement).click();
 
     assertEquals(eventFired, true);
     assertEquals(eventData.bpm, 120);
@@ -202,7 +202,7 @@ Deno.test(
     });
 
     component.setStopDisabled(false);
-    (component.stopBtn as HTMLButtonElement).click();
+    (component.refs.stopBtn as HTMLButtonElement).click();
     assertEquals(eventFired, true);
   },
 );
@@ -219,7 +219,7 @@ Deno.test(
       eventData = event.detail;
     }) as EventListener);
 
-    (component.viewResultsBtn as HTMLButtonElement).click();
+    (component.refs.viewResultsBtn as HTMLButtonElement).click();
 
     assertEquals(eventFired, true);
     assertEquals(eventData.pane, "plan-history");

@@ -15,6 +15,10 @@ class TestComponent extends BaseComponent {
   override getStyleUrl() {
     return "/src/features/base/app-notification.css";
   }
+
+  handleAction(_event: Event, _element: HTMLElement) {
+    // No-op for template compatibility in tests.
+  }
 }
 
 if (!customElements.get("test-component-base")) {

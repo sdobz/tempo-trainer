@@ -127,7 +127,10 @@ Deno.test(
   "MicrophoneControl: should initialize with default state",
   async () => {
     const component = await createComponent();
-    assertEquals(component.refs.statusIndicator?.textContent, "⚠️ Not configured");
+    assertEquals(
+      component.refs.statusIndicator?.textContent,
+      "⚠️ Not configured",
+    );
   },
 );
 
@@ -158,10 +161,16 @@ Deno.test("MicrophoneControl: updateStatus should update UI", async () => {
 
   component.updateStatus(true);
   assertEquals(component.refs.statusIndicator?.textContent, "✓ Configured");
-  assertEquals(component.refs.statusIndicator?.classList.contains("complete"), true);
+  assertEquals(
+    component.refs.statusIndicator?.classList.contains("complete"),
+    true,
+  );
 
   component.updateStatus(false);
-  assertEquals(component.refs.statusIndicator?.textContent, "⚠️ Not configured");
+  assertEquals(
+    component.refs.statusIndicator?.textContent,
+    "⚠️ Not configured",
+  );
   assertEquals(
     component.refs.statusIndicator?.classList.contains("complete"),
     false,
@@ -194,10 +203,14 @@ Deno.test(
   "MicrophoneControl: delegate should handle threshold/sensitivity updates",
   async () => {
     const component = await createComponent();
-    if (!component.refs.sensitivityLine || !component.refs.sensitivityLabel) return;
+    if (!component.refs.sensitivityLine || !component.refs.sensitivityLabel)
+      return;
 
     mockManager.delegate.onThresholdChanged(0.64);
-    assertEquals((component.refs.sensitivityLine as HTMLElement).style.left, "36%");
+    assertEquals(
+      (component.refs.sensitivityLine as HTMLElement).style.left,
+      "36%",
+    );
     assertEquals(
       (component.refs.sensitivityLabel as HTMLElement).textContent,
       "Sensitivity: 64%",
