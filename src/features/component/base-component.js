@@ -31,6 +31,8 @@ export default class BaseComponent extends HTMLElement {
    */
   constructor() {
     super();
+    /** @type {Object.<string, HTMLElement>} Stable element references from data-ref */
+    this.refs = {};
     /** @type {boolean} */
     this._mounted = false;
     /** @type {boolean} Whether the component's pane is currently visible */
@@ -279,6 +281,70 @@ export default class BaseComponent extends HTMLElement {
   }
 
   /**
+   * Scan component subtree for data-ref and data-on-* attributes.
+   * Populates this.refs and binds event handlers to component methods.
+   * Called automatically after template is appended in _initialize().
+   * @private
+   * @returns {void}
+   */
+  _bindRefsAndHandlers() {
+    const seenRefs = new Set();
+
+    // Collect all elements with data-ref
+    const refElements = this.querySelectorAll("[data-ref]");
+    for (const el of refElements) {
+      const refName = el.getAttribute("data-ref");
+      if (!refName) continue;
+
+      if (seenRefs.has(refName)) {
+        throw new Error(
+          `Duplicate data-ref="${refName}" in ${this.constructor.name}`,
+        );
+      }
+      seenRefs.add(refName);
+
+      this.refs[refName] = el;
+    }
+
+    // Collect all elements with data-on-* and bind handlers
+    const handlerElements = this.querySelectorAll(
+      "[data-on-click], [data-on-change], [data-on-input], [data-on-blur], [data-on-focus]",
+    );
+    for (const el of handlerElements) {
+      // Check all supported data-on-* attributes
+      const supportedEvents = [
+        "click",
+        "change",
+        "input",
+        "blur",
+        "focus",
+        "pointerdown",
+        "pointermove",
+        "pointerup",
+      ];
+
+      for (const eventName of supportedEvents) {
+        const dataAttr = `data-on-${eventName}`;
+        const methodName = el.getAttribute(dataAttr);
+
+        if (!methodName) continue;
+
+        // Validate method exists on component instance
+        if (typeof this[methodName] !== "function") {
+          throw new Error(
+            `Handler method "${methodName}" not found on ${this.constructor.name} for ${dataAttr}`,
+          );
+        }
+
+        // Bind handler with this.listen() for automatic cleanup
+        this.listen(el, eventName, (event) => {
+          this[methodName](event, el);
+        });
+      }
+    }
+  }
+
+  /**
    * Initialize component: load template + styles, mount to DOM.
    * @private
    * @returns {Promise<void>}
@@ -311,6 +377,9 @@ export default class BaseComponent extends HTMLElement {
       // Append template content and styles to light DOM
       this.appendChild(content);
       this.prepend(style);
+
+      // Bind data-ref and data-on-* declarations
+      this._bindRefsAndHandlers();
 
       // Call onMount hook
       this._mounted = true;

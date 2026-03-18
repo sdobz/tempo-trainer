@@ -1,0 +1,5 @@
+/* Test styles for ref binding tests */
+.test-refs-container {
+  display: flex;
+  gap: 1em;
+}

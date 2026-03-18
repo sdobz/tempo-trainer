@@ -1,5 +1,4 @@
 import BaseComponent from "../component/base-component.js";
-import { querySelector } from "../component/component-utils.js";
 import { AudioContextServiceContext } from "./audio-context-manager.js";
 
 export default class AudioContextOverlay extends BaseComponent {
@@ -22,33 +21,36 @@ export default class AudioContextOverlay extends BaseComponent {
     return new URL("./audio-context-overlay.css", import.meta.url).href;
   }
 
-  onMount() {
-    const activateButton = querySelector(this, "[data-audio-overlay-activate]");
-    const errorEl = querySelector(this, "[data-audio-overlay-error]");
+  /**
+   * Handler for activate button click
+   * @param {Event} event
+   * @param {HTMLElement} element
+   */
+  handleActivateClick(event, element) {
+    void this._ensureAudioContext();
+  }
 
+  onMount() {
     this.createEffect(() => {
       const { state, error } = this._getView();
       const isReady = state?.kind === "ready" || state?.kind === "input-ready";
       this.dataset.ready = isReady ? "true" : "false";
 
       if (error) {
-        errorEl.textContent = error;
+        this.refs.errorEl.textContent = error;
         return;
       }
 
       if (state?.kind === "fault") {
-        errorEl.textContent = "Microphone access is required to continue.";
+        this.refs.errorEl.textContent =
+          "Microphone access is required to continue.";
         return;
       }
       if (state?.kind === "unavailable") {
-        errorEl.textContent = state.message;
+        this.refs.errorEl.textContent = state.message;
         return;
       }
-      errorEl.textContent = "";
-    });
-
-    this.listen(activateButton, "click", () => {
-      void this._ensureAudioContext();
+      this.refs.errorEl.textContent = "";
     });
 
     this.consumeContext(AudioContextServiceContext, (service) => {

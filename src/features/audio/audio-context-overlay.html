@@ -13,11 +13,12 @@
       <button
         class="audio-context-overlay__button"
         type="button"
-        data-audio-overlay-activate
+        data-ref="activateButton"
+        data-on-click="handleActivateClick"
       >
         Enable microphone
       </button>
-      <p class="audio-context-overlay__error" data-audio-overlay-error></p>
+      <p class="audio-context-overlay__error" data-ref="errorEl"></p>
     </div>
   </div>
 </template>

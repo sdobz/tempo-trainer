@@ -209,3 +209,163 @@ Deno.test(
     assertEquals(cleanupCount, 2);
   },
 );
+
+// ---------------------------------------------------------------------------
+// Template Refs (data-ref) and Handlers (data-on-*)
+// ---------------------------------------------------------------------------
+
+class TestComponentWithRefs extends BaseComponent {
+  override getTemplateUrl() {
+    return "/src/features/component/test-refs.html";
+  }
+  override getStyleUrl() {
+    return "/src/features/component/test-refs.css";
+  }
+
+  handleButtonClick(_event: Event, _element: HTMLElement) {
+    // Test handler
+  }
+
+  handleSelectChange(_event: Event, _element: HTMLElement) {
+    // Test handler
+  }
+}
+
+if (!customElements.get("test-component-refs")) {
+  customElements.define("test-component-refs", TestComponentWithRefs);
+}
+
+async function createComponentWithRefs(): Promise<
+  InstanceType<typeof TestComponentWithRefs>
+> {
+  const el = document.createElement("test-component-refs") as InstanceType<
+    typeof TestComponentWithRefs
+  >;
+  document.body.appendChild(el);
+  await el.componentReady;
+  return el;
+}
+
+Deno.test(
+  "BaseComponent: data-ref elements are collected in this.refs",
+  async () => {
+    const el = await createComponentWithRefs();
+
+    assertEquals(el.refs.testButton instanceof HTMLButtonElement, true);
+    assertEquals(el.refs.testSelect instanceof HTMLSelectElement, true);
+    assertEquals(
+      (el.refs.testButton as HTMLButtonElement).textContent?.includes(
+        "Test Button",
+      ),
+      true,
+    );
+  },
+);
+
+Deno.test("BaseComponent: data-on-click handler binds and fires", async () => {
+  const el = await createComponentWithRefs();
+  let called = false;
+  let eventType: string | undefined;
+
+  el.handleButtonClick = (event: Event) => {
+    called = true;
+    eventType = event.type;
+  };
+
+  const btn = el.refs.testButton as HTMLButtonElement;
+  btn.click();
+
+  assertEquals(called, true);
+  assertEquals(eventType, "click");
+});
+
+Deno.test("BaseComponent: data-on-change handler binds and fires", async () => {
+  const el = await createComponentWithRefs();
+  let called = false;
+  let eventType: string | undefined;
+
+  el.handleSelectChange = (event: Event) => {
+    called = true;
+    eventType = event.type;
+  };
+
+  const select = el.refs.testSelect as HTMLSelectElement;
+  select.dispatchEvent(new Event("change"));
+
+  assertEquals(called, true);
+  assertEquals(eventType, "change");
+});
+
+Deno.test(
+  "BaseComponent: data-on-* handlers are cleaned up on unmount",
+  async () => {
+    const el = await createComponentWithRefs();
+    let callCount = 0;
+
+    el.handleButtonClick = () => {
+      callCount++;
+    };
+
+    const btn = el.refs.testButton as HTMLButtonElement;
+    btn.click();
+    assertEquals(callCount, 1);
+
+    document.body.removeChild(el);
+    btn.click();
+    assertEquals(callCount, 1); // No additional call after unmount
+  },
+);
+
+Deno.test("BaseComponent: duplicate data-ref names throw error", async () => {
+  class BadRefComponent extends BaseComponent {
+    override getTemplateUrl() {
+      return "/src/features/component/test-bad-refs.html";
+    }
+    override getStyleUrl() {
+      return "/src/features/component/test-refs.css";
+    }
+  }
+
+  if (!customElements.get("test-bad-refs")) {
+    customElements.define("test-bad-refs", BadRefComponent);
+  }
+
+  try {
+    // This HTML has duplicate refs, should throw
+    const el = document.createElement("test-bad-refs") as any;
+    document.body.appendChild(el);
+    await el.componentReady;
+    throw new Error("Should have thrown on duplicate ref");
+  } catch (e) {
+    const msg = (e as Error).message;
+    assertEquals(msg.includes("Duplicate data-ref"), true);
+  }
+});
+
+Deno.test("BaseComponent: missing handler method throws error", async () => {
+  class MissingHandlerComponent extends BaseComponent {
+    override getTemplateUrl() {
+      return "/src/features/component/test-missing-handler.html";
+    }
+    override getStyleUrl() {
+      return "/src/features/component/test-refs.css";
+    }
+  }
+
+  if (!customElements.get("test-missing-handler")) {
+    customElements.define("test-missing-handler", MissingHandlerComponent);
+  }
+
+  try {
+    const el = document.createElement("test-missing-handler") as any;
+    document.body.appendChild(el);
+    await el.componentReady;
+    throw new Error("Should have thrown on missing handler");
+  } catch (e) {
+    const msg = (e as Error).message;
+    assertEquals(
+      msg.includes("Handler method") && msg.includes("not found"),
+      true,
+    );
+  }
+});

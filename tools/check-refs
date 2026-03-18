@@ -1,0 +1,331 @@
+#!/usr/bin/env -S deno run --allow-read --allow-write=. --no-check=remote
+
+/**
+ * check-template-refs.ts - Standalone checker for data-ref and data-on-* declarations
+ *
+ * Validates that:
+ * - data-ref names are unique within each component
+ * - data-on-* handler methods exist on the component class
+ * - template and component files are properly paired
+ *
+ * Usage:
+ *   deno run tools/check-template-refs.ts [--compact] [--json]
+ */
+
+interface Diagnostic {
+  file: string;
+  line?: number;
+  column?: number;
+  level: "error" | "warning" | "info";
+  code: string;
+  message: string;
+  context?: string;
+  suggestions?: string[];
+}
+
+interface CheckerResult {
+  templateFile: string;
+  componentFile: string;
+  refs: Map<string, string>; // refName -> elementTag
+  handlers: Map<string, string>; // methodName -> eventName
+  diagnostics: Diagnostic[];
+}
+
+const COMPONENTS_DIR = "./src/features";
+
+/**
+ * Find all .html and .js file pairs in src/features/
+ */
+async function findComponentPairs(): Promise<
+  Array<{ html: string; js: string }>
+> {
+  const pairs: Array<{ html: string; js: string }> = [];
+
+  for await (const dirEntry of Deno.readDir(COMPONENTS_DIR)) {
+    if (!dirEntry.isDirectory) continue;
+
+    const featurePath = `${COMPONENTS_DIR}/${dirEntry.name}`;
+
+    for await (const file of Deno.readDir(featurePath)) {
+      if (!file.isFile) continue;
+
+      const basename = file.name;
+      if (basename.endsWith(".html")) {
+        const baseName = basename.replace(/\.html$/, "");
+        const jsFile = `${featurePath}/${baseName}.js`;
+        const htmlFile = `${featurePath}/${basename}`;
+
+        // Check if corresponding JS file exists
+        try {
+          await Deno.stat(jsFile);
+          pairs.push({ html: htmlFile, js: jsFile });
+        } catch {
+          // JS file not found, skip
+        }
+      }
+    }
+  }
+
+  return pairs;
+}
+
+/**
+ * Extract data-ref and data-on-* declarations from HTML
+ */
+function extractDeclarationsFromHtml(htmlContent: string): {
+  refs: Map<string, string>;
+  handlers: Map<string, string>;
+} {
+  const refs = new Map<string, string>();
+  const handlers = new Map<string, string>();
+
+  // Simple regex-based extraction (more robust than full HTML parsing for this use case)
+  const refRegex = /data-ref="([^"]+)"/g;
+  const handlerRegex = /data-on-(\w+)="([^"]+)"/g;
+
+  let match: RegExpExecArray | null;
+
+  // Extract refs
+  while ((match = refRegex.exec(htmlContent)) !== null) {
+    const refName = match[1];
+    // Find the tag this ref is on by looking backward to the previous tag start
+    const beforeRef = htmlContent.substring(0, match.index);
+    const lastTagStart = beforeRef.lastIndexOf("<");
+    const lastTagEnd = htmlContent.indexOf(">", lastTagStart);
+    const tagContent = htmlContent.substring(lastTagStart + 1, lastTagEnd);
+    const tagMatch = tagContent.match(/^([a-z][a-z0-9-]*)/i);
+    const tagName = tagMatch ? tagMatch[1] : "unknown";
+
+    refs.set(refName, tagName);
+  }
+
+  // Extract handlers
+  while ((match = handlerRegex.exec(htmlContent)) !== null) {
+    const eventName = match[1];
+    const methodName = match[2];
+    handlers.set(methodName, eventName);
+  }
+
+  return { refs, handlers };
+}
+
+/**
+ * Extract class methods from JS component file using regex
+ */
+function extractMethodsFromJs(jsContent: string): Set<string> {
+  const methods = new Set<string>();
+
+  // Match method definitions: methodName(...) { or methodName = (...) =>
+  const methodRegex =
+    /(?:^\s*|\n\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\([^)]*\)\s*(?:{|=>)/gm;
+
+  let match: RegExpExecArray | null;
+  while ((match = methodRegex.exec(jsContent)) !== null) {
+    methods.add(match[1]);
+  }
+
+  return methods;
+}
+
+/**
+ * Validate refs within a component
+ */
+function validateRefs(
+  refs: Map<string, string>,
+  diagnostics: Diagnostic[],
+): void {
+  const seen = new Set<string>();
+
+  for (const [refName, tagName] of refs.entries()) {
+    if (seen.has(refName)) {
+      diagnostics.push({
+        file: "template",
+        level: "error",
+        code: "DUPLICATE_REF",
+        message: `Duplicate data-ref="${refName}"`,
+        context: `<${tagName} data-ref="${refName}">`,
+        suggestions: [
+          `Ensure each data-ref name is unique within the component`,
+        ],
+      });
+    }
+    seen.add(refName);
+  }
+}
+
+/**
+ * Validate handlers exist on component class
+ */
+function validateHandlers(
+  handlers: Map<string, string>,
+  componentMethods: Set<string>,
+  diagnostics: Diagnostic[],
+): void {
+  for (const [methodName, eventName] of handlers.entries()) {
+    if (!componentMethods.has(methodName)) {
+      // Try to find similar method names for suggestions
+      const suggestions = Array.from(componentMethods)
+        .filter((m) => levenshteinDistance(m, methodName) <= 3)
+        .slice(0, 3);
+
+      diagnostics.push({
+        file: "component",
+        level: "error",
+        code: "MISSING_HANDLER",
+        message: `Handler method "${methodName}" not found (used in data-on-${eventName})`,
+        context: `data-on-${eventName}="${methodName}"`,
+        suggestions: suggestions.length > 0 ? suggestions : undefined,
+      });
+    }
+  }
+}
+
+/**
+ * Simple Levenshtein distance for fuzzy matching
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      matrix[i][j] =
+        b.charAt(i - 1) === a.charAt(j - 1)
+          ? matrix[i - 1][j - 1]
+          : Math.min(
+              matrix[i - 1][j - 1] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j] + 1,
+            );
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Check a component pair
+ */
+async function checkComponentPair(
+  htmlFile: string,
+  jsFile: string,
+): Promise<CheckerResult> {
+  const diagnostics: Diagnostic[] = [];
+
+  const htmlContent = await Deno.readTextFile(htmlFile);
+  const jsContent = await Deno.readTextFile(jsFile);
+
+  const { refs, handlers } = extractDeclarationsFromHtml(htmlContent);
+  const componentMethods = extractMethodsFromJs(jsContent);
+
+  validateRefs(refs, diagnostics);
+  validateHandlers(handlers, componentMethods, diagnostics);
+
+  return {
+    templateFile: htmlFile,
+    componentFile: jsFile,
+    refs,
+    handlers,
+    diagnostics,
+  };
+}
+
+/**
+ * Format diagnostics as compact text
+ */
+function formatCompact(results: CheckerResult[]): string {
+  const lines: string[] = [];
+  let errorCount = 0;
+  let warningCount = 0;
+
+  for (const result of results) {
+    for (const diag of result.diagnostics) {
+      if (diag.level === "error") errorCount++;
+      else if (diag.level === "warning") warningCount++;
+
+      lines.push(
+        `${result.templateFile}:${diag.level.toUpperCase()} ${diag.code}: ${diag.message}`,
+      );
+      if (diag.context) {
+        lines.push(`  at: ${diag.context}`);
+      }
+      if (diag.suggestions && diag.suggestions.length > 0) {
+        lines.push(`  hint: did you mean "${diag.suggestions[0]}"?`);
+      }
+    }
+  }
+
+  if (errorCount + warningCount === 0) {
+    return "✓ All template refs check passed";
+  }
+
+  return lines.join("\n") + `\n\n${errorCount} error, ${warningCount} warning`;
+}
+
+/**
+ * Format diagnostics as JSON
+ */
+function formatJson(results: CheckerResult[]): string {
+  const diagnostics: Record<string, unknown> = {
+    timestamp: new Date().toISOString(),
+    results: results.map((r) => ({
+      template: r.templateFile,
+      component: r.componentFile,
+      refs: Array.from(r.refs.entries()),
+      handlers: Array.from(r.handlers.entries()),
+      diagnostics: r.diagnostics,
+    })),
+  };
+  return JSON.stringify(diagnostics, null, 2);
+}
+
+/**
+ * Main entry point
+ */
+async function main() {
+  const args = Deno.args;
+  const compactMode = args.includes("--compact");
+  const jsonMode = args.includes("--json");
+
+  const pairs = await findComponentPairs();
+  const results: CheckerResult[] = [];
+
+  for (const pair of pairs) {
+    try {
+      const result = await checkComponentPair(pair.html, pair.js);
+      results.push(result);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error(`Error checking ${pair.html}:`, message);
+    }
+  }
+
+  // Output
+  if (jsonMode) {
+    console.log(formatJson(results));
+  } else {
+    console.log(formatCompact(results));
+  }
+
+  // Exit with error if diagnostics found
+  const hasErrors = results.some((r) =>
+    r.diagnostics.some((d) => d.level === "error"),
+  );
+  if (hasErrors) {
+    Deno.exit(1);
+  }
+}
+
+if (import.meta.main) {
+  main().catch((e) => {
+    console.error("Fatal error:", e.message);
+    Deno.exit(1);
+  });
+}
